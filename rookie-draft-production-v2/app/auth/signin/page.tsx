@@ -1,0 +1,1 @@
+import {signIn} from "@/auth";export default function Page(){return <div className="card" style={{maxWidth:480,margin:'80px auto'}}><h1>Rookie Draft</h1><p className="muted">Sign in with the authorized Google account.</p><form action={async()=>{"use server";await signIn("google",{redirectTo:"/"})}}><button>Sign in with Google</button></form></div>}
