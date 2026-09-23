@@ -1,5 +1,6 @@
 "use client";
 import {FormEvent,useEffect,useMemo,useState} from "react";
+import {schoolStyle} from "@/lib/school-colors";
 type Pos="QB"|"RB"|"WR"|"TE"; type Player={id:string|number,name:string,position:Pos,college?:string,draft_class:number,scouting_status:string,watch_order?:number};
 const KEY="rookie-draft.players.v1",POSITIONS:Pos[]=["QB","RB","WR","TE"];
 function localRows():Player[]{try{return JSON.parse(localStorage.getItem(KEY)||"[]")}catch{return []}}
@@ -16,7 +17,7 @@ export default function Page(){
  {error&&<div className="notice"><b>Data status:</b> {error} <button className="small ghost" onClick={load}>Retry</button></div>}
  <div className="card"><form className="add-grid" onSubmit={add}><input value={name} onChange={e=>setName(e.target.value)} placeholder="Player name"/><select value={position} onChange={e=>setPosition(e.target.value as Pos)}>{POSITIONS.map(x=><option key={x}>{x}</option>)}</select><input value={college} onChange={e=>setCollege(e.target.value)} placeholder="College"/><button disabled={busy}>{busy?"Adding…":"Add Player"}</button></form></div>
  <div className="toolbar"><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search player or college…"/><span className="muted">{active.length} active 2027 prospects</span></div>
- <div className="columns">{groups.map(group=>{const list=active.filter(x=>group==="Maybe"?x.scouting_status==="MAYBE":x.position===group&&x.scouting_status!=="MAYBE").sort((a,b)=>(a.watch_order||0)-(b.watch_order||0));return <div className="col" key={group}><h3>{group}<span>{list.length}</span></h3><div className="list">{list.map(p=><div className="pros" key={p.id}><div className="name">{p.name}</div><div className="school">{p.college||"College not set"}{p.scouting_status==="WATCHED"?" · Watched":""}</div><div className="pros-actions">
+ <div className="columns">{groups.map(group=>{const list=active.filter(x=>group==="Maybe"?x.scouting_status==="MAYBE":x.position===group&&x.scouting_status!=="MAYBE").sort((a,b)=>(a.watch_order||0)-(b.watch_order||0));return <div className="col" key={group}><h3>{group}<span>{list.length}</span></h3><div className="list">{list.map(p=><div className="pros" key={p.id}><div className="name"><span className="player-badge" style={schoolStyle(p.college)}>{p.name}</span></div><div className="school">{p.college||"College not set"}{p.scouting_status==="WATCHED"?" · Watched":""}</div><div className="pros-actions">
  {group!=="Maybe"&&p.scouting_status!=="WATCHED"&&<button className="small success" onClick={()=>change(p,{scouting_status:"WATCHED"})}>New Player Watched</button>}
  {group!=="Maybe"&&<button className="small ghost" onClick={()=>change(p,{scouting_status:"MAYBE"})}>Maybe</button>}
  {group==="Maybe"&&POSITIONS.map(pos=><button key={pos} className="small ghost" onClick={()=>change(p,{scouting_status:"TO_SCOUT",position:pos})}>→ {pos}</button>)}
