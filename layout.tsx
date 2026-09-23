@@ -1,0 +1,3 @@
+import "./globals.css"; import Link from "next/link";
+const nav=[["/","Home"],["/players-to-scout","Players to Scout"],["/scouting","Scouting"],["/final-draft-board","Final Draft Board"],["/data-center","Data Center"],["/historical","Historical Rankings"]];
+export default function Layout({children}:{children:React.ReactNode}){return <html><body><div className="shell"><aside className="side"><div className="brand">Rookie Draft <span className="cyan">Production</span></div><nav className="nav">{nav.map(([h,l])=><Link key={h} href={h}>{l}</Link>)}</nav></aside><main className="main">{children}</main></div></body></html>}

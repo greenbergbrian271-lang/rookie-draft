@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS players (id bigserial primary key, name text not null, position text not null check(position in ('QB','RB','WR','TE')), college text, draft_class int not null, scouting_status text not null default 'TO_SCOUT', created_at timestamptz default now(), updated_at timestamptz default now(), unique(name,draft_class));
+CREATE TABLE IF NOT EXISTS evaluations (id bigserial primary key, player_id bigint references players(id) on delete cascade, category text not null, value numeric, commentary text, updated_at timestamptz default now(), unique(player_id,category));
+CREATE TABLE IF NOT EXISTS scouting_sessions (id bigserial primary key, player_id bigint references players(id) on delete cascade, game_date date, opponent text, raw_notes text, overall_writeup text, grade_snapshot jsonb, created_at timestamptz default now());
+CREATE TABLE IF NOT EXISTS historical_rankings (draft_class int not null, overall_rank int not null, position_rank text, grade numeric, player text not null, college text, primary key(draft_class,overall_rank));
+CREATE TABLE IF NOT EXISTS planned_games (id bigserial primary key, espn_event_id text unique not null, kickoff timestamptz not null, home_team text, away_team text, status text default 'PLANNED');
+CREATE TABLE IF NOT EXISTS settings (key text primary key, value jsonb not null, updated_at timestamptz default now());
+CREATE TABLE IF NOT EXISTS pff_imports (id bigserial primary key, imported_at timestamptz default now(), thresholds jsonb not null, result jsonb not null);
