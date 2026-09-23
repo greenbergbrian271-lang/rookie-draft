@@ -21,3 +21,5 @@ Legacy Rookie Draft workbooks are read-only migration/reference sources. This ap
 
 ## PFF parity
 The Data Center preserves the processor's position thresholds, PFF field mappings, percentage formatting, team normalization and derived-stat calculations. The original processor should remain available during parity testing until representative CSV fixtures have been compared field-by-field.
+
+
