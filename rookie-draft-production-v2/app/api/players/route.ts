@@ -1,4 +1,4 @@
-import { db, ensureSchema } from "@/lib/db";
+import { db, ensureSchema } from "@/lib/db";\nimport { seedV10Watchlist } from "@/lib/seed-v10";
 
 export async function GET() {
   try {
