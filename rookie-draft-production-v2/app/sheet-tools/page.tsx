@@ -1,0 +1,3 @@
+"use client";import {useSearchParams} from "next/navigation";
+const labels:Record<string,string>={"fix-formatting":"Fix All Formatting","transfer-portal":"Transfer Portal Check"};
+export default function Page(){const t=useSearchParams().get("tool")||"fix-formatting";return <><div className="ey">Sheet Tools</div><h1>{labels[t]||"Sheet Tools"}</h1><div className="card"><p>The command is routed into the web app. Spreadsheet-only formatting mechanics are translated to app-native presentation while preserving player/school state.</p>{t==="fix-formatting"?<a className="button" href="/players-to-scout">Review school-formatted players</a>:<a className="button" href="/players-to-scout">Review player colleges</a>}</div></>}
