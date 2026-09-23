@@ -1,0 +1,14 @@
+"use client";
+import {useState} from "react";
+type Item={label:string,href?:string};
+const groups:{label:string,items:Item[]}[]=[
+ {label:"GM Tools",items:[
+  {label:"Import Roster",href:"/gm-tools?tool=import-roster"},{label:"Check for Handcuffs",href:"/gm-tools?tool=handcuffs"},{label:"Returning Player",href:"/players-to-scout?tool=returning-player"},{label:"Draft Declarations",href:"/gm-tools?tool=declarations"},{label:"Combine Status",href:"/gm-tools?tool=combine-status"},{label:"Undrafted Players",href:"/gm-tools?tool=undrafted"},{label:"Refresh NFL Draft Picks",href:"/gm-tools?tool=nfl-draft"},{label:"Compare Players",href:"/gm-tools?tool=compare"},{label:"Mock Draft Simulator",href:"/gm-tools?tool=mock-draft"}]},
+ {label:"Scouting Tools",items:[
+  {label:"Add Player",href:"/players-to-scout?tool=add-player"},{label:"New Player Watched",href:"/players-to-scout?tool=new-player-watched"},{label:"Reorder Players",href:"/players-to-scout?tool=reorder"},{label:"All-Star Game",href:"/scouting?tool=all-star"},{label:"Maybe Scout Player",href:"/players-to-scout?tool=maybe"},{label:"Finished Scouting Player",href:"/players-to-scout?tool=finished"}]},
+ {label:"Sheet Tools",items:[
+  {label:"Fix All Formatting",href:"/sheet-tools?tool=fix-formatting"},{label:"Sort Scouting Sheets (Z-A)",href:"/scouting?tool=sort"},{label:"Transfer Portal Check",href:"/sheet-tools?tool=transfer-portal"},{label:"Refresh NCAA Stats",href:"/data-center?tool=ncaa-stats"},{label:"Upload CSV Data",href:"/data-center?tool=csv"},{label:"Add Team + Production Stats",href:"/data-center?tool=production"}]},
+ {label:"Draft Day Tools",items:[
+  {label:"Refresh All Drafts",href:"/draft-day?tool=refresh-all"},{label:"Refresh Single Draft",href:"/draft-day?tool=refresh-one"},{label:"Pull Sleeper ADP (Top 75)",href:"/draft-day?tool=adp"},{label:"Force Update ADP",href:"/draft-day?tool=force-adp"},{label:"Setup Auto-Refresh",href:"/draft-day?tool=setup-auto"},{label:"Stop Auto-Refresh",href:"/draft-day?tool=stop-auto"},{label:"View Draft Status",href:"/draft-day?tool=status"}]}
+];
+export default function ToolMenus(){const [open,setOpen]=useState<string|null>(null);return <div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>{groups.map(g=><div className="tool-menu" key={g.label}><button className={open===g.label?"tool-menu-button open":"tool-menu-button"} onClick={()=>setOpen(open===g.label?null:g.label)} onMouseEnter={()=>open&&setOpen(g.label)}>{g.label}<span>▾</span></button>{open===g.label&&<div className="tool-dropdown">{g.items.map(i=><a key={i.label} href={i.href}>{i.label}</a>)}</div>}</div>)}</div>}
