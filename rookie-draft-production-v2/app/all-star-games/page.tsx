@@ -1,0 +1,1 @@
+import {workbookReference as w} from "@/lib/workbook-reference";import ReferenceTable from "../reference-table";export default function Page(){return <><h1>College All-Star Games</h1><p className="muted">Imported from the 2027 workbook.</p><ReferenceTable rows={w.allStar}/></>}
