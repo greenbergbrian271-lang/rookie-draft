@@ -1,0 +1,1 @@
+import {workbookReference as w} from "@/lib/workbook-reference";import ReferenceTable from "../reference-table";export default function Page(){return <><h1>Scouting Glossary</h1><p className="muted">Imported directly from the 2027 Rookie Draft Scouting Glossary.</p><ReferenceTable rows={w.glossary}/></>}
