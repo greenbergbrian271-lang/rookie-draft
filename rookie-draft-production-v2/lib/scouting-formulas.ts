@@ -17,6 +17,14 @@ export function scoutingAdjustments(position:Pos,fields:Record<string,any>){
  if(position!=="QB"&&(fields["Special Teams?"]==="Yes"||fields["Special Teams"]==="Yes"))n+=glossaryNumber(239);
  return n;
 }
+export function preDraftGrade(position:Pos,scouting:number,production:number|null,analytical:number|null,earlyDeclare=false){
+ if(position==="QB"){const a=analytical??scouting;return scouting*glossaryNumber(80)+a*glossaryNumber(81)+Math.max(0,a-scouting)*glossaryNumber(76)}
+ const p=production??scouting,a=analytical??scouting;
+ const weightRows=position==="TE"?[88,89,90]:[83,84,85];
+ const bonus=Math.min(glossaryNumber(77),Math.max(0,a-scouting)*glossaryNumber(76));
+ return scouting*glossaryNumber(weightRows[0])+p*glossaryNumber(weightRows[1])+a*glossaryNumber(weightRows[2])+bonus+(earlyDeclare?glossaryNumber(251):0)
+}
+export function draftAdjustedFinalGrade(position:Pos,preDraft:number,teamScore:number,draftCapitalScore:number){const r=position==="QB"?[23,24]:position==="RB"?[26,27]:position==="WR"?[29,30]:[32,33];return preDraft+((teamScore-5)*2*glossaryNumber(r[0]))+((draftCapitalScore-5)*2*glossaryNumber(r[1]))}
 export function workbookScoutingGrade(position:Pos,grades:number[],fields:Record<string,any>){
  const watched=Number(fields["Games watched"]||0);if(watched<1)return null;
  const base=scoutingWeightedGrade(position,grades);return base==null?null:base+scoutingAdjustments(position,fields);
