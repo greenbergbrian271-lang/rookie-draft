@@ -16,6 +16,7 @@ export function scoutingAdjustments(position:Pos,fields:Record<string,any>){
  if(fields["Combine Invite?"]==="Yes")n+=glossaryNumber(249);
  if(fields["Combine Invite?"]==="No")n-=glossaryNumber(250);
  if(position!=="QB"&&(fields["Special Teams?"]==="Yes"||fields["Special Teams"]==="Yes"))n+=glossaryNumber(239);
+ if(position==="RB"){const forty=Number(fields["40 Yard Dash"]);if(Number.isFinite(forty)&&forty>0&&forty<glossaryColumnA(151))n+=glossaryNumber(151);}
  return n;
 }
 export function productionWeights(position:Pos){if(position==="RB")return {yardsPerCarry:glossaryNumber(144),yardsPerReception:glossaryNumber(145),yardsPerTouch:glossaryNumber(146),yptp:glossaryNumber(147),recShare:glossaryNumber(148),domRtg:glossaryNumber(149),speedScore:glossaryNumber(150)};if(position==="WR")return {yardsPerReception:glossaryNumber(182),yardsPerTarget:glossaryNumber(183),targetShare:glossaryNumber(184),catchPct:glossaryNumber(185),yptpa:glossaryNumber(186),weightedDomRtg:glossaryNumber(187),domRtg:glossaryNumber(188),speedScore:glossaryNumber(189)};if(position==="TE")return {yardsPerReception:glossaryNumber(222),yardsPerTarget:glossaryNumber(223),targetShare:glossaryNumber(224),catchPct:glossaryNumber(225),yptpa:glossaryNumber(226),weightedDomRtg:glossaryNumber(227),domRtg:glossaryNumber(228),speedScore:glossaryNumber(229)};return {}}
