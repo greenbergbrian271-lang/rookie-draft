@@ -28,8 +28,8 @@ export function preDraftGrade(position:Pos,scouting:number,production:number|nul
  return scouting*glossaryNumber(weightRows[0])+p*glossaryNumber(weightRows[1])+a*glossaryNumber(weightRows[2])+bonus+(earlyDeclare?glossaryNumber(251):0)
 }
 export function draftAdjustedFinalGrade(position:Pos,preDraft:number,teamScore:number,draftCapitalScore:number){const r=position==="QB"?[23,24]:position==="RB"?[26,27]:position==="WR"?[29,30]:[32,33];return preDraft+((teamScore-5)*2*glossaryNumber(r[0]))+((draftCapitalScore-5)*2*glossaryNumber(r[1]))}
-export function workbookScoutingGrade(position:Pos,grades:number[],fields:Record<string,any>){
+function threshold(value:number,steps:[number,number][],fallback=0){let out=fallback;for(const [min,adj] of steps)if(value>=min)out=adj;return out}\nexport function qbCareerAdjustment(fields:Record<string,any>){if(Boolean((w.glossary as any[])[122]?.[1]))return 0;const starts=Number(fields["Career Starts"]||0),attempts=Number(fields["Career Attempts"]||0),ypg=Number(fields["Career Max YPG"]||0);return threshold(starts,[[0,glossaryNumber(112)],[25,glossaryNumber(113)],[31,glossaryNumber(114)]])+threshold(attempts,[[0,glossaryNumber(116)],[850,glossaryNumber(117)],[1000,glossaryNumber(118)]])+threshold(ypg,[[0,glossaryNumber(120)],[250,glossaryNumber(121)],[275,glossaryNumber(122)]])}\nexport function workbookScoutingGrade(position:Pos,grades:number[],fields:Record<string,any>){
  const watched=Number(fields["Games watched"]||0);if(watched<1)return null;
- const base=scoutingWeightedGrade(position,grades);return base==null?null:base+scoutingAdjustments(position,fields);
+ const base=scoutingWeightedGrade(position,grades);return base==null?null:base+scoutingAdjustments(position,fields)+(position==="QB"?qbCareerAdjustment(fields):0);
 }
 export const scoutingWeightRows=rows;
