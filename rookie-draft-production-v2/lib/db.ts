@@ -25,6 +25,7 @@ export function ensureSchema() {
     await q`CREATE TABLE IF NOT EXISTS planned_games (id bigserial primary key, espn_event_id text unique not null, kickoff timestamptz not null, home_team text, away_team text, status text default 'PLANNED')`;
     await q`CREATE TABLE IF NOT EXISTS settings (key text primary key, value jsonb not null, updated_at timestamptz default now())`;
     await q`CREATE TABLE IF NOT EXISTS pff_imports (id bigserial primary key, imported_at timestamptz default now(), thresholds jsonb not null, result jsonb not null)`;
+    await q`CREATE TABLE IF NOT EXISTS nfl_draft_picks (year int not null, selection text not null, round int, overall_pick int, position text, player text not null, college text, team text, imported_at timestamptz default now(), primary key(year,selection))`;
     await q`CREATE TABLE IF NOT EXISTS workflow_tags (player_id bigint references players(id) on delete cascade, tag text not null, detail text, created_at timestamptz default now(), updated_at timestamptz default now(), primary key(player_id,tag))`;
     await q`CREATE TABLE IF NOT EXISTS college_stats (team text primary key, subdivision text not null check(subdivision in ('FBS','FCS')), rank int, players_to_scout int, players text, games numeric, completions numeric, pass_attempts numeric, pass_yards numeric, pass_tds numeric, rush_yards numeric, rush_tds numeric, total_plays numeric, yac numeric, air_yards numeric, updated_at timestamptz default now())`;
   })().catch((error) => {
