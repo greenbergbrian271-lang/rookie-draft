@@ -39,6 +39,6 @@ export function qbCareerAdjustment(starts:any,attempts:any,ypg:any){
 }
 export function workbookScoutingGrade(position:Pos,grades:number[],fields:Record<string,any>){
  const watched=Number(fields["Games watched"]||0);if(watched<1)return null;
- const base=scoutingWeightedGrade(position,grades);return base==null?null:base+scoutingAdjustments(position,fields)+(position==="QB"?qbCareerAdjustment(fields):0);
+ const base=scoutingWeightedGrade(position,grades);return base==null?null:base+scoutingAdjustments(position,fields)+(position==="QB"?qbCareerAdjustment(fields["Career Starts"],fields["Career Attempts"],fields["Career Max YPG"]):0);
 }
 export const scoutingWeightRows=rows;
