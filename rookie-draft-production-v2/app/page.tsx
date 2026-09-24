@@ -1,4 +1,8 @@
-"use client";import {useEffect,useMemo,useState} from "react";import {schoolStyle} from "@/lib/school-colors";
+"use client";
+import {useEffect,useMemo,useState} from "react";
+import {schoolStyle} from "@/lib/school-colors";
+import styles from "./home.module.css";
+
 const ALIAS:Record<string,string>={
  "miami fl":"miami florida","miami hurricanes":"miami florida","mia":"miami florida",
  "miami oh":"miami ohio","miami redhawks":"miami ohio",
@@ -9,8 +13,16 @@ const ALIAS:Record<string,string>={
  "sam houston":"sam houston state","sam houston bearkats":"sam houston state",
  "ul monroe":"louisiana monroe","ulm":"louisiana monroe","louisiana monroe warhawks":"louisiana monroe",
  "louisiana ragin cajuns":"louisiana","cal":"california","california golden bears":"california",
- "byu cougars":"byu","smu mustangs":"smu","utep miners":"utep","utsa roadrunners":"utsa","fiu panthers":"fiu","uab blazers":"uab"
+ "byu cougars":"byu","smu mustangs":"smu","utep miners":"utep","utsa roadrunners":"utsa","fiu panthers":"fiu","uab blazers":"uab",
+ "ucf knights":"ucf","south florida bulls":"south florida","usf":"south florida","texas a and m":"texas aandm","texas a m":"texas aandm","texas aggies":"texas aandm",
+ "app state":"appalachian state","appalachian state mountaineers":"appalachian state","western kentucky hilltoppers":"western kentucky","wku":"western kentucky"
 };
 const norm=(s:string)=>{const x=String(s||"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");return ALIAS[x]||x};
 function teamKeys(c:any){return new Set([c.team?.location,c.team?.displayName,c.team?.shortDisplayName,c.team?.name,c.team?.abbreviation].filter(Boolean).map((x:string)=>norm(x)))}
-export default function Home(){const [events,setEvents]=useState<any[]>([]),[players,setPlayers]=useState<any[]>([]);useEffect(()=>{Promise.all([fetch("/api/college-football").then(r=>r.json()),fetch("/api/players",{cache:"no-store"}).then(r=>r.json())]).then(([g,p])=>{setEvents(g.events||[]);setPlayers(Array.isArray(p)?p:[])})},[]);const games=useMemo(()=>events.map(e=>{const competitors=e.competitions?.[0]?.competitors||[];const keys=competitors.map((c:any)=>teamKeys(c));const prospects=players.filter(p=>{if(p.draft_class!==2027||!p.college)return false;const school=norm(p.college);return keys.some((k:Set<string>)=>k.has(school))});return {...e,prospects}}).filter(e=>e.prospects.length),[events,players]);return <><h1>Rookie Draft Scouting System</h1><p className="muted">Upcoming college football games containing players in your 2027 scouting pool. Schedule cards require an exact canonical school identity match; substring and fuzzy matching are not used.</p><div className="grid">{games.map(g=><div className="card" key={g.id}><div className="ey">{new Date(g.date).toLocaleString([], {weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div><h2>{g.shortName||g.name}</h2><div className="row-actions">{g.prospects.map((p:any)=><span key={p.id} className="player-badge" style={schoolStyle(p.college)}>{p.position} · {p.name}</span>)}</div></div>)}</div>{!games.length&&<div className="card muted">No upcoming games currently match the 2027 scouting pool.</div>}</>}
+function label(c:any){return c.team?.shortDisplayName||c.team?.location||c.team?.displayName||"Team"}
+export default function Home(){
+ const [events,setEvents]=useState<any[]>([]),[players,setPlayers]=useState<any[]>([]);
+ useEffect(()=>{Promise.all([fetch("/api/college-football").then(r=>r.json()),fetch("/api/players",{cache:"no-store"}).then(r=>r.json())]).then(([g,p])=>{setEvents(g.events||[]);setPlayers(Array.isArray(p)?p:[])})},[]);
+ const games=useMemo(()=>events.map(e=>{const competitors=e.competitions?.[0]?.competitors||[];const sides=competitors.map((c:any)=>{const keys=teamKeys(c);const prospects=players.filter(p=>p.draft_class===2027&&p.college&&keys.has(norm(p.college))).sort((a:any,b:any)=>String(a.position).localeCompare(String(b.position))||String(a.name).localeCompare(String(b.name)));return {id:c.id||label(c),name:label(c),homeAway:c.homeAway,score:c.score,prospects}});return {...e,sides,prospects:sides.flatMap((s:any)=>s.prospects)}}).filter(e=>e.prospects.length),[events,players]);
+ return <><div className="page-head"><div><div className="ey">2027 scouting schedule</div><h1>Rookie Draft Scouting System</h1><p className="muted">Upcoming games are joined to prospects by exact canonical school identity. There is no substring or fuzzy matching.</p></div></div><div className={styles.schedule}>{games.map(g=><article className={styles.game} key={g.id}><header><div className="ey">{new Date(g.date).toLocaleString([], {weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div><h2>{g.shortName||g.name}</h2></header><div className={styles.matchup}>{g.sides.map((s:any)=><section className={styles.team} key={s.id}><div className={styles.teamHead}><strong>{s.name}</strong><span>{s.prospects.length} prospect{s.prospects.length===1?"":"s"}</span></div>{s.prospects.length?<div className={styles.prospects}>{s.prospects.map((p:any)=><span key={p.id} className="player-badge" style={schoolStyle(p.college)}>{p.position} · {p.name}</span>)}</div>:<div className={styles.none}>No 2027 prospects</div>}</section>)}</div></article>)}</div>{!games.length&&<div className="card muted">No upcoming games currently match the 2027 scouting pool.</div>}</>
+}
