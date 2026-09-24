@@ -1,0 +1,4 @@
+import type {TeamStats} from "./production-metrics";
+export type CollegeRow={team:string;subdivision:"FBS"|"FCS";rank?:number|null;playersToScout?:number|null;players?:string;games?:number|null;completions?:number|null;passAttempts?:number|null;passYards?:number|null;passTDs?:number|null;rushYards?:number|null;rushTDs?:number|null;totalPlays?:number|null;yac?:number|null;airYards?:number|null};
+export function asTeamStats(r?:CollegeRow|null):TeamStats{return r?{rushYards:r.rushYards,rushTDs:r.rushTDs,passYards:r.passYards,passTDs:r.passTDs,completions:r.completions,passAttempts:r.passAttempts,plays:r.totalPlays,airYards:r.airYards}:{}}
+export function findTeamStats(rows:CollegeRow[],college?:string){if(!college)return null;const q=college.trim().toLowerCase();return rows.find(r=>r.team.trim().toLowerCase()===q)||null}
