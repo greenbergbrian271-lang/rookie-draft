@@ -1,7 +1,7 @@
 import {glossaryNumber,productionAnalyticalDisabled} from "./scouting-formulas";
 const avg=(...v:Array<number|null|undefined>)=>{const a=v.filter((x):x is number=>typeof x==="number"&&Number.isFinite(x));return a.length?a.reduce((s,x)=>s+x,0)/a.length:null};
 const term=(v:number|null,w:number)=>v==null?null:v*100*w;
-const sum=(parts:Array<number|null>,fallback:number)=>parts.some(v=>v==null)?fallback:parts.reduce((s,v)=>s+(v||0),0);
+const sum=(parts:Array<number|null>,fallback:number)=>parts.some(v=>v==null)?fallback:parts.reduce<number>((s,v)=>s+(v||0),0);
 export function qbAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>){
  if(productionAnalyticalDisabled())return scouting;
  const g=sum([
