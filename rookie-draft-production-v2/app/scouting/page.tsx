@@ -10,13 +10,13 @@ const POSITIONS:Pos[]=["QB","RB","WR","TE"];
 const film:Record<Pos,string[]>={QB:["Arm Strength","Arm Velocity","Accuracy","Decision Making","Poise + OOS","Mechanics","Mobility","Leadership","Size"],RB:["Ball Carrier Vision","Carrying","Elusiveness","Big Play Speed","Patience","Contact Balance","Effort","Receiving Skills","Pass Blocking"],WR:["Catching","Route Running","Elusiveness","Game Speed","Competitiveness","Size","Blocking"],TE:["Catching","Route Running","Blocking","Athleticism","Competitiveness","Size","Versatility"]};
 const info:Record<Pos,string[]>={
  QB:["Games watched","Expected Role","Draft Projection","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?"],
- RB:["Games watched","Expected Role","Draft Projection","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?"],
- WR:["Games watched","Expected Role","Draft Projection","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?"],
- TE:["Games watched","Expected Role","Draft Projection","Special Teams","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?"]
+ RB:["Early Declare","Games watched","Expected Role","Draft Projection","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?"],
+ WR:["Early Declare","Games watched","Expected Role","Draft Projection","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?"],
+ TE:["Early Declare","Games watched","Expected Role","Draft Projection","Special Teams","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?"]
 };
 const options:Record<string,string[]>={
  "Injury Concerns":["No","Short Term","Long Term"],"Off-Field?":["No","Character","Arrest"],"All Star Game?":["None","Senior Bowl","Shrine Bowl","Hula Bowl","American Bowl"],
- "Combine Invite?":["None","Yes","No"],"Special Teams?":["No","Yes"],"Special Teams":["No","Yes"]
+ "Combine Invite?":["None","Yes","No"],"Early Declare":["No","Yes"],"Special Teams?":["No","Yes"],"Special Teams":["No","Yes"]
 };
 export default function Page(){
  const [pos,setPos]=useState<Pos>("QB"),[rows,setRows]=useState<Player[]>([]),[vals,setVals]=useState<Record<string,any>>({}),[data,setData]=useState<Record<string,any[]>>({}),[colleges,setColleges]=useState<any[]>([]);
