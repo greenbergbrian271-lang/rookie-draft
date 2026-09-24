@@ -1,0 +1,2 @@
+import {productionMetrics,TeamStats} from "@/lib/production-metrics";
+export async function POST(req:Request){try{const {position,row,team}=await req.json();if(!["QB","RB","WR","TE"].includes(position))return Response.json({error:"Invalid position"},{status:400});return Response.json(productionMetrics(position,row||{},(team||{}) as TeamStats))}catch(e:any){return Response.json({error:e.message},{status:400})}}
