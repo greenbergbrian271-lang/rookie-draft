@@ -22,7 +22,7 @@ export function scoutingAdjustments(position:Pos,fields:Record<string,any>){
 export function productionWeights(position:Pos){if(position==="RB")return {yardsPerCarry:glossaryNumber(144),yardsPerReception:glossaryNumber(145),yardsPerTouch:glossaryNumber(146),yptp:glossaryNumber(147),recShare:glossaryNumber(148),domRtg:glossaryNumber(149),speedScore:glossaryNumber(150)};if(position==="WR")return {yardsPerReception:glossaryNumber(182),yardsPerTarget:glossaryNumber(183),targetShare:glossaryNumber(184),catchPct:glossaryNumber(185),yptpa:glossaryNumber(186),weightedDomRtg:glossaryNumber(187),domRtg:glossaryNumber(188),speedScore:glossaryNumber(189)};if(position==="TE")return {yardsPerReception:glossaryNumber(222),yardsPerTarget:glossaryNumber(223),targetShare:glossaryNumber(224),catchPct:glossaryNumber(225),yptpa:glossaryNumber(226),weightedDomRtg:glossaryNumber(227),domRtg:glossaryNumber(228),speedScore:glossaryNumber(229)};return {}}
 export function productionAnalyticalDisabled(){return glossaryBool(86)}
 export function preDraftGrade(position:Pos,scouting:number,production:number|null,analytical:number|null,earlyDeclare:boolean|string=false){
- const early=position==="TE"?earlyDeclare==="yes":earlyDeclare===true||earlyDeclare==="Yes";
+ const early=position==="TE"?String(earlyDeclare)==="yes":earlyDeclare===true||String(earlyDeclare)==="Yes";
  if(productionAnalyticalDisabled())return scouting+(position==="QB"?0:(early?glossaryNumber(251):0));
  if(position==="QB"){const a=analytical??scouting;return scouting*glossaryNumber(80)+a*glossaryNumber(81)+Math.max(0,a-scouting)*glossaryNumber(76)}
  const p=production??scouting,a=analytical??scouting;
