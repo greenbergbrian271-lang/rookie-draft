@@ -18,6 +18,9 @@ export function ensureSchema() {
     const q = db();
     await q`CREATE TABLE IF NOT EXISTS players (id bigserial primary key, name text not null, position text not null check(position in ('QB','RB','WR','TE')), college text, draft_class int not null, scouting_status text not null default 'TO_SCOUT', created_at timestamptz default now(), updated_at timestamptz default now(), unique(name,draft_class))`;
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS watch_order bigint`;
+    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_number text`;
+    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_source text`;
+    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_updated_at timestamptz`;
     await q`UPDATE players SET watch_order=id WHERE watch_order IS NULL`;
     await q`CREATE TABLE IF NOT EXISTS evaluations (id bigserial primary key, player_id bigint references players(id) on delete cascade, category text not null, value numeric, commentary text, updated_at timestamptz default now(), unique(player_id,category))`;
     await q`CREATE TABLE IF NOT EXISTS scouting_sessions (id bigserial primary key, player_id bigint references players(id) on delete cascade, game_date date, opponent text, raw_notes text, overall_writeup text, grade_snapshot jsonb, created_at timestamptz default now())`;
