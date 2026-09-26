@@ -13,9 +13,9 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "lucide-react": "^0.468.0",
-    "@libsql/client": "^0.15.15",
-    "@upstash/redis": "^1.35.3",
-    "@upstash/blob": "^0.1.2"
+    "@libsql/client": "^0.18.0",
+    "@upstash/redis": "^1.38.4",
+    "@upstash/blob": "^0.0.6"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
