@@ -1,4 +1,5 @@
 import {createClient} from "@libsql/client";
+import {rebuild2027} from "@/lib/rebuild-2027";
 let client:ReturnType<typeof createClient>|null=null,schemaReady:Promise<ReturnType<typeof createClient>>|null=null;
 export function turso(){if(!process.env.TURSO_DATABASE_URL||!process.env.TURSO_AUTH_TOKEN)throw new Error("Turso is not configured");return client||=(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}))}
 export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaReady=(async()=>{const c=turso();await c.execute("pragma foreign_keys=on");for(const sql of [
@@ -13,5 +14,18 @@ export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaRead
 `create table if not exists nfl_draft_picks(year integer not null,selection text not null,round integer,overall_pick integer,position text,player text not null,college text,team text,imported_at text default current_timestamp,primary key(year,selection))`,
 `create table if not exists pff_imports(id integer primary key autoincrement,imported_at text default current_timestamp,thresholds text not null,result text not null)`,
 `create table if not exists college_stats(team text primary key,subdivision text not null default 'FBS',rank real,players_to_scout real,players text,games real,completions real,pass_attempts real,pass_yards real,pass_tds real,rush_yards real,rush_tds real,total_plays real,yac real,air_yards real,updated_at text default current_timestamp)`
-])await c.execute(sql);return c})().catch(e=>{schemaReady=null;throw e});return schemaReady}
+])await c.execute(sql);
+const marker=await c.execute({sql:"select value from settings where key=?",args:["baseline_2027_seeded"]});
+if(!marker.rows.length){
+  const countResult=await c.execute("select count(*) as count from players where draft_class=2027"),count=Number(countResult.rows[0]?.count||0);
+  if(count===0){
+    const now=new Date().toISOString(),statements=rebuild2027.map(p=>({sql:"insert into players(name,position,college,draft_class,scouting_status,watch_order,updated_at) values(?,?,?,?,?,?,?)",args:[p.name,p.position,p.college,p.draftClass,"TO_SCOUT",p.watchOrder,now]}));
+    for(let i=0;i<statements.length;i+=50)await c.batch(statements.slice(i,i+50),"write");
+  }else if(count!==rebuild2027.length)throw new Error(`2027 player baseline is incomplete: expected ${rebuild2027.length}, found ${count}`);
+  const verified=await c.execute("select count(*) as count from players where draft_class=2027");
+  if(Number(verified.rows[0]?.count||0)!==rebuild2027.length)throw new Error("2027 player baseline verification failed");
+  const now=new Date().toISOString();
+  await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["baseline_2027_seeded",JSON.stringify({source:"Players to Scout",count:rebuild2027.length,seededAt:now}),now]});
+}
+return c})().catch(e=>{schemaReady=null;throw e});return schemaReady}
 export const rows=(r:any)=>r.rows.map((x:any)=>Object.fromEntries(Object.entries(x)));
