@@ -12,5 +12,10 @@
       "path": "/api/cron/college-football-season",
       "schedule": "0 10 20 8 *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "ci-build-check": false
+    }
+  }
 }
