@@ -14,4 +14,14 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Audit legacy database syntax
+        run: |
+          if grep -R "@/lib/db" app lib --include='*.ts' --include='*.tsx' | grep -v '^lib/db.ts:'; then
+            echo "Found active Neon imports"
+            exit 1
+          fi
+          if grep -R "::jsonb\|nulls last" app lib --include='*.ts' --include='*.tsx' | grep -v '^lib/db.ts:'; then
+            echo "Found PostgreSQL-only SQL syntax"
+            exit 1
+          fi
       - run: npm run build
