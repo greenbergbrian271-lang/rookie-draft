@@ -1,7 +1,7 @@
 import {createClient} from "@libsql/client";
 let client:ReturnType<typeof createClient>|null=null,schemaReady:Promise<ReturnType<typeof createClient>>|null=null;
 export function turso(){if(!process.env.TURSO_DATABASE_URL||!process.env.TURSO_AUTH_TOKEN)throw new Error("Turso is not configured");return client||=(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}))}
-export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaReady=(async()=>{const c=turso();for(const sql of [
+export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaReady=(async()=>{const c=turso();await c.execute("pragma foreign_keys=on");for(const sql of [
 `create table if not exists players(id integer primary key autoincrement,name text not null,position text not null check(position in ('QB','RB','WR','TE')),college text,draft_class integer not null,scouting_status text not null default 'TO_SCOUT',watch_order integer,jersey_number text,jersey_source text,jersey_updated_at text,espn_athlete_id text,headshot_url text,headshot_source text,created_at text default current_timestamp,updated_at text default current_timestamp,unique(name,draft_class))`,
 `create table if not exists evaluations(id integer primary key autoincrement,player_id integer not null references players(id) on delete cascade,category text not null,value real,commentary text,updated_at text default current_timestamp,unique(player_id,category))`,
 `create table if not exists scouting_sessions(id integer primary key autoincrement,player_id integer not null references players(id) on delete cascade,game_date text,opponent text,raw_notes text,overall_writeup text,grade_snapshot text,created_at text default current_timestamp)`,
