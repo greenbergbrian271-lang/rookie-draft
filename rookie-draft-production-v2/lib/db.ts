@@ -27,7 +27,8 @@ export function ensureSchema() {
     await q`CREATE TABLE IF NOT EXISTS historical_rankings (draft_class int not null, overall_rank int not null, position_rank text, grade numeric, player text not null, college text, primary key(draft_class,overall_rank))`;
     await q`CREATE TABLE IF NOT EXISTS planned_games (id bigserial primary key, espn_event_id text unique not null, kickoff timestamptz not null, home_team text, away_team text, status text default 'PLANNED')`;
     await q`CREATE TABLE IF NOT EXISTS game_notes (id bigserial primary key, espn_event_id text unique not null, kickoff timestamptz not null, home_team text, away_team text, title text not null, notes text not null, created_at timestamptz default now(), updated_at timestamptz default now())`;
-    await q`ALTER TABLE game_notes ADD COLUMN IF NOT EXISTS need_to_grade boolean NOT NULL DEFAULT false`;\n    await q`CREATE TABLE IF NOT EXISTS settings (key text primary key, value jsonb not null, updated_at timestamptz default now())`;
+    await q`ALTER TABLE game_notes ADD COLUMN IF NOT EXISTS need_to_grade boolean NOT NULL DEFAULT false`;
+    await q`CREATE TABLE IF NOT EXISTS settings (key text primary key, value jsonb not null, updated_at timestamptz default now())`;
     await q`CREATE TABLE IF NOT EXISTS pff_imports (id bigserial primary key, imported_at timestamptz default now(), thresholds jsonb not null, result jsonb not null)`;
     await q`CREATE TABLE IF NOT EXISTS nfl_draft_picks (year int not null, selection text not null, round int, overall_pick int, position text, player text not null, college text, team text, imported_at timestamptz default now(), primary key(year,selection))`;
     await q`CREATE TABLE IF NOT EXISTS workflow_tags (player_id bigint references players(id) on delete cascade, tag text not null, detail text, created_at timestamptz default now(), updated_at timestamptz default now(), primary key(player_id,tag))`;
