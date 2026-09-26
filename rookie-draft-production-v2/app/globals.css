@@ -15,3 +15,6 @@
 
 /* Maybe is a full-width queue beneath the four position columns. */
 .maybe-section{margin-top:18px}.maybe-section-head{display:flex;align-items:center;justify-content:space-between;background:#172b49;border:1px solid #29476e;border-radius:8px;padding:10px 13px;margin-bottom:10px}.maybe-section-head h3{margin:0}.maybe-section-head span{font-weight:900}.maybe-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}@media(max-width:1100px){.maybe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.maybe-grid{grid-template-columns:1fr}}
+
+/* Players to Scout four-column layout + left-aligned workbook badges */
+.scout-queue-columns{grid-template-columns:repeat(4,minmax(0,1fr))!important;width:100%;gap:14px!important}.scout-queue-columns .scout-col>h3{position:relative!important;justify-content:flex-start!important;text-align:left!important;color:#fff!important;padding-left:13px!important}.scout-queue-columns .scout-col>h3 span{position:static!important;margin-left:auto!important;color:#fff!important}.player-college-logo{object-fit:contain!important;padding:7px;background:rgba(255,255,255,.9)!important}@media(max-width:1050px){.scout-queue-columns{grid-template-columns:repeat(4,minmax(230px,1fr))!important}}
