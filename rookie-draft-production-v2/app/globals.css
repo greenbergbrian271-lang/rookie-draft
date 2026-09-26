@@ -12,3 +12,6 @@
 
 /* Workbook-matched Players to Scout position headers */
 .scout-queue-columns .scout-col>h3{color:#000!important;border-radius:0!important;justify-content:center!important;text-align:center!important;font-weight:950!important}.scout-queue-columns .scout-col>h3 span{position:absolute;right:10px;color:#000!important}.scout-queue-columns .scout-col-qb>h3{background:#fc2b6d!important}.scout-queue-columns .scout-col-rb>h3{background:#20ceb7!important}.scout-queue-columns .scout-col-wr>h3{background:#58a7ff!important}.scout-queue-columns .scout-col-te>h3{background:#fead58!important}.scout-queue-columns .scout-col-maybe>h3{background:#172b49!important;color:#eef5ff!important}.scout-queue-columns .scout-col-maybe>h3 span{color:#eef5ff!important}
+
+/* Maybe is a full-width queue beneath the four position columns. */
+.maybe-section{margin-top:18px}.maybe-section-head{display:flex;align-items:center;justify-content:space-between;background:#172b49;border:1px solid #29476e;border-radius:8px;padding:10px 13px;margin-bottom:10px}.maybe-section-head h3{margin:0}.maybe-section-head span{font-weight:900}.maybe-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}@media(max-width:1100px){.maybe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.maybe-grid{grid-template-columns:1fr}}
