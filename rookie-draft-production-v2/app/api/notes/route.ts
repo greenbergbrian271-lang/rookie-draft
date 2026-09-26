@@ -1,37 +1,5 @@
-import { db, ensureSchema } from "@/lib/db";
-
-export async function GET(req: Request) {
-  try {
-    await ensureSchema();
-    const url = new URL(req.url);
-    const playerId = url.searchParams.get("playerId");
-    if (!playerId) return Response.json({ error: "playerId is required" }, { status: 400 });
-    const rows = await db()`select * from scouting_sessions where player_id=${playerId} order by created_at asc, id asc`;
-    return Response.json(rows);
-  } catch (e: any) {
-    return Response.json({ error: "Could not load cloud notes", detail: e?.message }, { status: 503 });
-  }
-}
-
-export async function POST(req: Request) {
-  try {
-    await ensureSchema();
-    const x = await req.json();
-    const [row] = await db()`insert into scouting_sessions(player_id,game_date,opponent,raw_notes,overall_writeup,grade_snapshot) values(${x.playerId},${x.gameDate || null},${x.opponent || null},${x.rawNotes || null},${x.overallWriteup || null},${JSON.stringify(x.gradeSnapshot || {})}::jsonb) returning *`;
-    return Response.json(row);
-  } catch (e: any) {
-    return Response.json({ error: "Could not save cloud note", detail: e?.message }, { status: 503 });
-  }
-}
-
-export async function DELETE(req: Request) {
-  try {
-    await ensureSchema();
-    const x = await req.json();
-    const [row] = await db()`delete from scouting_sessions where id=${x.id} returning id`;
-    if (!row) return Response.json({ error: "Note not found" }, { status: 404 });
-    return Response.json(row);
-  } catch (e: any) {
-    return Response.json({ error: "Could not delete cloud note", detail: e?.message }, { status: 503 });
-  }
-}
+import {ensureTursoSchema,rows} from "@/lib/turso";
+const decode=(x:any)=>{if(x.grade_snapshot&&typeof x.grade_snapshot==="string")try{x.grade_snapshot=JSON.parse(x.grade_snapshot)}catch{};return x};
+export async function GET(req:Request){try{const id=new URL(req.url).searchParams.get("playerId");if(!id)return Response.json({error:"playerId is required"},{status:400});const c=await ensureTursoSchema();return Response.json(rows(await c.execute({sql:"select * from scouting_sessions where player_id=? order by created_at,id",args:[id]})).map(decode))}catch(e:any){return Response.json({error:"Could not load notes",detail:e?.message},{status:503})}}
+export async function POST(req:Request){try{const x=await req.json(),c=await ensureTursoSchema();const r=await c.execute({sql:"insert into scouting_sessions(player_id,game_date,opponent,raw_notes,overall_writeup,grade_snapshot) values(?,?,?,?,?,?)",args:[x.playerId,x.gameDate||null,x.opponent||null,x.rawNotes||null,x.overallWriteup||null,JSON.stringify(x.gradeSnapshot||{})]});return Response.json(decode(rows(await c.execute({sql:"select * from scouting_sessions where id=?",args:[Number(r.lastInsertRowid)]}))[0]))}catch(e:any){return Response.json({error:"Could not save note",detail:e?.message},{status:503})}}
+export async function DELETE(req:Request){try{const x=await req.json(),c=await ensureTursoSchema();const cur=rows(await c.execute({sql:"select id from scouting_sessions where id=?",args:[x.id]}))[0];if(!cur)return Response.json({error:"Note not found"},{status:404});await c.execute({sql:"delete from scouting_sessions where id=?",args:[x.id]});return Response.json({id:x.id})}catch(e:any){return Response.json({error:"Could not delete note",detail:e?.message},{status:503})}}
