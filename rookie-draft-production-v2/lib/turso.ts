@@ -11,6 +11,7 @@ export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaRead
 `create table if not exists workflow_tags(player_id integer not null references players(id) on delete cascade,tag text not null,detail text,created_at text default current_timestamp,updated_at text default current_timestamp,primary key(player_id,tag))`,
 `create table if not exists settings(key text primary key,value text not null,updated_at text default current_timestamp)`,
 `create table if not exists nfl_draft_picks(year integer not null,selection text not null,round integer,overall_pick integer,position text,player text not null,college text,team text,imported_at text default current_timestamp,primary key(year,selection))`,
-`create table if not exists pff_imports(id integer primary key autoincrement,imported_at text default current_timestamp,thresholds text not null,result text not null)`
+`create table if not exists pff_imports(id integer primary key autoincrement,imported_at text default current_timestamp,thresholds text not null,result text not null)`,
+`create table if not exists college_stats(team text primary key,subdivision text not null default 'FBS',rank real,players_to_scout real,players text,games real,completions real,pass_attempts real,pass_yards real,pass_tds real,rush_yards real,rush_tds real,total_plays real,yac real,air_yards real,updated_at text default current_timestamp)`
 ])await c.execute(sql);return c})().catch(e=>{schemaReady=null;throw e});return schemaReady}
 export const rows=(r:any)=>r.rows.map((x:any)=>Object.fromEntries(Object.entries(x)));
