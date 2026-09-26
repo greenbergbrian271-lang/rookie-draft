@@ -20,7 +20,7 @@ export function ensureSchema() {
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS watch_order bigint`;
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_number text`;
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_source text`;
-    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_updated_at timestamptz`;
+    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_updated_at timestamptz`;\n    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS espn_athlete_id text`;\n    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS headshot_url text`;\n    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS headshot_source text`;
     await q`UPDATE players SET watch_order=id WHERE watch_order IS NULL`;
     await q`CREATE TABLE IF NOT EXISTS evaluations (id bigserial primary key, player_id bigint references players(id) on delete cascade, category text not null, value numeric, commentary text, updated_at timestamptz default now(), unique(player_id,category))`;
     await q`CREATE TABLE IF NOT EXISTS scouting_sessions (id bigserial primary key, player_id bigint references players(id) on delete cascade, game_date date, opponent text, raw_notes text, overall_writeup text, grade_snapshot jsonb, created_at timestamptz default now())`;
