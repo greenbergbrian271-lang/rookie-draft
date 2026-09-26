@@ -1,0 +1,1 @@
+{"crons":[{"path":"/api/cron/college-football-weekly","schedule":"0 13 * * 3"}]}
