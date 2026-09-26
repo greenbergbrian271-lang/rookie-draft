@@ -1,11 +1,16 @@
 import {createClient} from "@libsql/client";
-export function turso(){if(!process.env.TURSO_DATABASE_URL||!process.env.TURSO_AUTH_TOKEN)throw new Error("Turso is not configured");return createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN})}
-export async function ensureTursoSchema(){const c=turso();for(const sql of [
-`create table if not exists players(id integer primary key,name text not null,position text not null,college text,draft_class integer not null,scouting_status text not null,watch_order integer,jersey_number text,jersey_source text,jersey_updated_at text,espn_athlete_id text,headshot_url text,headshot_source text,created_at text,updated_at text)`,
-`create table if not exists evaluations(id integer primary key,player_id integer,category text not null,value real,commentary text,updated_at text,unique(player_id,category))`,
-`create table if not exists scouting_sessions(id integer primary key,player_id integer,game_date text,opponent text,raw_notes text,overall_writeup text,grade_snapshot text,created_at text)`,
-`create table if not exists game_notes(id integer primary key,espn_event_id text unique not null,kickoff text not null,home_team text,away_team text,title text not null,notes text not null,need_to_grade integer default 0,matchup_snapshot text,created_at text,updated_at text)`,
-`create table if not exists planned_games(id integer primary key,espn_event_id text unique not null,kickoff text not null,home_team text,away_team text,status text)`,
-`create table if not exists workflow_tags(player_id integer,tag text,detail text,created_at text,updated_at text,primary key(player_id,tag))`,
-`create table if not exists settings(key text primary key,value text not null,updated_at text)`
-])await c.execute(sql);return c}
+let client:ReturnType<typeof createClient>|null=null,schemaReady:Promise<ReturnType<typeof createClient>>|null=null;
+export function turso(){if(!process.env.TURSO_DATABASE_URL||!process.env.TURSO_AUTH_TOKEN)throw new Error("Turso is not configured");return client||=(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}))}
+export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaReady=(async()=>{const c=turso();for(const sql of [
+`create table if not exists players(id integer primary key autoincrement,name text not null,position text not null check(position in ('QB','RB','WR','TE')),college text,draft_class integer not null,scouting_status text not null default 'TO_SCOUT',watch_order integer,jersey_number text,jersey_source text,jersey_updated_at text,espn_athlete_id text,headshot_url text,headshot_source text,created_at text default current_timestamp,updated_at text default current_timestamp,unique(name,draft_class))`,
+`create table if not exists evaluations(id integer primary key autoincrement,player_id integer not null references players(id) on delete cascade,category text not null,value real,commentary text,updated_at text default current_timestamp,unique(player_id,category))`,
+`create table if not exists scouting_sessions(id integer primary key autoincrement,player_id integer not null references players(id) on delete cascade,game_date text,opponent text,raw_notes text,overall_writeup text,grade_snapshot text,created_at text default current_timestamp)`,
+`create table if not exists historical_rankings(draft_class integer not null,overall_rank integer not null,position_rank text,grade real,player text not null,college text,primary key(draft_class,overall_rank))`,
+`create table if not exists planned_games(id integer primary key autoincrement,espn_event_id text unique not null,kickoff text not null,home_team text,away_team text,status text default 'PLANNED')`,
+`create table if not exists game_notes(id integer primary key autoincrement,espn_event_id text unique not null,kickoff text not null,home_team text,away_team text,title text not null,notes text not null,need_to_grade integer not null default 0,matchup_snapshot text,created_at text default current_timestamp,updated_at text default current_timestamp)`,
+`create table if not exists workflow_tags(player_id integer not null references players(id) on delete cascade,tag text not null,detail text,created_at text default current_timestamp,updated_at text default current_timestamp,primary key(player_id,tag))`,
+`create table if not exists settings(key text primary key,value text not null,updated_at text default current_timestamp)`,
+`create table if not exists nfl_draft_picks(year integer not null,selection text not null,round integer,overall_pick integer,position text,player text not null,college text,team text,imported_at text default current_timestamp,primary key(year,selection))`,
+`create table if not exists pff_imports(id integer primary key autoincrement,imported_at text default current_timestamp,thresholds text not null,result text not null)`
+])await c.execute(sql);return c})().catch(e=>{schemaReady=null;throw e});return schemaReady}
+export const rows=(r:any)=>r.rows.map((x:any)=>Object.fromEntries(Object.entries(x)));
