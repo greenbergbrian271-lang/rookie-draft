@@ -248,7 +248,7 @@ export const SCHOOL_COLORS:Record<string,SchoolStyle>={
     "background": "#ffdd31",
     "color": "#00539f"
   },
-  "Iowa State": {
+  "Iowa": {\n    "background": "#000000",\n    "color": "#FFCD00"\n  },\n  "Iowa State": {
     "background": "#a71930",
     "color": "#fada63"
   },
