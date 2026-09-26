@@ -1,0 +1,1 @@
+"use client";import {usePlayerProfile} from "./PlayerProfile";export default function PlayerName({id,children,className}:{id:string|number,children:React.ReactNode,className?:string}){const {openPlayer}=usePlayerProfile();return <button type="button" className={"player-name-link "+(className||"")} onClick={e=>{e.stopPropagation();openPlayer(id)}}>{children}</button>}
