@@ -354,7 +354,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
           <div className="qb-film-grid">
             {FILM.map(trait=>{
               const n=num(evalValue(trait));
-              return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as React.CSSProperties}>
+              return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
                 <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
                 <input className="qb-grade-slider heat" style={{color:heatColor((n??50)/100)}} type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(trait,Number(e.target.value))} onMouseUp={e=>persist(trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(trait,Number((e.target as HTMLInputElement).value))}/>
                 <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
