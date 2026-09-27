@@ -10,7 +10,7 @@ async function setAllStar(q:any,playerId:number,game:string){
 
 export async function POST(req:Request){
   try{
-    const body=await req.json(),force=!!body?.force,rawPlayers=Array.isArray(body?.players)?body.players:[];
+    const body=await req.json(),force=!!body?.force,rawPlayers:any[]=Array.isArray(body?.players)?body.players:[];
     const q=await ensureTursoSchema(),successful:any[]=[],failed:any[]=[];
     let existing=rows(await q.execute("select id,name,college,position,scouting_status from players where draft_class=2027"));
     for(const raw of rawPlayers){
