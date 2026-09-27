@@ -154,7 +154,7 @@ export default function TradeCalculator({leagueKey}:{leagueKey:string}){
   return <section className="trade-calculator">
     <div className="trade-titlebar">
       <div>
-        <div className="trade-kicker">Dynasty Trade Workspace</div>
+        <div className="trade-kicker">Sleeper Trade Workspace</div>
         <h2>Trade Calculator</h2>
       </div>
       {data&&<div className="trade-ktc-time">KTC updated {fmtTime(data.ktcUpdatedAt)}</div>}
