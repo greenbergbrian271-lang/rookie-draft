@@ -1,4 +1,4 @@
-name: Player stats API probe
+name: Player stats schema probe
 on:
   push:
     branches: [ci-build-check]
@@ -14,23 +14,22 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Probe ESPN stats endpoints
+      - name: Inspect ESPN stats schema
         run: |
           node - <<'NODE'
           const id="5141684";
-          const urls=[
-            `https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/${id}/stats`,
-            `https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/${id}`,
-            `https://sports.api.espn.com/apis/v2/sports/football/college-football/leagues/college-football/seasons/2026/types/2/athletes/${id}/statistics`,
-            `https://site.api.espn.com/apis/site/v2/sports/football/college-football/athletes/${id}`
-          ];
-          for(const url of urls){
-            try{
-              const r=await fetch(url,{headers:{"user-agent":"Mozilla/5.0"}});
-              const txt=await r.text();
-              console.log("\nURL",url,"STATUS",r.status,"CT",r.headers.get("content-type"));
-              console.log(txt.slice(0,12000));
-            }catch(e){console.log("ERR",url,e.message)}
+          const url=`https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/${id}/stats`;
+          const r=await fetch(url,{headers:{"user-agent":"Mozilla/5.0"}});
+          const j=await r.json();
+          console.log("ROOT_KEYS",Object.keys(j));
+          console.log("TEAM_KEYS",Object.keys(j.teams||{}));
+          for(const c of j.categories||[]){
+            console.log("\nCATEGORY",c.name,c.displayName);
+            console.log("KEYS",Object.keys(c));
+            console.log("LABELS",JSON.stringify(c.labels));
+            console.log("NAMES",JSON.stringify(c.names));
+            console.log("STATS_TYPE",Array.isArray(c.statistics),typeof c.statistics,"COUNT",c.statistics?.length);
+            console.log("STAT_SAMPLE",JSON.stringify((c.statistics||[]).slice(0,4),null,2));
           }
           NODE
       - run: npm run build
