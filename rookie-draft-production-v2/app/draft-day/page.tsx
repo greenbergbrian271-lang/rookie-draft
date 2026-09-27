@@ -83,7 +83,7 @@ export default function DraftDayPage(){
   return <>
     <div className="page-head">
       <div>
-        <div className="ey">Draft Day Tools · Draft Day</div>
+        <div className="ey">Draft Day</div>
         <h1>Draft Day</h1>
         <p className="muted">Live picks, best-available-on-board and picks-by-team, synced straight from Sleeper for each league.</p>
       </div>
