@@ -311,3 +311,10 @@
   .qb-shared-tabs{top:0}
   .qb-compare-filter-list{left:auto;right:0;min-width:285px}
 }
+
+
+/* QB scouting v6: sticky category nav without covering QB1 */
+.qb-scouting-pane.evaluate{overflow:visible}
+.qb-scouting-pane.evaluate .qb-evaluate-stack{border-radius:16px;overflow:visible}
+.qb-shared-tabs{top:49px;z-index:45;background:#071426}
+.qb-evaluate-player{scroll-margin-top:104px}
