@@ -615,15 +615,6 @@ export const SCHOOL_COLORS:Record<string,SchoolStyle>={
   "Idaho State": {
     "background": "#ff671f",
     "color": "#fff"
-  },
-  "Appalachian State": {"background":"#FFFFFF","color":"#FFCC00"},
-  "Miami (OH)": {"background":"#000000","color":"#B61E2E"},
-  "Northern Illinois": {"background":"#000000","color":"#BA0C2F"},
-  "Purdue": {"background":"#000000","color":"#CEB888"},
-  "San Diego State": {"background":"#FFFFFF","color":"#A6192E"},
-  "Southern Miss": {"background":"#000000","color":"#FFAB00"},
-  "UCF": {"background":"#000000","color":"#BA9B37"},
-  "UNLV": {"background":"#000000","color":"#CF0A2C"},
-  "Youngstown State": {"background":"#000000","color":"#C8102E"}
+  }
 };
 export function schoolStyle(college?:string):SchoolStyle{if(!college)return {background:"#000000",color:"#ffffff"};const exact=SCHOOL_COLORS[college];if(exact)return exact;const key=college.toLowerCase();const candidates=Object.keys(SCHOOL_COLORS).filter(k=>key.includes(k.toLowerCase())||k.toLowerCase().includes(key)).sort((a,b)=>b.length-a.length);return candidates.length?SCHOOL_COLORS[candidates[0]]:{background:"#000000",color:"#ffffff"};}
