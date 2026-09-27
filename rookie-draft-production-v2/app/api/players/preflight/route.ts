@@ -3,7 +3,7 @@ import {basicPlayerError,findPossibleDuplicates,normalizeName,resolveSchoolName,
 
 export async function POST(req:Request){
   try{
-    const body=await req.json(),rawPlayers=Array.isArray(body?.players)?body.players:[];
+    const body=await req.json(),rawPlayers:any[]=Array.isArray(body?.players)?body.players:[];
     if(!rawPlayers.length)return Response.json({players:[],issues:[]});
     const q=await ensureTursoSchema();
     const existing=rows(await q.execute("select id,name,college from players where draft_class=2027"));
