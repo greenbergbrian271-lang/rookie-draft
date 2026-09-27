@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect,useMemo,useState} from "react";
+import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
 import {draftAdjustedFinalGrade,preDraftGrade,workbookScoutingGrade,type GlossaryRows} from "@/lib/scouting-formulas";
 import {qbAnalyticalGrade} from "@/lib/analytical-grades";
@@ -448,7 +448,7 @@ function CompareView({players,vals,importedFor,scoutingFor,analyticalFor,preDraf
   return <div className="qb-compare-view">
     <div className="qb-compare-head"><div><span className="ey">Side-by-Side</span><h2>QB Comparison Board</h2><p>Pin up to four quarterbacks from the left rail. Comparable film grades, production and latest notes stay aligned.</p></div><span>{players.length}/4 pinned</span></div>
     <div className="qb-compare-scroll"><table className="qb-compare-table"><thead><tr><th>Metric</th>{players.map(p=><th key={p.id} style={schoolStyle(p.college)}><b>{p.name}</b><small>{p.college}</small></th>)}</tr></thead><tbody>
-      {rows.map((r,i)=>{const show=r.section!==last;last=r.section;return <tr key={r.section+r.label} className={r.section==="Notes"?"notes":""}>{show&&<td className="qb-compare-section" colSpan={players.length+1}>{r.section}</td>}{!show&&<><th>{r.label}</th>{players.map(p=><td key={p.id}>{r.get(p)}</td>)}</>}</tr>})}
+      {rows.map(r=>{const show=r.section!==last;last=r.section;return <Fragment key={r.section+r.label}>{show&&<tr><td className="qb-compare-section" colSpan={players.length+1}>{r.section}</td></tr>}<tr className={r.section==="Notes"?"notes":""}><th>{r.label}</th>{players.map(p=><td key={p.id}>{r.get(p)}</td>)}</tr></Fragment>})}
     </tbody></table></div>
   </div>
 }
