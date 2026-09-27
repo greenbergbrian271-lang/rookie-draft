@@ -14,20 +14,14 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Probe ESPN search variants
+      - name: Probe ESPN athlete detail
         run: |
           node - <<'NODE'
-          const name="Mark Fletcher Jr.";
-          const urls=[
-            "https://site.web.api.espn.com/apis/common/v3/search?"+new URLSearchParams({region:"us",lang:"en",query:name,limit:"10"}),
-            "https://site.web.api.espn.com/apis/common/v3/search?"+new URLSearchParams({region:"us",lang:"en",query:"Mark Fletcher",limit:"10"}),
-            "https://site.web.api.espn.com/apis/search/v2?"+new URLSearchParams({query:name,sport:"football",limit:"10"}),
-            "https://site.web.api.espn.com/apis/search/v2?"+new URLSearchParams({query:"Mark Fletcher",sport:"football",limit:"10"})
-          ];
-          for (const url of urls) {
+          for (const id of ["4870736","5086393","5079653"]) {
+            const url="https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/"+id;
             const r=await fetch(url); const j=await r.json();
-            console.log("\nURL",url,"STATUS",r.status,"COUNT",j.count);
-            console.log(JSON.stringify((j.items||j.results||[]).slice(0,10),null,2));
+            console.log("\nID",id,"STATUS",r.status);
+            console.log(JSON.stringify(j,null,2).slice(0,8000));
           }
           NODE
       - run: npm run build
