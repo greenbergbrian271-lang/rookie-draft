@@ -1,11 +1,13 @@
 import {ensureTursoSchema} from "@/lib/turso";
 import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations";
 import {workbookSecondary as w} from "@/lib/workbook-secondary";
+import {createKtcMatcher,loadKtcDataset,type KtcDataset,type KtcMatch} from "@/lib/ktc";
 
-type Player={name:string;position:string;team:string;age:string;ktc:string};
+type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
 type Item={slot:string;name:string;team:string};
 type RosterView={
   key:string;label:string;league:string;leagueId:string;updated:string;source:string;
+  ktcUpdatedAt?:string;ktcSource?:string;
   players:Player[];totalKtc:number;avgAge:number;
   starters:Item[];benchPlayers:Item[];startingCoverage:Item[];benchCoverage:Item[];bonus:Item[];
 };
@@ -26,22 +28,26 @@ const TEAM_NAMES:Record<string,string>={
 
 const SECTION_TITLES=new Set(["Starters to Handcuff","Bench Players to Handcuff","Starting Handcuffs","Bench Handcuffs"]);
 const text=(v:any)=>v==null?"":String(v).trim();
-const normalize=(v:string)=>v.toLowerCase().trim().replace(/\s+(jr\.?|sr\.?|iii|ii|iv)$/i,"").replace(/\s+/g," ");
 
 function parseFallback(league:SleeperLeagueIntegration):RosterView|null{
   const rows=FALLBACK_ROWS[league.key];
   if(!rows)return null;
-  const players=rows.slice(4).filter(r=>text(r[0])&&["QB","RB","WR","TE"].includes(text(r[1]))).map(r=>({
-    name:text(r[0]),position:text(r[1]),team:text(r[2]),age:text(r[3]),ktc:text(r[4]),
-  }));
+  const players=rows.slice(4).filter(r=>text(r[0])&&["QB","RB","WR","TE"].includes(text(r[1]))).map(r=>{
+    const ktc=text(r[4]);
+    return {name:text(r[0]),position:text(r[1]),team:text(r[2]),age:text(r[3]),ktc,ktcStatus:Number.isFinite(Number(ktc))?"sheet":"unmatched"};
+  });
   const sections:Record<string,Item[]>={};
   let active="";
   for(let i=3;i<rows.length;i++){
-    const g=text(rows[i]?.[6]);
+    const g=text(rows[i]?.[6]),h=text(rows[i]?.[7]),team=text(rows[i]?.[8]);
     if(!g)continue;
-    if(SECTION_TITLES.has(g)){active=g;sections[active]??=[];continue}
-    const h=text(rows[i]?.[7]);
-    if(active&&h)sections[active].push({slot:g,name:h,team:text(rows[i]?.[8])});
+    if(SECTION_TITLES.has(g)){
+      active=g;
+      sections[active]??=[];
+      if(h)sections[active].push({slot:g==="Bench Handcuffs"?"Bench":"",name:h,team});
+      continue;
+    }
+    if(active&&h)sections[active].push({slot:g,name:h,team});
   }
   const bonus=rows.slice(4).filter(r=>text(r[10])&&text(r[11])).map(r=>({slot:text(r[10]),name:text(r[11]),team:""}));
   const totalKtc=players.reduce((sum,p)=>sum+(Number.isFinite(Number(p.ktc))?Number(p.ktc):0),0);
@@ -53,51 +59,6 @@ function parseFallback(league:SleeperLeagueIntegration):RosterView|null{
     starters:sections["Starters to Handcuff"]||[],benchPlayers:sections["Bench Players to Handcuff"]||[],
     startingCoverage:sections["Starting Handcuffs"]||[],benchCoverage:sections["Bench Handcuffs"]||[],bonus,
   };
-}
-
-function fallbackKtc(){
-  const out:Record<string,{value:number}>={};
-  Object.values(FALLBACK_ROWS).forEach(rows=>rows.slice(4).forEach(r=>{
-    const name=text(r[0]),value=Number(r[4]);
-    if(name&&Number.isFinite(value))out[normalize(name)]={value};
-  }));
-  return out;
-}
-
-async function fetchKtc(){
-  const fallback=fallbackKtc();
-  try{
-    const res=await fetch("https://keeptradecut.com/dynasty-rankings",{
-      cache:"no-store",
-      headers:{"user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-    });
-    if(!res.ok)return fallback;
-    const html=await res.text();
-    const marker="var playersArray = ";
-    const markerAt=html.indexOf(marker);
-    if(markerAt<0)return fallback;
-    const start=html.indexOf("[",markerAt+marker.length);
-    if(start<0)return fallback;
-    let depth=0,inString=false,escape=false,end=-1;
-    for(let i=start;i<html.length;i++){
-      const c=html[i];
-      if(escape){escape=false;continue}
-      if(c==="\\"){escape=true;continue}
-      if(c==='"'){inString=!inString;continue}
-      if(inString)continue;
-      if(c==="[")depth++;
-      if(c==="]"&&--depth===0){end=i;break}
-    }
-    if(end<0)return fallback;
-    const data=JSON.parse(html.slice(start,end+1));
-    const out={...fallback};
-    for(const p of data){
-      if(!p?.playerName)continue;
-      const value=Number(p?.superflexValues?.value);
-      if(Number.isFinite(value))out[normalize(String(p.playerName))]={value};
-    }
-    return out;
-  }catch{return fallback}
 }
 
 async function sleeperJson(url:string){
@@ -124,7 +85,10 @@ function rosterFormat(rosterPositions:any[]){
 function startingLineup(players:any[],format:ReturnType<typeof rosterFormat>){
   const starters:any[]=[],rem=[...players].sort((a,b)=>Number(b.ktcValue||0)-Number(a.ktcValue||0));
   const fill=(n:number,test:(p:any)=>boolean,slot:string)=>{
-    for(let i=0;i<n;i++){const idx=rem.findIndex(test);if(idx>=0){starters.push({...rem[idx],slotType:slot});rem.splice(idx,1)}}
+    for(let i=0;i<n;i++){
+      const idx=rem.findIndex(test);
+      if(idx>=0){starters.push({...rem[idx],slotType:slot});rem.splice(idx,1)}
+    }
   };
   fill(format.QB,p=>p.position==="QB","QB");
   fill(format.RB,p=>p.position==="RB","RB");
@@ -135,23 +99,35 @@ function startingLineup(players:any[],format:ReturnType<typeof rosterFormat>){
   return starters;
 }
 
-async function refreshLeague(league:SleeperLeagueIntegration,playerDb:any,ktc:Record<string,{value:number}>):Promise<RosterView>{
+function ktcValue(match:KtcMatch|null,league:SleeperLeagueIntegration){
+  if(!match)return null;
+  return league.tePremium?match.player.tepValue:match.player.value;
+}
+
+async function refreshLeague(
+  league:SleeperLeagueIntegration,
+  playerDb:any,
+  dataset:KtcDataset|null,
+):Promise<RosterView>{
   const root="https://api.sleeper.app/v1/league/"+league.leagueId;
   const [leagueData,rosters,users]=await Promise.all([sleeperJson(root),sleeperJson(root+"/rosters"),sleeperJson(root+"/users")]);
   const mine=resolveRoster(rosters,users,league.teamIdentity||"");
   if(!mine)throw new Error("Could not identify your roster. Check My Team / Sleeper Username in Integrations.");
 
+  const matcher=dataset?createKtcMatcher(dataset):null;
   const taxi=new Set((mine.taxi||[]).map(String)),reserve=new Set((mine.reserve||[]).map(String));
   const allIds=[...new Set([...(mine.players||[]),...(mine.taxi||[]),...(mine.reserve||[])].map(String))];
   const rawPlayers=allIds.map(id=>{
     const p=playerDb?.[id];
     if(!p||!["QB","RB","WR","TE"].includes(String(p.position||"")))return null;
     const name=((p.first_name||"")+" "+(p.last_name||"")).trim()||p.full_name||id;
-    let value=ktc[normalize(name)]?.value;
-    if(Number.isFinite(value)&&league.tePremium&&p.position==="TE")value=Math.round(Number(value)*1.15);
+    const position=String(p.position);
+    const match=matcher?matcher(name,position):null;
+    const value=ktcValue(match,league);
     return {
-      playerId:id,name,position:String(p.position),team:TEAM_NAMES[String(p.team||"")]||String(p.team||"FA"),
-      age:p.age==null?"":String(p.age),ktcValue:Number.isFinite(value)?Number(value):null,
+      playerId:id,name,position,team:TEAM_NAMES[String(p.team||"")]||String(p.team||"FA"),
+      age:p.age==null?"":String(p.age),ktcValue:value,
+      ktcStatus:match?.method||"unmatched",
       rosterType:reserve.has(id)?"Reserve/IR":taxi.has(id)?"Taxi Squad":"Active Roster",
     };
   }).filter(Boolean) as any[];
@@ -167,14 +143,18 @@ async function refreshLeague(league:SleeperLeagueIntegration,playerDb:any,ktc:Re
   }
   const benchTeams=[...new Set(bench.map(p=>p.team).filter(Boolean))];
   const bonus=parseFallback(league)?.bonus||[];
-  const players:Player[]=rawPlayers.map(p=>({name:p.name,position:p.position,team:p.team,age:p.age,ktc:p.ktcValue==null?"N/A":String(p.ktcValue)}));
+  const players:Player[]=rawPlayers.map(p=>({
+    name:p.name,position:p.position,team:p.team,age:p.age,
+    ktc:p.ktcValue==null?"N/A":String(p.ktcValue),ktcStatus:p.ktcStatus,
+  }));
   const totalKtc=rawPlayers.reduce((sum,p)=>sum+(Number(p.ktcValue)||0),0);
   const ages=rawPlayers.map(p=>Number(p.age)).filter(Number.isFinite);
 
   return {
     key:league.key,label:league.name,league:String(leagueData?.name||league.name),leagueId:league.leagueId,
-    updated:new Date().toLocaleString("en-US",{timeZone:"America/New_York"}),source:"Sleeper",players,totalKtc,
-    avgAge:ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0,
+    updated:new Date().toLocaleString("en-US",{timeZone:"America/New_York"}),source:"Sleeper",
+    ktcUpdatedAt:dataset?.fetchedAt||"",ktcSource:dataset?.source||"",
+    players,totalKtc,avgAge:ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0,
     starters:starters.map(p=>({slot:p.slotType,name:p.name,team:p.team})),
     benchPlayers:bench.map(p=>({slot:p.position,name:p.name,team:p.team})),
     startingCoverage,
@@ -209,7 +189,9 @@ export async function GET(){
       return Response.json({...cached,rosters});
     }
     return Response.json({rosters:enabled.map(parseFallback).filter(Boolean),errors:[],source:"Google Sheet snapshot"});
-  }catch(e:any){return Response.json({error:"Could not load dynasty rosters",detail:e?.message},{status:500})}
+  }catch(e:any){
+    return Response.json({error:"Could not load dynasty rosters",detail:e?.message},{status:500});
+  }
 }
 
 export async function POST(){
@@ -218,12 +200,12 @@ export async function POST(){
     const enabled=integrations.sleeper.leagues.filter(l=>l.enabled!==false);
     const previous=await readSnapshot();
     const previousByKey=new Map(((previous?.rosters||[]) as RosterView[]).map(r=>[r.key,r]));
-    const [playerDb,ktc]=await Promise.all([
+    const [playerDb,dataset]=await Promise.all([
       sleeperJson("https://api.sleeper.app/v1/players/nfl"),
-      fetchKtc(),
+      loadKtcDataset(false).catch(()=>null),
     ]);
 
-    const settled=await Promise.allSettled(enabled.map(l=>refreshLeague(l,playerDb,ktc)));
+    const settled=await Promise.allSettled(enabled.map(l=>refreshLeague(l,playerDb,dataset)));
     const errors:string[]=[];
     const rosters:RosterView[]=[];
     settled.forEach((result,index)=>{
@@ -235,7 +217,12 @@ export async function POST(){
         if(fallback)rosters.push(fallback);
       }
     });
-    const snapshot={rosters,errors,refreshedAt:new Date().toISOString(),source:"Sleeper"};
+
+    const snapshot={
+      rosters,errors,refreshedAt:new Date().toISOString(),
+      ktcUpdatedAt:dataset?.fetchedAt||previous?.ktcUpdatedAt||"",
+      source:"Sleeper",
+    };
     await saveSnapshot(snapshot);
     return Response.json(snapshot,{status:errors.length===enabled.length?502:200});
   }catch(e:any){
