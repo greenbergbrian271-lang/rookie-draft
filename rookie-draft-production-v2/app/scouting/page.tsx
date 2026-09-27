@@ -51,16 +51,43 @@ function clsAt(pos:Pos,i:number){return GROUPS[pos].find(g=>i>=g.start&&i<g.star
 export default function Page(){const [pos,setPos]=useState<Pos>("QB"),[rows,setRows]=useState<Player[]>([]),[vals,setVals]=useState<Record<string,any>>({}),[imports,setImports]=useState<Record<string,any[]>>({}),[glossary,setGlossary]=useState<any[][]>([]),[addOpen,setAddOpen]=useState(false);
 useEffect(()=>{fetch("/api/scouting-glossary",{cache:"no-store"}).then(r=>r.json()).then(j=>setGlossary(Array.isArray(j?.rows)?j.rows:[])).catch(()=>{});Promise.all([fetch("/api/players",{cache:"no-store"}).then(r=>r.json()),fetch("/api/evaluations?draftClass=2027",{cache:"no-store"}).then(r=>r.json()).catch(()=>[])]).then(([ps,es])=>{if(!Array.isArray(ps))return;setRows(ps);const n:any={};if(Array.isArray(es))for(const e of es)n[e.player_id+"|"+e.category]=e.category==="__COMMENTARY__"?(e.commentary||""):(e.value??e.commentary??"");setVals(n)});Promise.all(POSITIONS.map(async p=>[p,(await fetch("/api/player-data?position="+p,{cache:"no-store"}).then(r=>r.json()).catch(()=>({rows:[]}))).rows||[]])).then(x=>setImports(Object.fromEntries(x)))},[]);
 const watchedPlayers=useMemo(()=>rows.filter(x=>x.draft_class===2027&&x.position===pos&&x.scouting_status==="WATCHED").sort((a,b)=>(a.watch_order||0)-(b.watch_order||0)),[rows,pos]);
-const arch=useMemo(()=>rows.find(x=>x.draft_class===2027&&x.position==="QB"&&x.name==="Arch Manning"),[rows]);
+const demoQbNames=["Arch Manning","Julian Sayin","CJ Carr","Colton Joseph"];
+const demoQbs=useMemo(()=>demoQbNames.map(name=>rows.find(x=>x.draft_class===2027&&x.position==="QB"&&x.name===name)).filter(Boolean) as Player[],[rows]);
 const qbDemoMode=pos==="QB"&&watchedPlayers.length===0;
-const players=useMemo(()=>qbDemoMode&&arch?[{...arch,scouting_status:"WATCHED"}]:watchedPlayers,[qbDemoMode,arch,watchedPlayers]);
-useEffect(()=>{if(!qbDemoMode||!arch)return;const id=arch.id+"|";setVals(v=>{const next={...v};const seed:Record<string,any>={
-"Games watched":1,"Expected Role":"Early Starter","Draft Projection":"Day 2","Team Score (10)":5,"Draft Capital Score (10)":5,
-"Arm Strength":79,"Arm Velocity":84,"Accuracy":88,"Decision Making":95,"Poise + OOS":87,"Mechanics":90,"Mobility":84.33,"Leadership":90,"Size":82,
+const players=useMemo(()=>qbDemoMode?demoQbs.map(p=>({...p,scouting_status:"WATCHED"})):watchedPlayers,[qbDemoMode,demoQbs,watchedPlayers]);
+useEffect(()=>{if(!qbDemoMode||!demoQbs.length)return;
+const seeds:Record<string,Record<string,any>>={
+"Arch Manning":{
+"Games watched":1,"Expected Role":"Early Starter","Draft Projection":"First Round","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Arm Strength":96.75,"Arm Velocity":85,"Accuracy":62.5,"Decision Making":93,"Poise + OOS":92,"Mechanics":92,"Mobility":89.95,"Leadership":98,"Size":89,
 "Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
-"__GAME_LABEL__":"2025 · Vanderbilt",
-"__COMMENTARY__":"Vanderbilt: I am trying to evaulate him as if his name is not Arch Manning, in the sense that I don't want to overhype him becuase he is the next Manning but I also don't want to overhate him for the same reasons. I think he played like an above average QB in this game. If you got this level of quarterbacking from him every game, a 1st round pick would not be CRAZY. I think this is kind of moot because I'd say the odds of him declaring are 0.0000001% but I have a game on him anyway"
-};for(const [k,val] of Object.entries(seed))if(next[id+k]===undefined||next[id+k]==="")next[id+k]=val;return next})},[qbDemoMode,arch]);
+"__GAME_LABEL__":"2026 · Ohio State",
+"__COMMENTARY__":"Ohio State: Almost the exact opposite of Julian Sayin. First half, would tell you he's a bust. Second half, mannnnnnn he's a top 5 pick. Threw the ball beautifully downfield (even if there was a Cam Coleman drop) The accuracy is a concern, no doubt about it, felt like he was just throwing with wayyyyyyy too much juice at times, take a little bit off and 62% could've been a lot higher. Multiple clutch 4th down conersions too. It's a LONG way to go but to me, he's QB1"
+},
+"Julian Sayin":{
+"Games watched":1,"Expected Role":"Developmental Starter","Draft Projection":"Other: Day 1-2","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Arm Strength":97,"Arm Velocity":75,"Accuracy":67.75,"Decision Making":95,"Poise + OOS":79,"Mechanics":85,"Mobility":69,"Leadership":80,"Size":74.5,
+"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
+"__GAME_LABEL__":"2026 · Texas",
+"__COMMENTARY__":"Texas: If the game ended after the first half, I'd tell you he deserves to go Top 10. Based on the whole game....the outlook as not as optimistic. He's still a first round talent IMO, but there's still things that need to be developed about him. He's a really really effective pocket passer, unafraid of pushing the ball downfield. 7 of his 32 attempts went for 20+ yards and they were generally very effective. There's a lot to like about him, but need to see a complete game against a legit opponent. He's got a 3 game stretch of Indiana, USC and Oregon starting in Mid-October, we should learn A LOT about him then."
+},
+"CJ Carr":{
+"Games watched":1,"Expected Role":"Early Starter","Draft Projection":"First Round","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Arm Strength":60,"Arm Velocity":68,"Accuracy":84.5,"Decision Making":94,"Poise + OOS":80,"Mechanics":88,"Mobility":73,"Leadership":90,"Size":79,
+"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
+"__GAME_LABEL__":"2026 · Wisconsin",
+"__COMMENTARY__":"Wisconsin: If we were giving out letter grades, I would give this a B. For a guy with as few starts under his belt as Carr has, he reads the field SOOOO well, undoubtedly my favorite trait from Carr. What I really want to see more of is pushing the ball down the field. In this one he was simply a game manager, ND put up 41 and Carr had 0 big time throws per PFF. Only 5 of his 29 throws went beyond 10+ yards. I need to see a guy who's willing to tkae a shot down the field if he's going to be a viable NFL QB."
+},
+"Colton Joseph":{
+"Games watched":1,"Expected Role":"Other: Gritty Backup","Draft Projection":"Other: Day 3","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Arm Strength":62.75,"Arm Velocity":65,"Accuracy":77,"Decision Making":68.75,"Poise + OOS":66,"Mechanics":71,"Mobility":89,"Leadership":70,"Size":69.75,
+"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
+"__GAME_LABEL__":"2026 · Notre Dame",
+"__COMMENTARY__":"Notre Dame: A pleasant surprise! ... As a runner. The box score won't give you the full picture as a runner IMO. I think Notre Dame's defense was SWARMING him after the first couple drives, but when he got space he was making the most of it. He had a couple nice throws, particularly to Coleman, but ultimately its going to be tough for any QB to throw on this defense. Intrigued to see him in future games."
+}};
+setVals(v=>{const next={...v};for(const p of demoQbs){const seed=seeds[p.name]||{};for(const [k,val] of Object.entries(seed)){const key=p.id+"|"+k;if(next[key]===undefined||next[key]==="")next[key]=val}}return next})
+},[qbDemoMode,demoQbs]);
+
 async function save(p:Player,cat:string,value:any){setVals(v=>({...v,[p.id+"|"+cat]:value}));const r=await fetch("/api/evaluations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,category:cat,value:typeof value==="number"?value:null,commentary:typeof value==="number"?null:String(value)})});if(!r.ok)throw new Error("Could not save evaluation");return r.json()}
 function grade(p:Player){const fields:any={};for(const h of HEAD[pos])fields[h]=vals[p.id+"|"+h];return workbookScoutingGrade(pos,FILM[pos].map(h=>Number(vals[p.id+"|"+h])),fields,glossary.length?glossary:undefined)}
 function cell(p:Player,h:string,i:number){const imp=(imports[pos]||[]).find((x:any)=>norm(x.Player)===norm(p.name)||norm(x["Player, College"])===norm(p.name+", "+(p.college||"")))||{},k=p.id+"|"+h,v=vals[k]??"";const imported=imp[h]??imp[h.replace("Watched","watched")]??imp[h.replace("Weightd","Weighted")];if(i===0)return <b>{pos} {players.indexOf(p)+1}</b>;if(i===1)return <div className="college-cell" style={schoolStyle(p.college)}><b>{p.name}, {p.college}</b></div>;if(i===2)return <PlayerName id={p.id}>{p.name}</PlayerName>;if(i===3)return p.college||"";if(h==="Age"||h==="Class"||h==="Early Declare"||h==="Early Declare?")return imported??vals[k]??"—";if(h==="Scouting Grade"){const g=grade(p);return g==null?"—":g.toFixed(2)}if(h==="Pre-Draft Grade"){const g=grade(p);return g==null?"—":preDraftGrade(pos,g,null,null,vals[p.id+"|Early Declare"]??vals[p.id+"|Early Declare?"]??false,glossary.length?glossary:undefined).toFixed(2)}if(FILM[pos].includes(h))return <input type="number" step=".1" value={v} onChange={e=>setVals(x=>({...x,[k]:e.target.value}))} onBlur={e=>save(p,h,Number(e.target.value))}/>;if(MANUAL.has(h)){if(OPT[h])return <select value={v} onChange={e=>save(p,h,e.target.value)}>{OPT[h].map(o=><option key={o}>{o}</option>)}</select>;return <input value={v} onChange={e=>setVals(x=>({...x,[k]:e.target.value}))} onBlur={e=>save(p,h,e.target.value)}/>}return imported??vals[k]??"—"}
