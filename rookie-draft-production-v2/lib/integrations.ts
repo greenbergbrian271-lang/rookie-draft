@@ -15,7 +15,7 @@ export type IntegrationsConfig={
 
 export const DEFAULT_SLEEPER_LEAGUES:SleeperLeagueIntegration[]=[
   {key:"one-league",name:"One League to Rule them All",leagueId:"1387925097968316416",teamIdentity:"4",tePremium:false,enabled:true},
-  {key:"drew-ross",name:"Drew and Ross Present Superflex",leagueId:"1312070609894658048",teamIdentity:"Tongs",tePremium:false,enabled:true},
+  {key:"drew-ross",name:"Drew and Ross Present Superflex",leagueId:"1312070609894658048",teamIdentity:"cds1204",tePremium:false,enabled:true},
   {key:"last-man-standing",name:"Last Man Standing",leagueId:"1336778074775101440",teamIdentity:"cds1204",tePremium:true,enabled:true},
   {key:"last-minute-dynasty",name:"Last Minute Dynasty",leagueId:"1387508092408705024",teamIdentity:"cds1204",tePremium:true,enabled:true},
 ];
