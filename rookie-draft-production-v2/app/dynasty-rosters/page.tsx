@@ -210,7 +210,7 @@ export default function Page(){
           <div className="dynasty-meta"><span>Total KTC Value</span><strong>{new Intl.NumberFormat("en-US").format(roster.totalKtc)}</strong></div>
           <div className="dynasty-meta"><span>Average Age</span><strong>{roster.avgAge?roster.avgAge.toFixed(1):"—"}</strong></div>
           <div className="dynasty-meta updated"><span>Roster Updated · {roster.source}</span><strong>{roster.updated||"—"}</strong></div>
-          <div className="dynasty-meta updated"><span>KTC Updated · {roster.ktcSource||"KeepTradeCut"}</span><strong>{fmtTimestamp(roster.ktcUpdatedAt)}</strong></div>
+          <div className="dynasty-meta updated"><span>KTC Last Updated · {roster.ktcSource||"KeepTradeCut"}</span><strong>{fmtTimestamp(roster.ktcUpdatedAt)}</strong></div>
         </div>
 
         <div className="dynasty-layout">
