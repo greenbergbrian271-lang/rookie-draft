@@ -55,6 +55,13 @@ const demoQbNames=["Arch Manning","Julian Sayin","CJ Carr","Colton Joseph"];
 const demoQbs=useMemo(()=>demoQbNames.map(name=>rows.find(x=>x.draft_class===2027&&x.position==="QB"&&x.name===name)).filter(Boolean) as Player[],[rows]);
 const qbDemoMode=pos==="QB"&&watchedPlayers.length===0;
 const players=useMemo(()=>qbDemoMode?demoQbs.map(p=>({...p,scouting_status:"WATCHED"})):watchedPlayers,[qbDemoMode,demoQbs,watchedPlayers]);
+useEffect(()=>{
+  const ids=Array.from(new Set([
+    ...rows.filter(x=>x.draft_class===2027&&["WATCHED","FINISHED","MAYBE"].includes(x.scouting_status)).map(x=>String(x.id)),
+    ...(qbDemoMode?demoQbs.map(x=>String(x.id)):[])
+  ]));
+  try{sessionStorage.setItem("rookie-draft:scouting-sheet-player-ids",JSON.stringify(ids))}catch{}
+},[rows,qbDemoMode,demoQbs]);
 useEffect(()=>{if(!qbDemoMode||!demoQbs.length)return;
 const seeds:Record<string,Record<string,any>>={
 "Arch Manning":{
