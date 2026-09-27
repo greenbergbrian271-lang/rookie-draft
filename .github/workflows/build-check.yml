@@ -14,14 +14,26 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Probe ESPN athlete detail
+      - name: Probe all missing ESPN headshots
         run: |
           node - <<'NODE'
-          for (const id of ["4870736","5086393","5079653"]) {
-            const url="https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/"+id;
-            const r=await fetch(url); const j=await r.json();
-            console.log("\nID",id,"STATUS",r.status);
-            console.log(JSON.stringify(j,null,2).slice(0,8000));
+          const names=["Darian Mensah","Demond Williams Jr.","Connor Weigman","Gunner Stockton","Braxton Woodson","Mark Fletcher Jr.","Antwan Raymond","Quintrevion Wisner","Gavin Sawchuk","Bryson Washington","J'Koby Williams","Sutton Smith","Reuben Owens II","Jordan Lyle","Lendon Phillips Jr.","Arlis Boardingham","DJ Vonnahme","Cole Spence","Elija Lofton","Dylan Wade","Bryant Wesco","Cooper Barkate","Junior Sherril","Eugene Wilson III","Wyatt Young","Ryan Wingo","Eric Singleton Jr.","Griffin Wilde","Trent Walker"];
+          const norm=s=>String(s||"").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g,"").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
+          const same=(a,b)=>norm(a)===norm(b)||norm(a).replace(/ /g,"")===norm(b).replace(/ /g,"");
+          const unresolved=[];
+          for(const name of names){
+            const u=new URL("https://site.web.api.espn.com/apis/search/v2");
+            u.search=new URLSearchParams({query:name,sport:"football",limit:"10"}).toString();
+            const r=await fetch(u),j=await r.json();
+            const groups=Array.isArray(j?.items)?j.items:[];
+            const players=groups.filter(g=>g?.type==="player").flatMap(g=>Array.isArray(g.contents)?g.contents:[]);
+            const hit=players.find(x=>x.defaultLeagueSlug==="college-football"&&x.sport==="football"&&same(x.displayName,name));
+            if(!hit){unresolved.push(name);console.log("MISS",name);continue}
+            const id=String(hit.uid||"").match(/~a:(\d+)/)?.[1]||String(hit.link?.web||"").match(/\/id\/(\d+)/)?.[1]||"";
+            let jersey=null,headshot=hit.image?.default||null;
+            if(id){const d=await fetch("https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/"+id);if(d.ok){const a=(await d.json())?.athlete;jersey=a?.jersey||null;headshot=a?.headshot?.href||headshot}}
+            console.log("FOUND",name,id,jersey||"-",headshot?"HEADSHOT":"NO_HEADSHOT",hit.subtitle||"");
           }
+          console.log("UNRESOLVED",JSON.stringify(unresolved));
           NODE
       - run: npm run build
