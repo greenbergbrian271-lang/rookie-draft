@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect,useMemo,useState} from "react";
+import TradeCalculator from "./trade-calculator";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
 type HandcuffItem={slot:string;name:string;team:string};
@@ -254,6 +255,8 @@ export default function Page(){
             <HandcuffList title="Handcuff Bonus Players" items={roster.bonus} coverage/>
           </aside>
         </div>
+
+        <TradeCalculator leagueKey={roster.key}/>
       </>}
     </>}
 
