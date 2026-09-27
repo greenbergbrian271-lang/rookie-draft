@@ -4,7 +4,7 @@ import {schoolStyle} from "@/lib/school-colors";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import ReorderPlayersModal from "@/components/ReorderPlayersModal";
 type Item={label:string,id:string};
-const groups=[{label:"GM Tools",items:[["Import Roster","import-roster"],["Check for Handcuffs","handcuffs"],["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Undrafted Players","undrafted"],["Refresh NFL Draft Picks","nfl-draft"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["All-Star Game","all-star"],["Maybe Scout Player","maybe"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Fix All Formatting","fix-formatting"],["Sort Scouting Sheets (Z-A)","sort-scouting"],["Transfer Portal Check","transfer-portal"],["Refresh NCAA Stats","ncaa-stats"],["Upload CSV Data","csv"],["Add Team + Production Stats","production"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
+const groups=[{label:"GM Tools",items:[["Check for Handcuffs","handcuffs"],["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Undrafted Players","undrafted"],["Refresh NFL Draft Picks","nfl-draft"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["All-Star Game","all-star"],["Maybe Scout Player","maybe"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Upload CSV Data","csv"],["Add Team + Production Stats","production"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
 const playerActions:Record<string,{status?:string,draftClass?:number}>={"new-player-watched":{status:"WATCHED"},maybe:{status:"MAYBE"},finished:{status:"FINISHED"},"returning-player":{status:"TO_SCOUT",draftClass:2028}};
 export default function ToolMenus(){const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[league,setLeague]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false);
 useEffect(()=>{if(tool){fetch("/api/grades?draftClass=2027",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{})}},[tool]);
@@ -20,28 +20,75 @@ async function csvRun(e:FormEvent<HTMLFormElement>){e.preventDefault();setMsg("P
 async function simpleRun(endpoint:string,label:string){setMsg(label+"…");const r=await fetch(endpoint,{method:"POST"}),j=await r.json();setMsg(r.ok?`${label}: ${j.updated??j.count??"complete"}.`:(j.error||`${label} failed.`))}
 async function undraftedRun(){setMsg("Finding undrafted players…");const r=await fetch("/api/undrafted",{cache:"no-store"}),j=await r.json();setMsg(r.ok?`Found ${j.length} undrafted players.`:(j.error||"Undrafted-player check failed."))}
 async function productionRun(){setMsg("Applying team-stat and production formulas to the latest imported player data…");const [pr,cr]=await Promise.all([fetch("/api/player-data",{cache:"no-store"}),fetch("/api/college-stats",{cache:"no-store"})]);const pj=await pr.json(),cj=await cr.json();if(!pr.ok||!cr.ok)return setMsg("Could not load player or college data.");let count=0;for(const position of ["QB","RB","WR","TE"]){const block=pj?.result?.[position]||{};const rows=[...(block?.above?.primary||[]),...(block?.below?.primary||[])];if(!rows.length)continue;const r=await fetch("/api/production-metrics/batch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({position,rows,colleges:cj})});if(r.ok){const out=await r.json();count+=out.length}}setMsg(`Calculated workbook team/production metrics for ${count} imported player rows.`)}
-return <><div className="tool-menubar"><div className="tool-menu" onMouseLeave={()=>setOpen(null)}><button
-  aria-expanded={open==="tools"}
-  aria-haspopup="menu"
-  className={open==="tools"?"tool-menu-button open":"tool-menu-button"}
-  style={{background:open==="tools"?"#142844":"#10213a",border:"1px solid #29476e",padding:"7px 12px",boxShadow:"0 1px 0 rgba(255,255,255,.03) inset"}}
-  onClick={()=>setOpen(open==="tools"?null:"tools")}
-><span aria-hidden="true" style={{display:"grid",gridTemplateColumns:"repeat(2,4px)",gap:2,marginRight:1}}><i style={{width:4,height:4,borderRadius:1,background:"currentColor"}}/><i style={{width:4,height:4,borderRadius:1,background:"currentColor"}}/><i style={{width:4,height:4,borderRadius:1,background:"currentColor"}}/><i style={{width:4,height:4,borderRadius:1,background:"currentColor"}}/></span><strong>Tools</strong><span>▾</span></button>
-{open==="tools"&&<div className="tool-dropdown" role="menu" style={{width:"min(760px, calc(100vw - 32px))",padding:12,borderRadius:14,background:"#09172b",boxShadow:"0 22px 60px rgba(0,0,0,.48)"}}>
-  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,padding:"3px 4px 11px",borderBottom:"1px solid #20395f",marginBottom:10}}>
-    <div><div className="ey">Command Center</div><strong style={{display:"block",fontSize:15,marginTop:2}}>Quick tools</strong></div>
-    <span className="muted" style={{fontSize:11,fontWeight:800}}>GM · Scouting · Sheet</span>
-  </div>
-  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:9}}>
-    {groups.map((g,groupIndex)=><section key={g.label} style={{background:"#0c1b31",border:"1px solid #20395f",borderRadius:11,padding:8}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 5px 8px"}}>
-        <span style={{display:"inline-grid",placeItems:"center",minWidth:28,height:22,padding:"0 6px",borderRadius:6,background:"#142844",border:"1px solid #31527f",color:"#a9c2e3",fontSize:9,fontWeight:950,letterSpacing:".05em"}}>{["GM","SC","SH"][groupIndex]}</span>
-        <strong style={{fontSize:12,color:"#e7effa"}}>{g.label.replace(" Tools","")}</strong>
-      </div>
-      <div style={{display:"grid",gap:2}}>{g.items.map(i=><button key={i.id} role="menuitem" className="tool-dropdown-action" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,width:"100%",background:"transparent",border:0,padding:"8px 9px",borderRadius:7,color:"#c9d8ec",fontSize:12,textAlign:"left"}} onClick={()=>{if(i.id==="add-player"){setAddOpen(true);setTool(null)}else if(i.id==="reorder"){setReorderOpen(true);setTool(null)}else setTool(i);setOpen(null)}}><span>{i.label}</span><span aria-hidden="true" style={{color:"#5f789a",fontSize:15}}>›</span></button>)}</div>
-    </section>)}
-  </div>
-</div>}</div></div>
+return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{gap:7,padding:"8px 18px"}}>
+{groups.map((g,groupIndex)=><div className="tool-menu" key={g.label}>
+  <button
+    aria-expanded={open===g.label}
+    aria-haspopup="menu"
+    className={open===g.label?"tool-menu-button open":"tool-menu-button"}
+    style={{
+      background:open===g.label?"#142844":"#10213a",
+      border:"1px solid "+(open===g.label?"#3a608e":"#29476e"),
+      padding:"7px 11px",
+      minWidth:groupIndex===1?126:112,
+      justifyContent:"space-between",
+      boxShadow:"0 1px 0 rgba(255,255,255,.03) inset"
+    }}
+    onClick={()=>setOpen(open===g.label?null:g.label)}
+    onMouseEnter={()=>open&&setOpen(g.label)}
+  >
+    <span style={{display:"inline-flex",alignItems:"center",gap:7}}>
+      <span aria-hidden="true" style={{
+        display:"inline-grid",
+        placeItems:"center",
+        width:24,
+        height:20,
+        borderRadius:6,
+        background:"#142844",
+        border:"1px solid #31527f",
+        color:"#9fb9da",
+        fontSize:8,
+        fontWeight:950,
+        letterSpacing:".04em"
+      }}>{["GM","SC","SH"][groupIndex]}</span>
+      <strong style={{fontSize:12}}>{g.label}</strong>
+    </span>
+    <span style={{marginLeft:8}}>▾</span>
+  </button>
+  {open===g.label&&<div className="tool-dropdown" role="menu" style={{
+    minWidth:265,
+    padding:7,
+    borderRadius:12,
+    background:"#09172b",
+    border:"1px solid #31527f",
+    boxShadow:"0 20px 55px rgba(0,0,0,.48)"
+  }}>
+    <div style={{padding:"6px 9px 8px",marginBottom:4,borderBottom:"1px solid #20395f"}}>
+      <div className="ey">{g.label}</div>
+      <span className="muted" style={{fontSize:10,fontWeight:750}}>Quick actions</span>
+    </div>
+    <div style={{display:"grid",gap:2}}>{g.items.map(i=><button key={i.id} role="menuitem" className="tool-dropdown-action" style={{
+      display:"flex",
+      alignItems:"center",
+      justifyContent:"space-between",
+      gap:12,
+      width:"100%",
+      background:"transparent",
+      border:0,
+      padding:"8px 9px",
+      borderRadius:7,
+      color:"#c9d8ec",
+      fontSize:12,
+      textAlign:"left"
+    }} onClick={()=>{
+      if(i.id==="add-player"){setAddOpen(true);setTool(null)}
+      else if(i.id==="reorder"){setReorderOpen(true);setTool(null)}
+      else setTool(i);
+      setOpen(null)
+    }}><span>{i.label}</span><span aria-hidden="true" style={{color:"#5f789a",fontSize:15}}>›</span></button>)}</div>
+  </div>}
+</div>)}
+</div>
 <AddPlayersModal open={addOpen} onClose={()=>setAddOpen(false)} onDone={()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setPlayers(x)}).catch(()=>{})}}/>
 <ReorderPlayersModal open={reorderOpen} onClose={()=>setReorderOpen(false)}/>
 {tool&&<div className="tool-modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="tool-modal"><div className="page-head"><div><div className="ey">Workbook Tool</div><h2>{tool.label}</h2></div><button className="small ghost" onClick={close}>Close</button></div>
