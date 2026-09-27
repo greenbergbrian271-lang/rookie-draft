@@ -14,6 +14,19 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Probe ESPN search schema
+        run: |
+          node - <<'NODE'
+          const names=["J'Koby Williams","Mark Fletcher Jr.","Demond Williams Jr.","Ryan Wingo"];
+          for (const name of names) {
+            const u=new URL("https://site.web.api.espn.com/apis/common/v3/search");
+            u.search=new URLSearchParams({region:"us",lang:"en",query:name,limit:"10",mode:"prefix"}).toString();
+            const r=await fetch(u);
+            const j=await r.json();
+            console.log("\nNAME",name,"STATUS",r.status,"COUNT",j.count);
+            console.log(JSON.stringify((j.items||[]).slice(0,5),null,2));
+          }
+          NODE
       - name: Audit legacy database syntax
         run: |
           if grep -R "@/lib/db" app lib --include='*.ts' --include='*.tsx' | grep -v '^lib/db.ts:'; then
