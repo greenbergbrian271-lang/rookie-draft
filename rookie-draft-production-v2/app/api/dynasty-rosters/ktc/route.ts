@@ -135,3 +135,6 @@ export async function POST(){
     return Response.json({error:"Could not refresh KTC values",detail:e?.message},{status:500});
   }
 }
+
+
+export const GET=POST;
