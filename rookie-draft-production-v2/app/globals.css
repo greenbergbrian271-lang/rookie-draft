@@ -31,3 +31,39 @@
 .team-prospects .team-prospect{display:grid;grid-template-columns:56px 1fr;text-align:left;justify-content:stretch;gap:4px;border:1px solid rgba(255,255,255,.12);box-shadow:none}.team-prospects .team-prospect b{font-size:14px}.team-prospects .team-prospect span{font-weight:850}.team-prospects .team-prospect-qb{background:#fc2b6d;color:#fff}.team-prospects .team-prospect-rb{background:#20ceb7;color:#071426}.team-prospects .team-prospect-wr{background:#58a7ff;color:#071426}.team-prospects .team-prospect-te{background:#fead58;color:#071426}.profile-schedule{display:grid;gap:8px}.profile-schedule .profile-game{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;padding:12px 14px;border:1px solid #20395f;border-radius:12px;background:#0c1d35}.profile-game-date{color:#9fb5d3;font-weight:800}.profile-game-copy{min-width:0}.profile-game-result{color:#a7bad5;font-weight:800}.profile-game-result.completed{color:#b9c9df}.profile-game-stats{margin-top:3px;color:#fff;font-size:15px;font-weight:900;letter-spacing:.01em}@media(max-width:650px){.profile-schedule .profile-game{grid-template-columns:58px 1fr;padding:10px}.team-prospects{grid-template-columns:1fr!important}}
 
 [data-player-id]{cursor:pointer}
+
+
+/* Scouting Glossary — editable workbook reference */
+.glossary-page{max-width:1500px}
+.glossary-toolbar{display:flex;align-items:center;gap:10px;margin:12px 0 14px}
+.glossary-toolbar>input{max-width:520px;background:#fff;color:#111;border:1px solid #9aa7b8}
+.glossary-count{color:var(--muted);font-size:12px;font-weight:800}
+.glossary-error{margin:0 0 12px;padding:10px 12px;border:1px solid #a83b4b;background:#32131b;color:#ffd7dd;border-radius:8px}
+.glossary-wrap{max-height:calc(100vh - 225px);background:#fff;border-color:#69798f}
+.glossary-table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0;font:12px/1.35 Calibri,Arial,sans-serif;color:#111}
+.glossary-table th,.glossary-table td{border-right:1px solid #aaa;border-bottom:1px solid #aaa;padding:0;vertical-align:top;background:#fff;color:#111}
+.glossary-table thead th{position:sticky;top:0;z-index:12;background:#d9d9d9;color:#111;font-weight:950;text-align:center;padding:9px 8px;border-bottom:2px solid #555}
+.glossary-table th:first-child{width:58px;min-width:58px}
+.glossary-table th:nth-child(2){width:300px;min-width:300px}
+.glossary-table th:nth-child(4){width:170px;min-width:170px}
+.glossary-row-number{width:58px;min-width:58px;text-align:center;font-weight:900;color:#667085!important;background:#f4f5f7!important;padding:8px!important;font-variant-numeric:tabular-nums}
+.glossary-category{min-width:300px}
+.glossary-value{min-width:520px}
+.glossary-table input,.glossary-table textarea,.glossary-table select{display:block;width:100%;margin:0;border:1px solid transparent;border-radius:0;background:#fff;color:#111;padding:8px 9px;font:inherit;line-height:1.4;resize:vertical}
+.glossary-table input:focus,.glossary-table textarea:focus,.glossary-table select:focus{outline:2px solid #1677ff;outline-offset:-2px;border-color:#1677ff}
+.glossary-value.compact input,.glossary-value.compact select{background:#fff7a8;font-weight:900;text-align:center}
+.glossary-category input{font-weight:800}
+.glossary-table td>strong{display:block;padding:8px 10px}
+.glossary-reference{padding:7px 8px!important;background:#f8fafc!important}
+.glossary-reference code{display:inline-block;margin:0 5px 4px 0;padding:2px 5px;background:#e8edf4;color:#22314b;border-radius:4px;font-size:11px}
+.glossary-reference span{display:block;color:#6b7280;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+.glossary-calculated{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:34px;padding:7px 9px;background:#eef3f8;color:#111}
+.glossary-calculated small{color:#56657a;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.glossary-major .glossary-category,.glossary-major .glossary-value{background:#4595d2!important;color:#fff!important;font-weight:950}
+.glossary-subhead .glossary-category,.glossary-subhead .glossary-value{background:#666!important;color:#fff!important;font-weight:950}
+.glossary-qb .glossary-category,.glossary-qb .glossary-value{background:#fc2b6d!important;color:#fff!important;font-weight:950}
+.glossary-rb .glossary-category,.glossary-rb .glossary-value{background:#20ceb7!important;color:#071426!important;font-weight:950}
+.glossary-wr .glossary-category,.glossary-wr .glossary-value{background:#58a7ff!important;color:#071426!important;font-weight:950}
+.glossary-te .glossary-category,.glossary-te .glossary-value{background:#fead58!important;color:#071426!important;font-weight:950}
+.glossary-header-row td{background:#d9d9d9!important;color:#111!important;font-weight:950}
+@media(max-width:800px){.glossary-toolbar{align-items:stretch;flex-direction:column}.glossary-toolbar>input{max-width:none}.glossary-wrap{max-height:calc(100vh - 260px)}}
