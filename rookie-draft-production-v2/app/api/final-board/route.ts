@@ -1,0 +1,5 @@
+import {ensureTursoSchema,rows} from "@/lib/turso";
+const KEY="final-draft-board-state";
+function clean(x:any){return {order:Array.isArray(x?.order)?x.order.map(String):[],tiers:x?.tiers&&typeof x.tiers==="object"&&!Array.isArray(x.tiers)?x.tiers:{}}}
+export async function GET(){try{const q=await ensureTursoSchema(),r:any=rows(await q.execute({sql:"select value from settings where key=?",args:[KEY]}))[0];if(!r?.value)return Response.json(clean(null));let parsed:any={};try{parsed=JSON.parse(String(r.value))}catch{}return Response.json(clean(parsed))}catch(e:any){return Response.json({error:"Could not load final draft board",detail:e?.message},{status:500})}}
+export async function POST(req:Request){try{const body=clean(await req.json()),q=await ensureTursoSchema();await q.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?) on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at",args:[KEY,JSON.stringify(body),new Date().toISOString()]});return Response.json({ok:true,...body})}catch(e:any){return Response.json({error:"Could not save final draft board",detail:e?.message},{status:500})}}
