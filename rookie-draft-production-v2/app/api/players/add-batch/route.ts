@@ -17,7 +17,7 @@ export async function POST(req:Request){
       const player=sanitizePlayerInput(raw),basic=basicPlayerError(player);
       if(basic){failed.push({name:player.name||"Unnamed player",message:basic});continue}
       const school=resolveSchoolName(player.college);
-      if(!school.found&&!force){failed.push({name:player.name,message:\`College "\${player.college}" needs review before it can be added.\`});continue}
+      if(!school.found&&!force){failed.push({name:player.name,message:`College "${player.college}" needs review before it can be added.`});continue}
       const college=school.found?school.canonical:player.college;
       const exact=existing.find((p:any)=>normalizeName(String(p.name))===normalizeName(player.name));
       if(exact){
