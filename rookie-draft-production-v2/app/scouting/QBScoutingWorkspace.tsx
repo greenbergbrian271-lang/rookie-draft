@@ -352,59 +352,80 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       </div>}
     </section>
   </div>
+}
 
-
-function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedFor,scoutingFor,analyticalFor,preDraftFor,metricDataFor,sessions}:{players:Player[],allPlayers:Player[],compareIds:string[],setCompareIds:React.Dispatch<React.SetStateAction<string[]>>,vals:Record<string,any>,importedFor:(p:Player)=>any,scoutingFor:(p:Player)=>number|null,analyticalFor:(p:Player)=>number|null,preDraftFor:(p:Player)=>number|null,metricDataFor:(p:Player)=>any[],sessions:Record<string,Session[]>}){
-  type Metric={group:string;label:string;numeric?:boolean;inverse?:boolean;wide?:boolean;get:(p:Player)=>any;format?:(v:any)=>string};
+function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedFor,scoutingFor,analyticalFor,preDraftFor,metricDataFor}:{players:Player[],allPlayers:Player[],compareIds:string[],setCompareIds:React.Dispatch<React.SetStateAction<string[]>>,vals:Record<string,any>,importedFor:(p:Player)=>any,scoutingFor:(p:Player)=>number|null,analyticalFor:(p:Player)=>number|null,preDraftFor:(p:Player)=>number|null,metricDataFor:(p:Player)=>any[]}){
+  type Metric={key:string;group:string;label:string;numeric?:boolean;inverse?:boolean;get:(p:Player)=>any;format?:(v:any)=>string};
+  const [filterOpen,setFilterOpen]=useState(false);
+  const [sortKey,setSortKey]=useState("rank");
+  const [sortDir,setSortDir]=useState<"asc"|"desc">("asc");
   const metrics:Metric[]=[
-    {group:"Grades",label:"Scouting",numeric:true,get:scoutingFor,format:v=>fmt(v)},
-    {group:"Grades",label:"Analytical",numeric:true,get:analyticalFor,format:v=>fmt(v)},
-    {group:"Grades",label:"Pre-Draft",numeric:true,get:preDraftFor,format:v=>fmt(v)},
-    {group:"Profile",label:"Games Watched",numeric:true,get:p=>num(vals[p.id+"|Games watched"])},
-    {group:"Profile",label:"Role",get:p=>inputValue(vals[p.id+"|Expected Role"])||"—"},
-    {group:"Profile",label:"Draft Projection",get:p=>inputValue(vals[p.id+"|Draft Projection"])||"—"},
-    {group:"Profile",label:"Draft Result",get:p=>inputValue(vals[p.id+"|Draft Result"])||"—"},
-    ...FILM.map(label=>({group:"Film",label,numeric:true,get:(p:Player)=>num(vals[p.id+"|"+label]),format:(v:any)=>v==null?"—":Number(v).toFixed(2)})),
-    {group:"Production",label:"Comp %",numeric:true,get:(p:Player)=>num(importedFor(p)["Completion %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
-    {group:"Production",label:"Yards / Att",numeric:true,get:(p:Player)=>num(importedFor(p)["Yards/Attempt"]),format:(v:any)=>formatNumber(v,2)},
-    {group:"Production",label:"Pass TD",numeric:true,get:(p:Player)=>num(importedFor(p).Touchdowns),format:(v:any)=>formatNumber(v,0)},
-    {group:"Production",label:"INT",numeric:true,inverse:true,get:(p:Player)=>num(importedFor(p).Interceptions),format:(v:any)=>formatNumber(v,0)},
-    {group:"Production",label:"QBR",numeric:true,get:(p:Player)=>num(importedFor(p).QBR),format:(v:any)=>formatNumber(v,1)},
-    {group:"Production",label:"ADOT",numeric:true,get:(p:Player)=>num(importedFor(p).ADOT),format:(v:any)=>formatNumber(v,1)},
-    {group:"Production",label:"Adjusted Y/A",numeric:true,get:(p:Player)=>num(importedFor(p)["Adjusted Y/A"]),format:(v:any)=>formatNumber(v,2)},
-    {group:"Production",label:"Pressure-to-Sack %",numeric:true,inverse:true,get:(p:Player)=>num(importedFor(p)["Pressure-to-Sack %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
-    {group:"Production",label:"Rush Yards",numeric:true,get:(p:Player)=>num(importedFor(p)["Rush Yards"]),format:(v:any)=>formatNumber(v,0)},
-    {group:"Production",label:"Rush Yds / Att",numeric:true,get:(p:Player)=>num(importedFor(p)["Rush Yards/Attempt"]),format:(v:any)=>formatNumber(v,2)},
-    ...ANALYTICS.map(a=>({group:"Analytics",label:a.label+" %ile",numeric:true,get:(p:Player)=>metricDataFor(p).find((m:any)=>m.label===a.label)?.percentile==null?null:metricDataFor(p).find((m:any)=>m.label===a.label)?.percentile*100,format:(v:any)=>v==null?"—":Math.round(Number(v)).toString()})),
-    {group:"Notes",label:"Latest Game",wide:true,get:(p:Player)=>sessions[String(p.id)]?.[0]?.opponent||inputValue(vals[p.id+"|__GAME_LABEL__"])||"—"},
-    {group:"Notes",label:"Latest Commentary",wide:true,get:(p:Player)=>sessions[String(p.id)]?.[0]?.raw_notes||inputValue(vals[p.id+"|__COMMENTARY__"])||"—"}
+    {key:"scouting",group:"Grades",label:"Scouting",numeric:true,get:scoutingFor,format:v=>fmt(v)},
+    {key:"analytical",group:"Grades",label:"Analytical",numeric:true,get:analyticalFor,format:v=>fmt(v)},
+    {key:"preDraft",group:"Grades",label:"Pre-Draft",numeric:true,get:preDraftFor,format:v=>fmt(v)},
+    {key:"gamesWatched",group:"Profile",label:"Games Watched",numeric:true,get:p=>num(vals[p.id+"|Games watched"])},
+    {key:"role",group:"Profile",label:"Role",get:p=>inputValue(vals[p.id+"|Expected Role"])||"—"},
+    {key:"draftProjection",group:"Profile",label:"Draft Projection",get:p=>inputValue(vals[p.id+"|Draft Projection"])||"—"},
+    {key:"draftResult",group:"Profile",label:"Draft Result",get:p=>inputValue(vals[p.id+"|Draft Result"])||"—"},
+    ...FILM.map(label=>({key:"film-"+label,group:"Film",label,numeric:true,get:(p:Player)=>num(vals[p.id+"|"+label]),format:(v:any)=>v==null?"—":Number(v).toFixed(2)})),
+    {key:"comp",group:"Production",label:"Comp %",numeric:true,get:(p:Player)=>num(importedFor(p)["Completion %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
+    {key:"ypa",group:"Production",label:"Yards / Att",numeric:true,get:(p:Player)=>num(importedFor(p)["Yards/Attempt"]),format:(v:any)=>formatNumber(v,2)},
+    {key:"passTd",group:"Production",label:"Pass TD",numeric:true,get:(p:Player)=>num(importedFor(p).Touchdowns),format:(v:any)=>formatNumber(v,0)},
+    {key:"int",group:"Production",label:"INT",numeric:true,inverse:true,get:(p:Player)=>num(importedFor(p).Interceptions),format:(v:any)=>formatNumber(v,0)},
+    {key:"qbr",group:"Production",label:"QBR",numeric:true,get:(p:Player)=>num(importedFor(p).QBR),format:(v:any)=>formatNumber(v,1)},
+    {key:"adot",group:"Production",label:"ADOT",numeric:true,get:(p:Player)=>num(importedFor(p).ADOT),format:(v:any)=>formatNumber(v,1)},
+    {key:"aya",group:"Production",label:"Adjusted Y/A",numeric:true,get:(p:Player)=>num(importedFor(p)["Adjusted Y/A"]),format:(v:any)=>formatNumber(v,2)},
+    {key:"p2s",group:"Production",label:"Pressure-to-Sack %",numeric:true,inverse:true,get:(p:Player)=>num(importedFor(p)["Pressure-to-Sack %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
+    {key:"rushYds",group:"Production",label:"Rush Yards",numeric:true,get:(p:Player)=>num(importedFor(p)["Rush Yards"]),format:(v:any)=>formatNumber(v,0)},
+    {key:"rushYpa",group:"Production",label:"Rush Yds / Att",numeric:true,get:(p:Player)=>num(importedFor(p)["Rush Yards/Attempt"]),format:(v:any)=>formatNumber(v,2)},
+    ...ANALYTICS.map(a=>({key:"analytics-"+a.label,group:"Analytics",label:a.label+" %ile",numeric:true,get:(p:Player)=>{const m=metricDataFor(p).find((x:any)=>x.label===a.label);return m?.percentile==null?null:m.percentile*100},format:(v:any)=>v==null?"—":Math.round(Number(v)).toString()}))
   ];
   const groups=Array.from(new Set(metrics.map(m=>m.group))).map(group=>({group,count:metrics.filter(m=>m.group===group).length}));
+  const metricMap=new Map(metrics.map(m=>[m.key,m]));
   const toggle=(id:string)=>setCompareIds(cur=>cur.includes(id)?cur.filter(x=>x!==id):[...cur,id]);
+  const changeSort=(key:string)=>{if(sortKey===key)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortKey(key);setSortDir(key==="rank"||key==="player"?"asc":"desc")}};
+  const sorted=[...players].sort((a,b)=>{
+    let av:any,bv:any;
+    if(sortKey==="rank"){av=allPlayers.indexOf(a)+1;bv=allPlayers.indexOf(b)+1}
+    else if(sortKey==="player"){av=(a.name+" "+(a.college||"")).toLowerCase();bv=(b.name+" "+(b.college||"")).toLowerCase()}
+    else{const m=metricMap.get(sortKey);av=m?.get(a);bv=m?.get(b)}
+    const aBlank=av==null||av==="",bBlank=bv==null||bv==="";
+    if(aBlank&&bBlank)return 0;if(aBlank)return 1;if(bBlank)return -1;
+    const cmp=typeof av==="number"&&typeof bv==="number"?av-bv:String(av).localeCompare(String(bv),undefined,{numeric:true,sensitivity:"base"});
+    return sortDir==="asc"?cmp:-cmp;
+  });
+  const arrow=(key:string)=>sortKey===key?(sortDir==="asc"?" ↑":" ↓"):"";
   return <div className="qb-compare-view">
     <div className="qb-compare-head">
-      <div><span className="ey">Side-by-Side</span><h2>QB Comparison Board</h2><p>Players run vertically; comparable data runs horizontally. Numeric cells are conditionally formatted within the current comparison set.</p></div>
+      <div><span className="ey">Side-by-Side</span><h2>QB Comparison Board</h2><p>Click any column header to sort. Numeric cells are conditionally formatted within the current comparison set.</p></div>
       <div className="qb-compare-controls">
         <button className="ghost" onClick={()=>setCompareIds(allPlayers.map(p=>String(p.id)))}>All players</button>
-        <details><summary>{players.length} of {allPlayers.length} players</summary><div className="qb-compare-filter-list">
-          {allPlayers.map(p=><label key={p.id}><input type="checkbox" checked={compareIds.includes(String(p.id))} onChange={()=>toggle(String(p.id))}/><span>QB{allPlayers.indexOf(p)+1}</span><b>{p.name}</b></label>)}
-        </div></details>
+        <div className="qb-compare-filter">
+          <button className={"qb-compare-filter-button "+(filterOpen?"open":"")} onClick={()=>setFilterOpen(x=>!x)}>{players.length} of {allPlayers.length} Players <span>▾</span></button>
+          {filterOpen&&<div className="qb-compare-filter-list">
+            {allPlayers.map(p=><label key={p.id}><input type="checkbox" checked={compareIds.includes(String(p.id))} onChange={()=>toggle(String(p.id))}/><span>QB{allPlayers.indexOf(p)+1}</span><b>{p.name}</b><small>{p.college}</small></label>)}
+          </div>}
+        </div>
       </div>
     </div>
     {!players.length?<div className="qb-game-empty">Select at least one quarterback to compare.</div>:<div className="qb-compare-scroll">
       <table className="qb-compare-matrix">
         <thead>
-          <tr className="groups"><th rowSpan={2}>Rank</th><th rowSpan={2}>Player</th>{groups.map(g=><th key={g.group} colSpan={g.count}>{g.group}</th>)}</tr>
-          <tr>{metrics.map(m=><th key={m.group+m.label} className={m.wide?"wide":""}>{m.label}</th>)}</tr>
+          <tr className="groups">
+            <th rowSpan={2}><button onClick={()=>changeSort("rank")}>Rank{arrow("rank")}</button></th>
+            <th rowSpan={2}><button onClick={()=>changeSort("player")}>Player / School{arrow("player")}</button></th>
+            {groups.map(g=><th key={g.group} colSpan={g.count}>{g.group}</th>)}
+          </tr>
+          <tr>{metrics.map(m=><th key={m.key}><button onClick={()=>changeSort(m.key)}>{m.label}{arrow(m.key)}</button></th>)}</tr>
         </thead>
         <tbody>
-          {players.map(p=><tr key={p.id}>
+          {sorted.map(p=><tr key={p.id}>
             <th className="rank">QB{allPlayers.indexOf(p)+1}</th>
-            <th className="player" style={schoolStyle(p.college)}><b>{p.name}</b><small>{p.college}</small></th>
+            <th className="player" style={schoolStyle(p.college)}><b>{p.name}</b><small> · {p.college}</small></th>
             {metrics.map(m=>{
               const raw=m.get(p),values=m.numeric?players.map(x=>m.get(x)).filter((v):v is number=>typeof v==="number"&&Number.isFinite(v)):[];
               const shown=m.format?m.format(raw):(raw==null||raw===""?"—":String(raw));
-              return <td key={m.group+m.label} className={(m.wide?"wide ":"")+(m.numeric?"numeric":"")} style={m.numeric?conditionalStyle(raw,values,m.inverse):undefined}>{shown}</td>
+              return <td key={m.key} className={m.numeric?"numeric":""} style={m.numeric?conditionalStyle(raw,values,m.inverse):undefined}>{shown}</td>
             })}
           </tr>)}
         </tbody>
