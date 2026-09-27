@@ -2,8 +2,8 @@ import {glossaryNumber,productionAnalyticalDisabled,type GlossaryRows} from "./s
 const avg=(...v:Array<number|null|undefined>)=>{const a=v.filter((x):x is number=>typeof x==="number"&&Number.isFinite(x));return a.length?a.reduce((s,x)=>s+x,0)/a.length:null};
 const term=(v:number|null,w:number)=>v==null?null:v*100*w;
 const sum=(parts:Array<number|null>,fallback:number)=>parts.some(v=>v==null)?fallback:parts.reduce<number>((s,v)=>s+(v||0),0);
-export function qbAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>){
- if(productionAnalyticalDisabled())return scouting;
+export function qbAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>,glossary?:GlossaryRows){
+ if(productionAnalyticalDisabled(glossary))return scouting;
  const g=sum([
  term(avg(r.AS,r.BE,r.AT,r.AU,r.AV),glossaryNumber(93,glossary)+glossaryNumber(95,glossary)),
  term(avg(r.AW,r.AX),glossaryNumber(97,glossary)),
