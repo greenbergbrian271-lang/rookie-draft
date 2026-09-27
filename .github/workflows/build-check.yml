@@ -1,4 +1,4 @@
-name: Player stats schema probe
+name: Team tab API probe
 on:
   push:
     branches: [ci-build-check]
@@ -14,22 +14,21 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Inspect ESPN stats schema
+      - name: Inspect Texas schedule and player boxscore schema
         run: |
           node - <<'NODE'
-          const id="5141684";
-          const url=`https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/${id}/stats`;
-          const r=await fetch(url,{headers:{"user-agent":"Mozilla/5.0"}});
-          const j=await r.json();
-          console.log("ROOT_KEYS",Object.keys(j));
-          console.log("TEAM_KEYS",Object.keys(j.teams||{}));
-          for(const c of j.categories||[]){
-            console.log("\nCATEGORY",c.name,c.displayName);
-            console.log("KEYS",Object.keys(c));
-            console.log("LABELS",JSON.stringify(c.labels));
-            console.log("NAMES",JSON.stringify(c.names));
-            console.log("STATS_TYPE",Array.isArray(c.statistics),typeof c.statistics,"COUNT",c.statistics?.length);
-            console.log("STAT_SAMPLE",JSON.stringify((c.statistics||[]).slice(0,4),null,2));
+          const teamId="251",athleteId="4870907";
+          const sr=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${teamId}/schedule?season=2026`);
+          const sj=await sr.json();
+          const events=(sj.events||[]).slice(0,6);
+          console.log("SCHEDULE_STATUS",sr.status);
+          console.log("EVENTS",JSON.stringify(events.map(e=>({id:e.id,date:e.date,name:e.name,shortName:e.shortName,status:e.status,competitors:e.competitions?.[0]?.competitors?.map(c=>({id:c.id,homeAway:c.homeAway,score:c.score,winner:c.winner,team:c.team?.displayName,abbr:c.team?.abbreviation}))})),null,2));
+          const done=(sj.events||[]).find(e=>e.status?.type?.completed);
+          if(done){
+            const br=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${done.id}`);
+            const bj=await br.json();
+            console.log("SUMMARY_STATUS",br.status,"EVENT",done.id);
+            console.log("BOXSCORE_PLAYER_KEYS",JSON.stringify((bj.boxscore?.players||[]).map(t=>({team:t.team?.displayName,categories:(t.statistics||[]).map(c=>({name:c.name,labels:c.labels,athletes:(c.athletes||[]).slice(0,3).map(a=>({id:a.athlete?.id,name:a.athlete?.displayName,stats:a.stats}))}))})),null,2).slice(0,40000));
           }
           NODE
       - run: npm run build
