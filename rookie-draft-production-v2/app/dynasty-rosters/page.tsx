@@ -155,7 +155,7 @@ export default function Page(){
       </aside>
     </div>
 
-    <style jsx>{\`
+    <style jsx global>{`
       .dynasty-page{max-width:1500px;margin:0 auto}
       .dynasty-page-head{margin-bottom:10px}
       .dynasty-page-head p{max-width:760px;margin:4px 0 0}
@@ -219,6 +219,6 @@ export default function Page(){
         .dynasty-handcuff-copy{display:block}
         .dynasty-handcuff-copy span{display:block;margin-top:2px}
       }
-    \`}</style>
+    `}</style>
   </div>;
 }
