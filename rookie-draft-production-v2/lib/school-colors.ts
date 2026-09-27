@@ -88,7 +88,7 @@ export const SCHOOL_COLORS:Record<string,SchoolStyle>={
     "background": "#CC0000",
     "color": "#FFFFFF"
   },
-  "Texas A&M": {
+"Texas A&M": {
     "background": "#9e1d32",
     "color": "#ffffff"
   },
