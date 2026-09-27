@@ -14,26 +14,21 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Probe all missing ESPN headshots
+      - name: Diagnose ESPN player search
         run: |
           node - <<'NODE'
-          const names=["Darian Mensah","Demond Williams Jr.","Connor Weigman","Gunner Stockton","Braxton Woodson","Mark Fletcher Jr.","Antwan Raymond","Quintrevion Wisner","Gavin Sawchuk","Bryson Washington","J'Koby Williams","Sutton Smith","Reuben Owens II","Jordan Lyle","Lendon Phillips Jr.","Arlis Boardingham","DJ Vonnahme","Cole Spence","Elija Lofton","Dylan Wade","Bryant Wesco","Cooper Barkate","Junior Sherril","Eugene Wilson III","Wyatt Young","Ryan Wingo","Eric Singleton Jr.","Griffin Wilde","Trent Walker"];
+          const names=["Mark Fletcher Jr.","J'Koby Williams","Demond Williams Jr.","Ryan Wingo"];
           const norm=s=>String(s||"").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g,"").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
-          const same=(a,b)=>norm(a)===norm(b)||norm(a).replace(/ /g,"")===norm(b).replace(/ /g,"");
-          const unresolved=[];
           for(const name of names){
             const u=new URL("https://site.web.api.espn.com/apis/search/v2");
             u.search=new URLSearchParams({query:name,sport:"football",limit:"10"}).toString();
             const r=await fetch(u),j=await r.json();
             const groups=Array.isArray(j?.items)?j.items:[];
-            const players=groups.filter(g=>g?.type==="player").flatMap(g=>Array.isArray(g.contents)?g.contents:[]);
-            const matches=players.filter(x=>same(x.displayName,name)); const hit=matches.find(x=>x.defaultLeagueSlug==="college-football"||x.description==="NCAAF"||x.sport==="football")||matches[0];
-            if(!hit){unresolved.push(name);console.log("MISS",name);continue}
-            const id=String(hit.uid||"").match(/~a:(\d+)/)?.[1]||String(hit.link?.web||"").match(/\/id\/(\d+)/)?.[1]||"";
-            let jersey=null,headshot=hit.image?.default||null;
-            if(id){const d=await fetch("https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/"+id);if(d.ok){const a=(await d.json())?.athlete;jersey=a?.jersey||null;headshot=a?.headshot?.href||headshot}}
-            console.log("FOUND",name,id,jersey||"-",headshot?"HEADSHOT":"NO_HEADSHOT",hit.subtitle||"");
+            const pg=groups.find(g=>g?.type==="player");
+            console.log("QUERY",name,"STATUS",r.status,"GROUPS",groups.map(g=>g?.type),"PLAYER_TOTAL",pg?.totalFound,"RAW_FIRST",JSON.stringify(pg?.contents?.[0]||null));
+            const contents=Array.isArray(pg?.contents)?pg.contents:[];
+            console.log("NORMALIZED",norm(name),contents.slice(0,5).map(x=>[x.displayName,norm(x.displayName),norm(x.displayName)===norm(name)]));
+            await new Promise(r=>setTimeout(r,750));
           }
-          console.log("UNRESOLVED",JSON.stringify(unresolved));
           NODE
       - run: npm run build
