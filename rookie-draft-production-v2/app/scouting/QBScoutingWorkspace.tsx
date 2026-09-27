@@ -10,7 +10,7 @@ import {usePlayerProfile} from "@/components/PlayerProfile";
 type Player={
   id:string|number;
   name:string;
-  position:"QB";
+  position:"QB"|"RB"|"WR"|"TE";
   college?:string;
   draft_class:number;
   scouting_status:string;
