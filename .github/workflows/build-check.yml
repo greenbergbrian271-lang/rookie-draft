@@ -27,7 +27,7 @@ jobs:
             const r=await fetch(u),j=await r.json();
             const groups=Array.isArray(j?.items)?j.items:[];
             const players=groups.filter(g=>g?.type==="player").flatMap(g=>Array.isArray(g.contents)?g.contents:[]);
-            const hit=players.find(x=>x.defaultLeagueSlug==="college-football"&&x.sport==="football"&&same(x.displayName,name));
+            const matches=players.filter(x=>same(x.displayName,name)); const hit=matches.find(x=>x.defaultLeagueSlug==="college-football"||x.description==="NCAAF"||x.sport==="football")||matches[0];
             if(!hit){unresolved.push(name);console.log("MISS",name);continue}
             const id=String(hit.uid||"").match(/~a:(\d+)/)?.[1]||String(hit.link?.web||"").match(/\/id\/(\d+)/)?.[1]||"";
             let jersey=null,headshot=hit.image?.default||null;
