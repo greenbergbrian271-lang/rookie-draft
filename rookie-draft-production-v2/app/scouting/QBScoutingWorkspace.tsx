@@ -117,7 +117,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const [selectedId,setSelectedId]=useState<string>("");
   const [search,setSearch]=useState("");
   const [tab,setTab]=useState<Tab>("Film");
-  const [mode,setMode]=useState<Mode>("Evaluate");
+  const [mode,setMode]=useState<Mode>(demoMode?"Compare":"Evaluate");
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [saveState,setSaveState]=useState<"saved"|"saving"|"error">("saved");
   const [sessions,setSessions]=useState<Record<string,Session[]>>({});
@@ -129,7 +129,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     if(!players.some(p=>String(p.id)===selectedId))setSelectedId(String(players[0].id));
     setCompareIds(cur=>{
       const valid=cur.filter(id=>players.some(p=>String(p.id)===id));
-      return valid.length?valid:players.slice(0,Math.min(3,players.length)).map(p=>String(p.id));
+      return valid.length?valid:players.slice(0,Math.min(4,players.length)).map(p=>String(p.id));
     });
   },[players,selectedId]);
 
