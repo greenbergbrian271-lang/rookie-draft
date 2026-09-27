@@ -121,8 +121,8 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [saveState,setSaveState]=useState<"saved"|"saving"|"error">("saved");
   const [sessions,setSessions]=useState<Record<string,Session[]>>({});
-  const [newGameOpen,setNewGameOpen]=useState(false);
-  const [newGame,setNewGame]=useState({opponent:"",notes:""});
+  const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
+  const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
 
   useEffect(()=>{
     if(!players.length){setSelectedId("");return}
@@ -149,33 +149,21 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const evalValue=(cat:string)=>selected?evalFor(selected,cat):"";
 
   useEffect(()=>{
-    if(!selected)return;
-    const id=String(selected.id);
-    if(sessions[id])return;
-    const legacy=String(evalFor(selected,"__COMMENTARY__")||"").trim();
-    const legacyLabel=String(evalFor(selected,"__GAME_LABEL__")||"").trim();
-    if(demoMode){
-      setSessions(x=>({...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]}));
-      return;
-    }
-    fetch("/api/scouting-sessions?playerId="+encodeURIComponent(id),{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((rows:any[])=>{
-      const live=Array.isArray(rows)?rows:[];
-      const fallback=!live.length&&legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[];
-      setSessions(x=>({...x,[id]:live.length?live:fallback}));
-    }).catch(()=>setSessions(x=>({...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]})));
-  },[selected,vals,demoMode,sessions]);
-
-  useEffect(()=>{
-    if(demoMode)return;
-    for(const p of players.filter(p=>compareIds.includes(String(p.id)))){
+    for(const p of players){
       const id=String(p.id);
       if(sessions[id])continue;
+      const legacy=String(evalFor(p,"__COMMENTARY__")||"").trim();
+      const legacyLabel=String(evalFor(p,"__GAME_LABEL__")||"").trim();
+      if(demoMode){
+        setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});
+        continue;
+      }
       fetch("/api/scouting-sessions?playerId="+encodeURIComponent(id),{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((rows:any[])=>{
-        const live=Array.isArray(rows)?rows:[],legacy=String(evalFor(p,"__COMMENTARY__")||"").trim(),label=String(evalFor(p,"__GAME_LABEL__")||"").trim();
-        setSessions(x=>x[id]?x:{...x,[id]:live.length?live:(legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[])});
-      }).catch(()=>{});
+        const live=Array.isArray(rows)?rows:[],fallback=!live.length&&legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[];
+        setSessions(x=>x[id]?x:{...x,[id]:live.length?live:fallback});
+      }).catch(()=>setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]}));
     }
-  },[compareIds,players,demoMode]);
+  },[players,vals,demoMode]);
 
   function fieldsFor(p:Player){
     const out:Record<string,any>={...importedFor(p)};
@@ -246,38 +234,36 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   };
   const combine=Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,(glossary.length?glossary:undefined) as GlossaryRows|undefined):null;
 
-  async function persist(cat:string,value:any){
-    if(!selected)return;
+  async function persist(p:Player,cat:string,value:any){
     setSaveState("saving");
-    setVals(v=>({...v,[selected.id+"|"+cat]:value}));
+    setVals(v=>({...v,[p.id+"|"+cat]:value}));
     if(demoMode){setTimeout(()=>setSaveState("saved"),120);return}
-    try{await onSave(selected,cat,value);setSaveState("saved")}
+    try{await onSave(p,cat,value);setSaveState("saved")}
     catch{setSaveState("error")}
   }
-  function local(cat:string,value:any){if(selected)setVals(v=>({...v,[selected.id+"|"+cat]:value}))}
+  function local(p:Player,cat:string,value:any){setVals(v=>({...v,[p.id+"|"+cat]:value}))}
 
-  async function saveSession(session:Session,patch:Partial<Session>){
-    if(!selected)return;
-    const id=String(selected.id),next={...session,...patch};
+  async function saveSession(p:Player,session:Session,patch:Partial<Session>){
+    const id=String(p.id),next={...session,...patch};
     setSessions(x=>({...x,[id]:(x[id]||[]).map(s=>String(s.id)===String(session.id)?next:s)}));
     if(session.legacy||demoMode){
-      if(patch.raw_notes!==undefined)await persist("__COMMENTARY__",patch.raw_notes||"");
-      if(patch.opponent!==undefined)await persist("__GAME_LABEL__",patch.opponent||"");
+      if(patch.raw_notes!==undefined)await persist(p,"__COMMENTARY__",patch.raw_notes||"");
+      if(patch.opponent!==undefined)await persist(p,"__GAME_LABEL__",patch.opponent||"");
       return;
     }
     await fetch("/api/scouting-sessions",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:session.id,opponent:next.opponent,gameDate:next.game_date,rawNotes:next.raw_notes,overallWriteup:next.overall_writeup})});
   }
-  async function addSession(){
-    if(!selected||(!newGame.opponent.trim()&&!newGame.notes.trim()))return;
-    const id=String(selected.id);
+  async function addSession(p:Player){
+    const id=String(p.id),draft=newGame[id]||{opponent:"",notes:""};
+    if(!draft.opponent.trim()&&!draft.notes.trim())return;
     if(demoMode){
-      const s:Session={id:"demo-"+Date.now(),opponent:newGame.opponent||"New game",raw_notes:newGame.notes,legacy:true};
+      const s:Session={id:"demo-"+Date.now(),opponent:draft.opponent||"New game",raw_notes:draft.notes,legacy:true};
       setSessions(x=>({...x,[id]:[s,...(x[id]||[])]}));
     }else{
-      const r=await fetch("/api/scouting-sessions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:selected.id,opponent:newGame.opponent,rawNotes:newGame.notes})});
+      const r=await fetch("/api/scouting-sessions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,opponent:draft.opponent,rawNotes:draft.notes})});
       if(r.ok){const s=await r.json();setSessions(x=>({...x,[id]:[s,...(x[id]||[])]}))}
     }
-    setNewGame({opponent:"",notes:""});setNewGameOpen(false);
+    setNewGame(x=>({...x,[id]:{opponent:"",notes:""}}));setNewGameOpen(x=>({...x,[id]:false}));
   }
 
   if(!players.length)return <div className="qb-workspace-empty"><h2>No watched QBs yet</h2><p>Add a quarterback to the watched pool to start a scouting report.</p><button className="success" onClick={onAdd}>+ New Player Watched</button></div>;
