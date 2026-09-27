@@ -52,7 +52,7 @@ export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolea
       </div>
       <div className="watched-showing">Showing {shown.length} player{shown.length===1?"":"s"}</div>
       <div className="watched-player-list">
-        {busy&&!players.length?<div className="watched-empty">Loading players…</div>:shown.length?shown.map(p=>{const id=String(p.id),checked=selected.includes(id),queued=queue.includes(id);return <label key={p.id} className={queued?"queued":""}>
+        {busy&&!players.length?<div className="watched-empty">Loading players…</div>:shown.length?shown.map(p=>{const id=String(p.id),checked=selected.includes(id),queued=queue.includes(id),style=schoolStyle(p.college);return <label key={p.id} className={"school-coded "+(queued?"queued":"")} style={style} onClick={e=>e.stopPropagation()}>
           <input type="checkbox" disabled={queued} checked={checked} onChange={e=>setSelected(v=>e.target.checked?[...v,id]:v.filter(x=>x!==id))}/>
           <span className="pos">{p.position}</span><span className="name">{p.name}</span><span className="college">{p.college||"College TBD"}</span>{queued&&<b>Queued</b>}
         </label>}):<div className="watched-empty">No matching players.</div>}
