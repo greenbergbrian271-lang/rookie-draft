@@ -180,11 +180,11 @@ export default function Page(){
         <p className="muted">Live Sleeper rosters with sortable values and roster-construction handcuff targets.</p>
       </div>
       <div className="dynasty-refresh-actions">
-        <button className="refresh-ktc" type="button" onClick={refreshKtc} disabled={refreshing||refreshingKtc}>
-          {refreshingKtc?"Refreshing KTC…":"↻ Refresh KTC Values"}
-        </button>
         <button className="refresh-rosters" type="button" onClick={refresh} disabled={refreshing||refreshingKtc}>
           {refreshing?"Refreshing all leagues…":"↻ Refresh Rosters"}
+        </button>
+        <button className="refresh-ktc" type="button" onClick={refreshKtc} disabled={refreshing||refreshingKtc}>
+          {refreshingKtc?"Refreshing KTC…":"↻ Refresh KTC Values"}
         </button>
       </div>
     </div>
