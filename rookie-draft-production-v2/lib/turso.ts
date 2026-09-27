@@ -15,8 +15,16 @@ export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaRead
 `create table if not exists settings(key text primary key,value text not null,updated_at text default current_timestamp)`,
 `create table if not exists nfl_draft_picks(year integer not null,selection text not null,round integer,overall_pick integer,position text,player text not null,college text,team text,imported_at text default current_timestamp,primary key(year,selection))`,
 `create table if not exists pff_imports(id integer primary key autoincrement,imported_at text default current_timestamp,thresholds text not null,result text not null)`,
-`create table if not exists college_stats(team text primary key,subdivision text not null default 'FBS',rank real,players_to_scout real,players text,games real,completions real,pass_attempts real,pass_yards real,pass_tds real,rush_yards real,rush_tds real,total_plays real,yac real,air_yards real,updated_at text default current_timestamp)`
+`create table if not exists college_stats(team text primary key,subdivision text not null default 'FBS',rank real,players_to_scout real,players text,games real,completions real,pass_attempts real,pass_yards real,pass_yards_per_attempt real,pass_yards_per_completion real,pass_tds real,pass_interceptions real,rushes real,rush_yards real,yards_per_rush real,rush_tds real,total_plays real,yac real,air_yards real,updated_at text default current_timestamp)`,
+`create table if not exists college_stat_overrides(team text not null,subdivision text not null,column_index integer not null,value text,updated_at text default current_timestamp,primary key(team,subdivision,column_index))`
 ])await c.execute(sql);
+for(const sql of [
+  `alter table college_stats add column pass_yards_per_attempt real`,
+  `alter table college_stats add column pass_yards_per_completion real`,
+  `alter table college_stats add column pass_interceptions real`,
+  `alter table college_stats add column rushes real`,
+  `alter table college_stats add column yards_per_rush real`
+]){try{await c.execute(sql)}catch(e:unknown){const message=e instanceof Error?e.message:String(e);if(!message.toLowerCase().includes("duplicate column"))throw e}}
 const marker=await c.execute({sql:"select value from settings where key=?",args:["baseline_2027_seeded"]});
 if(!marker.rows.length){
   const countResult=await c.execute("select count(*) as count from players where draft_class=2027"),count=Number(countResult.rows[0]?.count||0);
