@@ -168,3 +168,7 @@
 .profile-transfer-history span{color:#8fa7c8;font-weight:900}
 .profile-transfer-history strong{color:#eef5ff}
 @media(max-width:650px){.profile-transfer-route{grid-template-columns:1fr}.profile-transfer-route>b{transform:rotate(90deg);justify-self:center}.profile-transfer-season{grid-template-columns:1fr}.profile-transfer-actions{display:grid;grid-template-columns:1fr 1fr}}
+
+.profile-save-status{position:sticky;bottom:0;z-index:4;margin:0 18px 16px;padding:10px 12px;border-radius:9px;font-size:12px;font-weight:850;box-shadow:0 8px 28px rgba(0,0,0,.28)}
+.profile-save-status.success{background:#0e3527;border:1px solid #2d7b59;color:#b9f4d5}
+.profile-save-status.warning{background:#3b2b0c;border:1px solid #87651c;color:#ffe6a0}

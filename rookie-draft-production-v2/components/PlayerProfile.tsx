@@ -47,7 +47,6 @@ export function PlayerProfileProvider({children}:{children:React.ReactNode}){
     document.addEventListener("click",onClick);return()=>document.removeEventListener("click",onClick)
   },[]);
   useEffect(()=>{if(id)void loadProfile(id,true)},[id]);
-  const reload=async()=>{if(id)await loadProfile(id)};
   return <C.Provider value={{openPlayer}}>{children}{id&&<div className="player-profile-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setId(null)}><div className="player-profile-modal"><button className="player-profile-close" onClick={()=>setId(null)}>×</button>{loading&&!data?<div className="empty">Loading player profile…</div>:data?.player?<><Profile d={data} tab={tab} setTab={setTab} open={openPlayer} applyTransfer={applyTransfer}/>{status&&<div className={"profile-save-status "+status.kind}>{status.text}</div>}</>:<div className="empty">Could not load player profile.</div>}</div></div>}</C.Provider>
 }
 
