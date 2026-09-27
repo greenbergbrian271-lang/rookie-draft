@@ -135,9 +135,11 @@ export async function GET(req:Request){
     if(!league)return Response.json({error:"League integration not found"},{status:404});
 
     const root="https://api.sleeper.app/v1/league/"+league.leagueId;
-    const [leagueData,rosters,users]=await Promise.all([
+    const [leagueData,rostersRaw,usersRaw]=await Promise.all([
       sleeperJson(root),sleeperJson(root+"/rosters"),sleeperJson(root+"/users"),
     ]);
+    const rosters:any[]=Array.isArray(rostersRaw)?rostersRaw:[];
+    const users:any[]=Array.isArray(usersRaw)?usersRaw:[];
     const mine=resolveRoster(rosters,users,league.teamIdentity||"");
     if(!mine)return Response.json({error:"Could not identify your roster for this league"},{status:409});
     const myRosterId=Number(mine.roster_id);
