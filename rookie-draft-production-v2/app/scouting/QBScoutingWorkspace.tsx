@@ -485,8 +485,8 @@ function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedF
           <tr>{metrics.map(m=><th key={m.group+m.label} className={m.wide?"wide":""}>{m.label}</th>)}</tr>
         </thead>
         <tbody>
-          {players.map((p,i)=><tr key={p.id}>
-            <th className="rank">QB{i+1}</th>
+          {players.map(p=><tr key={p.id}>
+            <th className="rank">QB{allPlayers.indexOf(p)+1}</th>
             <th className="player" style={schoolStyle(p.college)}><b>{p.name}</b><small>{p.college}</small></th>
             {metrics.map(m=>{
               const raw=m.get(p),values=m.numeric?players.map(x=>m.get(x)).filter((v):v is number=>typeof v==="number"&&Number.isFinite(v)):[];
