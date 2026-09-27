@@ -1,26 +1,20 @@
 "use client";
 
-import {useState} from "react";
-import {workbookSecondary as w} from "@/lib/workbook-secondary";
+import {useEffect,useMemo,useState} from "react";
 
-type Row=readonly any[];
+type Player={name:string;position:string;team:string;age:string;ktc:string};
 type HandcuffItem={slot:string;name:string;team:string};
-
-const LEAGUES:Record<string,readonly Row[]>={
-  "One League":w.oneRoster,
-  "Last Man Standing":w.lmsRoster,
-  "D+R":w.drRoster,
-  "Last Minute":w.lmRoster,
+type RosterView={
+  key:string;label:string;league:string;leagueId:string;updated:string;source:string;
+  players:Player[];totalKtc:number;avgAge:number;
+  starters:HandcuffItem[];benchPlayers:HandcuffItem[];startingCoverage:HandcuffItem[];
+  benchCoverage:HandcuffItem[];bonus:HandcuffItem[];
 };
+type SortKey="name"|"position"|"team"|"age"|"ktc";
+type SortState={key:SortKey;dir:"asc"|"desc"}|null;
 
-const SECTION_TITLES=new Set([
-  "Starters to Handcuff",
-  "Bench Players to Handcuff",
-  "Starting Handcuffs",
-  "Bench Handcuffs",
-]);
+const POS_ORDER:Record<string,number>={QB:1,RB:2,WR:3,TE:4};
 
-function text(value:any){return value==null?"":String(value).trim()}
 function posClass(pos:string){
   const key=pos.toLowerCase().replace(/\s+/g,"-");
   return ["qb","rb","wr","te","flex","super","bench"].includes(key)?key:"other";
@@ -29,54 +23,9 @@ function fmtKtc(value:string){
   const n=Number(value);
   return Number.isFinite(n)?new Intl.NumberFormat("en-US").format(n):value||"—";
 }
-function parseRoster(rows:readonly Row[]){
-  const players=rows.slice(4).filter(r=>text(r[0])&&["QB","RB","WR","TE"].includes(text(r[1]))).map(r=>({
-    name:text(r[0]),position:text(r[1]),team:text(r[2]),age:text(r[3]),ktc:text(r[4]),
-  }));
-
-  const sections:Record<string,HandcuffItem[]>={};
-  let active="";
-  for(let i=3;i<rows.length;i++){
-    const g=text(rows[i]?.[6]);
-    if(!g)continue;
-    if(SECTION_TITLES.has(g)){
-      active=g;
-      sections[active]??=[];
-      continue;
-    }
-    const h=text(rows[i]?.[7]);
-    if(active&&h)sections[active].push({slot:g,name:h,team:text(rows[i]?.[8])});
-  }
-
-  const bonus=rows.slice(4).filter(r=>text(r[10])&&text(r[11])).map(r=>({
-    slot:text(r[10]),name:text(r[11]),team:"",
-  }));
-
-  const totalKtc=players.reduce((sum,p)=>{
-    const n=Number(p.ktc);
-    return sum+(Number.isFinite(n)?n:0);
-  },0);
-  const ages=players.map(p=>Number(p.age)).filter(Number.isFinite);
-  const avgAge=ages.length?ages.reduce((a,b)=>a+b,0)/ages.length:0;
-
-  return {
-    league:text(rows[0]?.[1]),
-    updated:text(rows[1]?.[1]),
-    players,
-    totalKtc,
-    avgAge,
-    starters:sections["Starters to Handcuff"]||[],
-    benchPlayers:sections["Bench Players to Handcuff"]||[],
-    startingCoverage:sections["Starting Handcuffs"]||[],
-    benchCoverage:sections["Bench Handcuffs"]||[],
-    bonus,
-  };
-}
-
 function PositionBadge({position}:{position:string}){
   return <span className={"dynasty-pos "+posClass(position)}>{position}</span>;
 }
-
 function HandcuffList({title,items,coverage=false}:{title:string;items:HandcuffItem[];coverage?:boolean}){
   return <section className="dynasty-panel">
     <div className="dynasty-panel-title">{title}<span>{items.length}</span></div>
@@ -88,77 +37,165 @@ function HandcuffList({title,items,coverage=false}:{title:string;items:HandcuffI
           {!coverage&&item.team&&<span>{item.team}</span>}
         </div>
       </div>)}
-    </div>:<div className="dynasty-empty">No entries on the source sheet.</div>}
+    </div>:<div className="dynasty-empty">No entries.</div>}
   </section>;
 }
 
 export default function Page(){
-  const [tab,setTab]=useState("One League");
-  const roster=parseRoster(LEAGUES[tab]);
+  const [rosters,setRosters]=useState<RosterView[]>([]);
+  const [tab,setTab]=useState("");
+  const [sort,setSort]=useState<SortState>(null);
+  const [loading,setLoading]=useState(true);
+  const [refreshing,setRefreshing]=useState(false);
+  const [message,setMessage]=useState("");
+
+  useEffect(()=>{void load()},[]);
+
+  async function load(){
+    setLoading(true);
+    try{
+      const res=await fetch("/api/dynasty-rosters",{cache:"no-store"});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data?.error||"Could not load rosters");
+      const next=(data?.rosters||[]) as RosterView[];
+      setRosters(next);
+      setTab(current=>next.some(r=>r.key===current)?current:(next[0]?.key||""));
+      if(data?.errors?.length)setMessage(data.errors.join(" • "));
+    }catch(e:any){setMessage(e?.message||"Could not load rosters")}
+    finally{setLoading(false)}
+  }
+
+  async function refresh(){
+    setRefreshing(true);setMessage("");
+    try{
+      const res=await fetch("/api/dynasty-rosters",{method:"POST"});
+      const data=await res.json();
+      if(!res.ok&&!(data?.rosters?.length))throw new Error(data?.error||data?.detail||"Could not refresh rosters");
+      const next=(data?.rosters||[]) as RosterView[];
+      setRosters(next);
+      setTab(current=>next.some(r=>r.key===current)?current:(next[0]?.key||""));
+      setMessage(data?.errors?.length?"Refresh completed with warnings: "+data.errors.join(" • "):"All Sleeper rosters refreshed.");
+    }catch(e:any){setMessage(e?.message||"Could not refresh rosters")}
+    finally{setRefreshing(false)}
+  }
+
+  function chooseSort(key:SortKey){
+    setSort(current=>current?.key===key?{key,dir:current.dir==="asc"?"desc":"asc"}:{key,dir:"asc"});
+  }
+
+  const roster=rosters.find(r=>r.key===tab)||rosters[0];
+  const sortedPlayers=useMemo(()=>{
+    if(!roster)return [];
+    if(!sort)return roster.players;
+    const list=[...roster.players];
+    const factor=sort.dir==="asc"?1:-1;
+    list.sort((a,b)=>{
+      if(sort.key==="age"||sort.key==="ktc"){
+        const av=Number(a[sort.key]),bv=Number(b[sort.key]);
+        const aValid=Number.isFinite(av),bValid=Number.isFinite(bv);
+        if(aValid!==bValid)return aValid?-1:1;
+        if(aValid&&bValid)return (av-bv)*factor;
+        return a.name.localeCompare(b.name);
+      }
+      if(sort.key==="position"){
+        const av=POS_ORDER[a.position]||99,bv=POS_ORDER[b.position]||99;
+        return av===bv?a.name.localeCompare(b.name):(av-bv)*factor;
+      }
+      return String(a[sort.key]||"").localeCompare(String(b[sort.key]||""),undefined,{numeric:true,sensitivity:"base"})*factor;
+    });
+    return list;
+  },[roster,sort]);
+
+  const SortHeader=({label,col,center=false}:{label:string;col:SortKey;center?:boolean})=><th className={center?"center":""}>
+    <button className={"sort-header "+(sort?.key===col?"active":"")} onClick={()=>chooseSort(col)} type="button">
+      <span>{label}</span><span className="sort-arrow">{sort?.key===col?(sort.dir==="asc"?"▲":"▼"):"↕"}</span>
+    </button>
+  </th>;
 
   return <div className="dynasty-page">
     <div className="page-head dynasty-page-head">
       <div>
         <div className="ey">Dynasty roster reference</div>
         <h1>Dynasty Rosters</h1>
-        <p className="muted">League rosters and handcuff targets, rebuilt from the source workbook instead of the generic reference table.</p>
+        <p className="muted">Live Sleeper rosters with sortable values and roster-construction handcuff targets.</p>
       </div>
+      <button className="refresh-rosters" type="button" onClick={refresh} disabled={refreshing}>
+        {refreshing?"Refreshing all leagues…":"↻ Refresh Rosters"}
+      </button>
     </div>
 
-    <div className="dynasty-tabs" role="tablist" aria-label="Dynasty leagues">
-      {Object.keys(LEAGUES).map(name=><button
-        key={name}
-        type="button"
-        role="tab"
-        aria-selected={tab===name}
-        className={tab===name?"active":""}
-        onClick={()=>setTab(name)}
-      >{name}</button>)}
-    </div>
+    {message&&<div className={"dynasty-message "+(message.startsWith("All Sleeper")?"ok":"warn")}>{message}</div>}
 
-    <div className="dynasty-meta-grid">
-      <div className="dynasty-meta"><span>League</span><strong>{roster.league||tab}</strong></div>
-      <div className="dynasty-meta"><span>Rostered Players</span><strong>{roster.players.length}</strong></div>
-      <div className="dynasty-meta"><span>Total KTC Value</span><strong>{new Intl.NumberFormat("en-US").format(roster.totalKtc)}</strong></div>
-      <div className="dynasty-meta"><span>Average Age</span><strong>{roster.avgAge?roster.avgAge.toFixed(1):"—"}</strong></div>
-      <div className="dynasty-meta updated"><span>Last Updated</span><strong>{roster.updated||"—"}</strong></div>
-    </div>
+    {loading&&!roster?<div className="dynasty-loading">Loading roster data…</div>:<>
+      <div className="dynasty-tabs" role="tablist" aria-label="Dynasty leagues">
+        {rosters.map(item=><button
+          key={item.key}
+          type="button"
+          role="tab"
+          aria-selected={tab===item.key}
+          className={tab===item.key?"active":""}
+          onClick={()=>{setTab(item.key);setSort(null)}}
+        >{item.label}</button>)}
+      </div>
 
-    <div className="dynasty-layout">
-      <section className="dynasty-panel dynasty-roster-panel">
-        <div className="dynasty-panel-title">
-          Roster
-          <span>{roster.players.length} players</span>
+      {roster&&<>
+        <div className="dynasty-meta-grid">
+          <div className="dynasty-meta"><span>League</span><strong>{roster.league||roster.label}</strong></div>
+          <div className="dynasty-meta"><span>Rostered Players</span><strong>{roster.players.length}</strong></div>
+          <div className="dynasty-meta"><span>Total KTC Value</span><strong>{new Intl.NumberFormat("en-US").format(roster.totalKtc)}</strong></div>
+          <div className="dynasty-meta"><span>Average Age</span><strong>{roster.avgAge?roster.avgAge.toFixed(1):"—"}</strong></div>
+          <div className="dynasty-meta updated"><span>Last Updated · {roster.source}</span><strong>{roster.updated||"—"}</strong></div>
         </div>
-        <div className="dynasty-table-wrap">
-          <table className="dynasty-roster-table">
-            <thead><tr><th>Player Name</th><th>Position</th><th>Team</th><th>Age</th><th>KTC Value</th></tr></thead>
-            <tbody>
-              {roster.players.map((p,i)=><tr key={p.name+"-"+i}>
-                <td><strong>{p.name}</strong></td>
-                <td><PositionBadge position={p.position}/></td>
-                <td>{p.team||"—"}</td>
-                <td>{p.age||"—"}</td>
-                <td className="ktc">{fmtKtc(p.ktc)}</td>
-              </tr>)}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
-      <aside className="dynasty-side">
-        <HandcuffList title="Starters to Handcuff" items={roster.starters}/>
-        <HandcuffList title="Bench Players to Handcuff" items={roster.benchPlayers}/>
-        <HandcuffList title="Starting Handcuffs" items={roster.startingCoverage} coverage/>
-        <HandcuffList title="Bench Handcuffs" items={roster.benchCoverage} coverage/>
-        <HandcuffList title="Handcuff Bonus Players" items={roster.bonus} coverage/>
-      </aside>
-    </div>
+        <div className="dynasty-layout">
+          <section className="dynasty-panel dynasty-roster-panel">
+            <div className="dynasty-panel-title">
+              Roster
+              <span>{roster.players.length} players · click any column to sort</span>
+            </div>
+            <div className="dynasty-table-wrap">
+              <table className="dynasty-roster-table">
+                <thead><tr>
+                  <SortHeader label="Player Name" col="name"/>
+                  <SortHeader label="Position" col="position" center/>
+                  <SortHeader label="Team" col="team"/>
+                  <SortHeader label="Age" col="age" center/>
+                  <SortHeader label="KTC Value" col="ktc" center/>
+                </tr></thead>
+                <tbody>
+                  {sortedPlayers.map((p,i)=><tr key={p.name+"-"+i}>
+                    <td><strong>{p.name}</strong></td>
+                    <td><PositionBadge position={p.position}/></td>
+                    <td>{p.team||"—"}</td>
+                    <td>{p.age||"—"}</td>
+                    <td className="ktc">{fmtKtc(p.ktc)}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside className="dynasty-side">
+            <HandcuffList title="Starters to Handcuff" items={roster.starters}/>
+            <HandcuffList title="Bench Players to Handcuff" items={roster.benchPlayers}/>
+            <HandcuffList title="Starting Handcuffs" items={roster.startingCoverage} coverage/>
+            <HandcuffList title="Bench Handcuffs" items={roster.benchCoverage} coverage/>
+            <HandcuffList title="Handcuff Bonus Players" items={roster.bonus} coverage/>
+          </aside>
+        </div>
+      </>}
+    </>}
 
     <style jsx global>{`
       .dynasty-page{max-width:1500px;margin:0 auto}
-      .dynasty-page-head{margin-bottom:10px}
+      .dynasty-page-head{margin-bottom:10px;align-items:center}
       .dynasty-page-head p{max-width:760px;margin:4px 0 0}
+      .refresh-rosters{background:#18794e;min-width:168px;white-space:nowrap}
+      .refresh-rosters:disabled{opacity:.65;cursor:wait}
+      .dynasty-message{margin:0 0 12px;padding:9px 12px;border-radius:8px;font-size:12px;font-weight:800}
+      .dynasty-message.ok{background:#123b2c;border:1px solid #247a55;color:#bff4d7}
+      .dynasty-message.warn{background:#33291a;border:1px solid #725b2d;color:#f8dfaa}
+      .dynasty-loading{padding:34px;text-align:center;color:#8fa7c8;background:#0c1930;border:1px solid #20395f;border-radius:12px}
       .dynasty-tabs{display:flex;gap:8px;overflow:auto;padding:3px 0 12px;margin-bottom:8px}
       .dynasty-tabs button{flex:0 0 auto;background:#10213a;border:1px solid #31527f;color:#b9c9df;border-radius:9px;padding:9px 13px}
       .dynasty-tabs button:hover{background:#142844;color:#fff}
@@ -175,7 +212,11 @@ export default function Page(){
       .dynasty-roster-panel{position:sticky;top:58px}
       .dynasty-table-wrap{max-height:calc(100vh - 255px);overflow:auto}
       .dynasty-roster-table{width:100%;border-collapse:separate;border-spacing:0;font-family:Calibri,Arial,sans-serif;font-size:13px}
-      .dynasty-roster-table th{position:sticky;top:0;z-index:2;background:#132844;color:#b9c9df;text-align:left;padding:9px 11px;border-bottom:1px solid #31527f;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+      .dynasty-roster-table th{position:sticky;top:0;z-index:2;background:#132844;color:#b9c9df;text-align:left;padding:0;border-bottom:1px solid #31527f;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+      .dynasty-roster-table th.center .sort-header{justify-content:center}
+      .sort-header{width:100%;display:flex;align-items:center;justify-content:flex-start;gap:6px;background:transparent!important;border:0!important;border-radius:0!important;color:#b9c9df!important;padding:9px 11px;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+      .sort-header:hover,.sort-header.active{color:#fff!important;background:#193457!important}
+      .sort-arrow{font-size:9px;opacity:.8}
       .dynasty-roster-table th:nth-child(2),.dynasty-roster-table th:nth-child(4),.dynasty-roster-table th:nth-child(5),
       .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5){text-align:center}
       .dynasty-roster-table td{padding:8px 11px;border-bottom:1px solid #18304f;color:#e9f1fb}
@@ -211,6 +252,8 @@ export default function Page(){
         .dynasty-side{grid-template-columns:repeat(2,minmax(0,1fr))}
       }
       @media(max-width:700px){
+        .dynasty-page-head{display:block}
+        .refresh-rosters{margin-top:12px}
         .dynasty-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
         .dynasty-meta:first-child,.dynasty-meta.updated{grid-column:1/-1}
         .dynasty-side{grid-template-columns:1fr}
