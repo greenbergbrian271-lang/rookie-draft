@@ -117,12 +117,14 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const [selectedId,setSelectedId]=useState<string>("");
   const [search,setSearch]=useState("");
   const [tab,setTab]=useState<Tab>("Film");
-  const [mode,setMode]=useState<Mode>(demoMode?"Compare":"Evaluate");
+  const [mode,setMode]=useState<Mode>("Evaluate");
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [saveState,setSaveState]=useState<"saved"|"saving"|"error">("saved");
   const [sessions,setSessions]=useState<Record<string,Session[]>>({});
   const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
   const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
+
+  useEffect(()=>{window.scrollTo({top:0,left:0,behavior:"auto"})},[]);
 
   useEffect(()=>{
     if(!players.length){setSelectedId("");return}
@@ -345,7 +347,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">QB{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/9 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
       {demoMode&&<div className="qb-demo-note">Preview data is local to this QB scouting build.</div>}
     </aside>
-    <section className="qb-scouting-pane">
+    <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>
       {mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack">
         <nav className="qb-section-tabs qb-shared-tabs">{(["Film","Analytics","Stats","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</nav>
         {rankedPlayers.map(renderPlayerSection)}
