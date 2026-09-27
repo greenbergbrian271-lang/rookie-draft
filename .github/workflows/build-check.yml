@@ -1,4 +1,4 @@
-name: Rebuild compile check
+name: Player stats API probe
 on:
   push:
     branches: [ci-build-check]
@@ -14,21 +14,23 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Diagnose ESPN player search
+      - name: Probe ESPN stats endpoints
         run: |
           node - <<'NODE'
-          const names=["Mark Fletcher Jr.","J'Koby Williams","Demond Williams Jr.","Ryan Wingo"];
-          const norm=s=>String(s||"").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g,"").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
-          for(const name of names){
-            const u=new URL("https://site.web.api.espn.com/apis/search/v2");
-            u.search=new URLSearchParams({query:name,sport:"football",limit:"10"}).toString();
-            const r=await fetch(u),j=await r.json();
-            const groups=Array.isArray(j?.items)?j.items:[];
-            const pg=groups.find(g=>g?.type==="player");
-            console.log("QUERY",name,"STATUS",r.status,"GROUPS",groups.map(g=>g?.type),"PLAYER_TOTAL",pg?.totalFound,"RAW_FIRST",JSON.stringify(pg?.contents?.[0]||null));
-            const contents=Array.isArray(pg?.contents)?pg.contents:[];
-            console.log("NORMALIZED",norm(name),contents.slice(0,5).map(x=>[x.displayName,norm(x.displayName),norm(x.displayName)===norm(name)]));
-            await new Promise(r=>setTimeout(r,750));
+          const id="5141684";
+          const urls=[
+            `https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/${id}/stats`,
+            `https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/${id}`,
+            `https://sports.api.espn.com/apis/v2/sports/football/college-football/leagues/college-football/seasons/2026/types/2/athletes/${id}/statistics`,
+            `https://site.api.espn.com/apis/site/v2/sports/football/college-football/athletes/${id}`
+          ];
+          for(const url of urls){
+            try{
+              const r=await fetch(url,{headers:{"user-agent":"Mozilla/5.0"}});
+              const txt=await r.text();
+              console.log("\nURL",url,"STATUS",r.status,"CT",r.headers.get("content-type"));
+              console.log(txt.slice(0,12000));
+            }catch(e){console.log("ERR",url,e.message)}
           }
           NODE
       - run: npm run build
