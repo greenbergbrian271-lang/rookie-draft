@@ -7,14 +7,15 @@ const norm=(s:any)=>String(s??"").trim().toLowerCase();
 
 export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolean;onClose:()=>void;onDone?:()=>void}){
   const [players,setPlayers]=useState<Player[]>([]),[position,setPosition]=useState("ALL"),[college,setCollege]=useState(""),[search,setSearch]=useState("");
-  const [selected,setSelected]=useState<string[]>([]),[queue,setQueue]=useState<string[]>([]),[busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[complete,setComplete]=useState(false);
+  const [selected,setSelected]=useState<string[]>([]),[queue,setQueue]=useState<string[]>([]),[busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[complete,setComplete]=useState(false),[sheetIds,setSheetIds]=useState<string[]>([]);
 
   useEffect(()=>{if(!open)return;setPosition("ALL");setCollege("");setSearch("");setSelected([]);setQueue([]);setMsg("");setComplete(false);setBusy(true);
+    try{const saved=JSON.parse(sessionStorage.getItem("rookie-draft:scouting-sheet-player-ids")||"[]");setSheetIds(Array.isArray(saved)?saved.map(String):[])}catch{setSheetIds([])}
     fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(Array.isArray(j))setPlayers(j)}).catch(()=>setMsg("Could not load players.")).finally(()=>setBusy(false));
   },[open]);
 
   const classPlayers=useMemo(()=>players.filter(p=>p.draft_class===2027),[players]);
-  const candidates=useMemo(()=>classPlayers.filter(p=>p.scouting_status!=="WATCHED"&&p.scouting_status!=="FINISHED"),[classPlayers]);
+  const candidates=useMemo(()=>classPlayers.filter(p=>!["WATCHED","FINISHED","MAYBE"].includes(p.scouting_status)&&!sheetIds.includes(String(p.id))),[classPlayers,sheetIds]);
   const excluded=classPlayers.length-candidates.length;
   const colleges=useMemo(()=>Array.from(new Set(candidates.map(p=>p.college).filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b)),[candidates]);
   const shown=useMemo(()=>candidates.filter(p=>(position==="ALL"||p.position===position)&&(!college.trim()||norm(p.college)===norm(college))&&(!search.trim()||norm(p.name+" "+(p.college||"")+" "+p.position).includes(norm(search)))),[candidates,position,college,search]);
