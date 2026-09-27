@@ -14,23 +14,20 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Inspect Texas schedule and player boxscore schema
+      - name: Inspect Texas boxscore player schema
         run: |
           node - <<'NODE'
-          const teamId="251",athleteId="4870907";
-          const sr=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${teamId}/schedule?season=2026`);
-          const sj=await sr.json();
-          const events=(sj.events||[]).slice(0,6);
-          console.log("SCHEDULE_STATUS",sr.status);
-          console.log("EVENTS",JSON.stringify(events.map(e=>({id:e.id,date:e.date,name:e.name,shortName:e.shortName,status:e.status,competitors:e.competitions?.[0]?.competitors?.map(c=>({id:c.id,homeAway:c.homeAway,score:c.score,winner:c.winner,team:c.team?.displayName,abbr:c.team?.abbreviation}))})),null,2));
-          const done=(sj.events||[]).find(e=>e.status?.type?.completed);
-          if(done){
-            const br=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${done.id}`);
-            const bj=await br.json();
-            console.log("SUMMARY_STATUS",br.status,"EVENT",done.id);
-            console.log("BOXSCORE_PLAYER_KEYS",JSON.stringify((bj.boxscore?.players||[]).map(t=>({team:t.team?.displayName,categories:(t.statistics||[]).map(c=>({name:c.name,labels:c.labels,athletes:(c.athletes||[]).slice(0,3).map(a=>({id:a.athlete?.id,name:a.athlete?.displayName,stats:a.stats}))}))})),null,2).slice(0,40000));
+          const eventId="401856667",athleteId="4870906";
+          const br=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${eventId}`);
+          const bj=await br.json();
+          console.log("SUMMARY_STATUS",br.status,"HEADER",JSON.stringify(bj.header?.competitions?.[0]?.competitors?.map(c=>({id:c.id,homeAway:c.homeAway,score:c.score,team:c.team?.displayName,abbr:c.team?.abbreviation,winner:c.winner})),null,2));
+          const teams=bj.boxscore?.players||[];
+          for(const t of teams){
+            console.log("\nTEAM",t.team?.displayName,t.team?.id);
+            for(const c of t.statistics||[]){
+              const a=(c.athletes||[]).find(x=>String(x.athlete?.id)===athleteId);
+              console.log("CATEGORY",c.name,"LABELS",JSON.stringify(c.labels),"FOUND",!!a,a?JSON.stringify({name:a.athlete?.displayName,stats:a.stats}):"");
+            }
           }
           NODE
       - run: npm run build
-
-# trigger team-tab probe
