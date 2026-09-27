@@ -1,16 +1,16 @@
-import {glossaryNumber,productionAnalyticalDisabled} from "./scouting-formulas";
+import {glossaryNumber,productionAnalyticalDisabled,type GlossaryRows} from "./scouting-formulas";
 const avg=(...v:Array<number|null|undefined>)=>{const a=v.filter((x):x is number=>typeof x==="number"&&Number.isFinite(x));return a.length?a.reduce((s,x)=>s+x,0)/a.length:null};
 const term=(v:number|null,w:number)=>v==null?null:v*100*w;
 const sum=(parts:Array<number|null>,fallback:number)=>parts.some(v=>v==null)?fallback:parts.reduce<number>((s,v)=>s+(v||0),0);
 export function qbAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>){
  if(productionAnalyticalDisabled())return scouting;
  const g=sum([
- term(avg(r.AS,r.BE,r.AT,r.AU,r.AV),glossaryNumber(93)+glossaryNumber(95)),
- term(avg(r.AW,r.AX),glossaryNumber(97)),
- term(avg(r.BA,r.BB,r.BC,r.BD),glossaryNumber(99)),
- term(avg(r.BD,r.BF,r.BG,r.BH,r.BI,r.BJ,r.BO,r.BP),glossaryNumber(101)+glossaryNumber(103)+glossaryNumber(109)),
- term(avg(r.BK,r.BL,r.BM,r.BN,r.BG),glossaryNumber(105)),
- term(avg(r.AY,r.AZ),glossaryNumber(107))
+ term(avg(r.AS,r.BE,r.AT,r.AU,r.AV),glossaryNumber(93,glossary)+glossaryNumber(95,glossary)),
+ term(avg(r.AW,r.AX),glossaryNumber(97,glossary)),
+ term(avg(r.BA,r.BB,r.BC,r.BD),glossaryNumber(99,glossary)),
+ term(avg(r.BD,r.BF,r.BG,r.BH,r.BI,r.BJ,r.BO,r.BP),glossaryNumber(101,glossary)+glossaryNumber(103,glossary)+glossaryNumber(109,glossary)),
+ term(avg(r.BK,r.BL,r.BM,r.BN,r.BG),glossaryNumber(105,glossary)),
+ term(avg(r.AY,r.AZ),glossaryNumber(107,glossary))
  ],scouting);return g+(Number(r.pressureToSack||0)>.22?-5:0);
 }
 export function rbAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>){
