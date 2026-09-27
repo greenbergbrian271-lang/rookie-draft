@@ -19,7 +19,7 @@ export type KtcMatch={
   method:"exact"|"alias"|"first-last";
 };
 
-const CACHE_KEY="ktc_values_cache_v2";
+const CACHE_KEY="ktc_values_cache_v3";
 const SIX_HOURS=6*60*60*1000;
 
 const NAME_ALIASES:Record<string,string>={
@@ -65,7 +65,7 @@ function parseKtcPlayers(html:string):KtcPlayer[]{
 
   const players:KtcPlayer[]=[];
   for(const p of raw){
-    if(!p?.playerName||!["QB","RB","WR","TE"].includes(String(p.position||"")))continue;
+    if(!p?.playerName||!["QB","RB","WR","TE","PICK","RDP"].includes(String(p.position||"")))continue;
     const sf=p?.superflexValues||{};
     // KTC's current data model names the non-TE-premium bucket "tep".
     // "tepp" is the next TE-premium tier used by the TEP leagues in this app.
@@ -108,7 +108,7 @@ export async function loadKtcDataset(force=false):Promise<KtcDataset>{
   if(!force&&cached&&Date.now()-Date.parse(cached.fetchedAt)<SIX_HOURS)return cached;
 
   try{
-    const res=await fetch("https://keeptradecut.com/dynasty-rankings?filters=QB%7CWR%7CRB%7CTE&page=0",{
+    const res=await fetch("https://keeptradecut.com/dynasty-rankings?page=0",{
       cache:"no-store",
       headers:{
         "accept":"text/html,application/xhtml+xml",
@@ -171,4 +171,27 @@ export function createKtcMatcher(dataset:KtcDataset){
     if(player)return {player,method:"first-last"};
     return null;
   };
+}
+
+
+export function getKtcPickYears(dataset:KtcDataset){
+  const years=new Set<number>();
+  for(const p of dataset.players){
+    if(!["PICK","RDP"].includes(p.position))continue;
+    const match=p.name.match(/^(\d{4})\s+(?:Early|Mid|Late)\s+/i);
+    if(match)years.add(Number(match[1]));
+  }
+  return [...years].filter(Number.isFinite).sort((a,b)=>a-b);
+}
+
+export function getKtcPickValue(dataset:KtcDataset,season:number,round:number,tier:"Early"|"Mid"|"Late"="Mid"){
+  const suffix=round===1?"st":round===2?"nd":round===3?"rd":"th";
+  const wanted=normalizeKtcName(`${season} ${tier} ${round}${suffix}`);
+  const exact=dataset.players.find(p=>["PICK","RDP"].includes(p.position)&&normalizeKtcName(p.name)===wanted);
+  if(exact)return exact.value;
+
+  // KTC sometimes omits ordinal suffixes in embedded data; tolerate that form.
+  const fallback=normalizeKtcName(`${season} ${tier} ${round}`);
+  const loose=dataset.players.find(p=>["PICK","RDP"].includes(p.position)&&normalizeKtcName(p.name)===fallback);
+  return loose?.value??null;
 }
