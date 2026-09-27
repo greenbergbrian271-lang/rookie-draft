@@ -123,7 +123,7 @@ export default function DraftDayPage(){
         {Object.keys(bestAvailable).length?Object.entries(bestAvailable).map(([pos,list])=>
           <div key={pos} style={{marginBottom:10}}>
             <div className={"player-badge "+posClass(pos)} style={{marginBottom:6}}>{pos}</div>
-            {list.map(p=><div key={p.playerId} className="muted">{p.name} <span className="muted">· {p.college}</span></div>)}
+            {list.map(p=><div key={p.playerId} data-player-id={p.playerId} className="muted">{p.name} <span className="muted">· {p.college}</span></div>)}
           </div>
         ):<div className="empty">Sync ADP to see best-available rankings.</div>}
       </div>
