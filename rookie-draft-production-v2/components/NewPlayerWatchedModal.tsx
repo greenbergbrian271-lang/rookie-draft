@@ -25,9 +25,18 @@ export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolea
     if(!queue.length)return;
     setBusy(true);setMsg("");
     try{
-      const r=await fetch("/api/players/watch-batch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerIds:queue})}),j=await r.json();
-      if(!r.ok)throw new Error(j.error||"Could not process queue.");
-      setMsg(`${j.updated} player${j.updated===1?"":"s"} added to the appropriate scouting page${j.updated===1?"":"s"}.`);setComplete(true);setQueue([]);setSelected([]);window.dispatchEvent(new Event("rookie-draft:players-changed"));onDone?.();
+      const picked=queue.map(byId).filter((p):p is Player=>Boolean(p));
+      for(const p of picked){
+        const r=await fetch("/api/players",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:p.id,status:"WATCHED"})});
+        if(!r.ok)throw new Error("Could not add "+p.name+" to scouting.");
+        const defaults=p.position==="QB"
+          ?{"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"}
+          :p.position==="TE"
+            ?{"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"}
+            :{"Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"};
+        await Promise.all(Object.entries(defaults).map(([category,commentary])=>fetch("/api/evaluations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,category,value:null,commentary})})));
+      }
+      setMsg(`${picked.length} player${picked.length===1?"":"s"} added to the appropriate scouting page${picked.length===1?"":"s"}.`);setComplete(true);setQueue([]);setSelected([]);window.dispatchEvent(new Event("rookie-draft:players-changed"));onDone?.();
     }catch(e:any){setMsg(e?.message||"Could not process queue.")}finally{setBusy(false)}
   }
   if(!open)return null;
