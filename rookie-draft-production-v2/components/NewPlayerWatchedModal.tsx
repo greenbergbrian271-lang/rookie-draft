@@ -44,7 +44,7 @@ export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolea
   return <div className="watched-modal-backdrop" role="dialog" aria-modal="true" aria-label="New Players Watched" onMouseDown={e=>e.target===e.currentTarget&&!busy&&onClose()}>
     <div className="watched-modal" onMouseDown={e=>e.stopPropagation()}>
       <div className="watched-modal-head"><div><span className="ey">Scouting Tools</span><h2>New Players Watched</h2><p>Add existing Players to Scout to their position scouting pages.</p></div><button className="small ghost" disabled={busy} onClick={onClose}>Close</button></div>
-      <div className="watched-exclusion">📘 Excluding {excluded} already watched player{excluded===1?"":"s"}</div>
+      <div className="watched-exclusion">📘 Excluding {excluded} player{excluded===1?"":"s"} already on scouting sheets</div>
       <div className="watched-filter-grid">
         <label>Position<select value={position} onChange={e=>{setPosition(e.target.value);setSelected([])}}><option value="ALL">All Positions</option>{["QB","RB","WR","TE"].map(x=><option key={x}>{x}</option>)}</select></label>
         <label>College<input list="watched-colleges" value={college} onChange={e=>{setCollege(e.target.value);setSelected([])}} placeholder="All Colleges"/><datalist id="watched-colleges">{colleges.map(x=><option key={x} value={x}/>)}</datalist></label>
