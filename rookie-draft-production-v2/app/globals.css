@@ -101,3 +101,40 @@
 .glossary-section-row.glossary-te td>div{background:linear-gradient(90deg,rgba(254,173,88,.28),#13243d);border-left:4px solid #fead58}
 .glossary-table-shell .empty{background:#0b192e}
 @media(max-width:900px){.glossary-hero{grid-template-columns:1fr}.glossary-hero-note{display:none}.glossary-controls{align-items:stretch;flex-direction:column}.glossary-save-state{align-self:flex-start}.glossary-list-head{align-items:flex-start;flex-direction:column}.glossary-legend{display:none}.glossary-table-shell{max-height:none}.glossary-table thead{display:none}.glossary-table,.glossary-table tbody,.glossary-data-row,.glossary-data-row td{display:block;width:100%}.glossary-category-cell{border-right:0!important;border-bottom:0!important;padding-bottom:4px!important}.glossary-value-cell{padding-top:4px!important}.glossary-section-row{display:table-row}.glossary-section-row td{display:table-cell;width:auto}.glossary-definition-input{min-height:72px}}
+
+
+/* Scouting Glossary — row management + combined RB/WR header */
+.glossary-section-row.glossary-rbwr td>div{background:linear-gradient(90deg,rgba(32,206,183,.34),rgba(88,167,255,.30),#13243d);border-left:4px solid #20ceb7;color:#fff}
+.glossary-control-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.glossary-add-row{background:#1677ff;border:1px solid #3f91ff;border-radius:9px;padding:8px 11px;font-size:12px;box-shadow:0 4px 14px rgba(22,119,255,.18)}
+.glossary-add-row span{font-size:15px;margin-right:3px}
+.glossary-restore-trigger{background:#11243f;border:1px solid #31527f;color:#a8bdd9;border-radius:9px;padding:8px 10px;font-size:11px}
+.glossary-restore-trigger b{display:inline-grid;place-items:center;min-width:19px;height:19px;margin-left:5px;padding:0 5px;border-radius:999px;background:#243f63;color:#fff}
+.glossary-category-cell{padding-right:46px}
+.glossary-row-delete,.glossary-section-delete{opacity:0;position:absolute;right:12px;top:50%;transform:translateY(-50%);width:26px;height:26px;padding:0;border-radius:7px;background:transparent;color:#8299b8;border:1px solid transparent;font-size:17px;line-height:1;transition:.12s ease}
+.glossary-data-row:hover .glossary-row-delete,.glossary-row-delete:focus,.glossary-section-row:hover .glossary-section-delete,.glossary-section-delete:focus{opacity:1}
+.glossary-row-delete:hover,.glossary-section-delete:hover{background:#351722;border-color:#753244;color:#ff9baa}
+.glossary-section-row td>div{position:relative;padding-right:54px}
+.glossary-section-delete{right:16px}
+.glossary-custom-row td{background:#0d1d34}
+.glossary-custom-row .glossary-field-meta span{color:#58a7ff}
+.glossary-modal-backdrop{position:fixed;inset:0;z-index:650;display:grid;place-items:center;padding:24px;background:rgba(0,6,16,.74);backdrop-filter:blur(5px)}
+.glossary-modal{width:min(560px,96vw);background:#0b192e;border:1px solid #31527f;border-radius:16px;padding:20px;box-shadow:0 28px 80px rgba(0,0,0,.45)}
+.glossary-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px}
+.glossary-modal-head small{display:block;color:#20e2dd;font-size:9px;font-weight:950;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.glossary-modal-head h2{margin:0;font-size:23px}
+.glossary-modal-head>button{width:32px;height:32px;padding:0;border-radius:8px;background:#10233f;color:#93a9c8;font-size:20px}
+.glossary-modal>label,.glossary-modal-grid label{display:grid;gap:6px;color:#9eb2cf;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;margin-bottom:13px}
+.glossary-modal input,.glossary-modal select,.glossary-modal textarea{background:#071426;border-color:#31527f;color:#fff;text-transform:none;letter-spacing:0;font-weight:600}
+.glossary-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.glossary-modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+.glossary-danger{background:#b43d52!important}
+.glossary-delete-modal p{color:#c2d0e3;line-height:1.55}
+.glossary-delete-note{padding:11px 12px;border-radius:9px;background:#10233f;border:1px solid #29476e;color:#90a6c6!important;font-size:12px}
+.glossary-restore-list{display:grid;gap:8px;max-height:420px;overflow:auto}
+.glossary-restore-list>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;background:#0f2038;border:1px solid #20395f;border-radius:10px}
+.glossary-restore-list>div>div{display:grid;gap:2px}
+.glossary-restore-list strong{font-size:13px}
+.glossary-restore-list span{color:#748dab;font-size:10px;text-transform:uppercase;font-weight:900;letter-spacing:.05em}
+.glossary-restore-list button{flex:0 0 auto;padding:7px 10px;font-size:11px}
+@media(max-width:900px){.glossary-control-actions{justify-content:flex-start}.glossary-save-state{order:-1;width:100%}.glossary-row-delete,.glossary-section-delete{opacity:1}.glossary-modal-grid{grid-template-columns:1fr}}

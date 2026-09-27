@@ -80,13 +80,16 @@ export function normalizeGlossaryInput(row:number,column:GlossaryColumn,value:an
   return text;
 }
 
-export function buildScoutingGlossary(overrides:GlossaryOverrides={}){
+export function buildScoutingGlossary(overrides:GlossaryOverrides={},hiddenRows:readonly number[]=[]){
   const rows=baseRows.map(r=>[...(r as readonly any[])]);
   for(const [key,value] of Object.entries(overrides)){
     const match=key.match(/^([AB])(\d+)$/);if(!match)continue;
     const column=match[1] as GlossaryColumn,row=Number(match[2]);
     if(row<1||row>rows.length||isGlossaryFormulaCell(row,column))continue;
     rows[row-1][column==="A"?0:1]=value;
+  }
+  for(const row of hiddenRows){
+    if(Number.isInteger(row)&&row>1&&row<=rows.length&&!glossaryFormulaRefs[row])rows[row-1]=["",""];
   }
   const n=(row:number)=>valueNumber(rows[row-1]?.[1]);
   const set=(row:number,value:number)=>{rows[row-1][1]=formatLike(baseRows[row-1]?.[1],value)};
