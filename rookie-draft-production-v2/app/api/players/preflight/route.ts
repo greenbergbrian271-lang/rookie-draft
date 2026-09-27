@@ -12,7 +12,7 @@ export async function POST(req:Request){
     normalized.forEach((player,index)=>{
       const issues:AddPlayerIssue[]=[];
       const basic=basicPlayerError(player);
-      if(basic)issues.push({type:"college_not_found",message:basic});
+      if(basic)issues.push({type:"validation_error",message:basic});
       for(const match of findPossibleDuplicates(player.name,existing)){
         const suffix=match.existing.college?\` · \${match.existing.college}\`:"";
         if(match.type==="exact")issues.push({type:"exact_duplicate",existingPlayerId:Number(match.existing.id),message:\`Exact match already on the scouting list: "\${match.existing.name}\${suffix}"\`});
