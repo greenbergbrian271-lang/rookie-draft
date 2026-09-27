@@ -178,7 +178,7 @@ export default function TradeCalculator({leagueKey}:{leagueKey:string}){
     {loadingAssets&&<div className="trade-loading">Loading this matchup’s players, picks, and KTC values…</div>}
 
     {data&&!loadingAssets&&<>
-      <div className="trade-scoreboard">
+      <div className="trade-scoreboard" aria-live="polite">
         <div className="trade-score">
           <span>You Send</span>
           <strong>{numberFmt.format(send.total)}</strong>
