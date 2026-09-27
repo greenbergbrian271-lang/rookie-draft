@@ -33,6 +33,7 @@ export async function GET(){
         status:data?.status||"",
         teamIdentity:league.teamIdentity||"",
         rosterMatch:matchRoster(rosters,users,league.teamIdentity||""),
+        candidates:matchRoster(rosters,users,league.teamIdentity||"")?undefined:users.map((u:any)=>({displayName:u.display_name||"",username:u.username||"",userId:String(u.user_id||"")})),
         ok:true,
       };
     }catch(e:any){
