@@ -1,0 +1,50 @@
+.trade-calculator{margin-top:16px;background:#0a172a;border:1px solid #20395f;border-radius:13px;overflow:hidden}
+.trade-titlebar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:linear-gradient(180deg,#10233e,#0d1c31);border-bottom:1px solid #20395f}
+.trade-kicker{color:#58a7ff;font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.trade-titlebar h2{margin:2px 0 0;font-size:21px}
+.trade-ktc-time{color:#8fa7c8;font-size:11px;font-weight:800}
+.trade-controls{display:grid;grid-template-columns:minmax(230px,360px) minmax(0,1fr) auto;align-items:end;gap:12px;padding:14px 16px;border-bottom:1px solid #18304f}
+.trade-controls label{display:grid;gap:5px}
+.trade-controls label>span{color:#93a9c7;font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.trade-controls select,.trade-search{width:100%;background:#0d2039;border:1px solid #31527f;color:#e9f1fb;border-radius:8px;padding:9px 10px;font-size:13px}
+.trade-control-note{color:#8fa7c8;font-size:12px;line-height:1.4;padding-bottom:9px}
+.trade-clear{white-space:nowrap;margin-bottom:1px}
+.trade-error,.trade-loading{margin:12px 16px;padding:11px 13px;border-radius:8px;font-size:12px;font-weight:800}
+.trade-error{background:#3c1720;border:1px solid #8b354b;color:#ffd1da}
+.trade-loading{background:#10213a;border:1px solid #31527f;color:#c4d5e9;text-align:center}
+.trade-scoreboard{display:grid;grid-template-columns:1fr minmax(220px,.8fr) 1fr;gap:1px;background:#20395f;border-bottom:1px solid #20395f}
+.trade-score,.trade-delta{background:#0c1930;padding:14px 16px;text-align:center}
+.trade-score span,.trade-delta span{display:block;color:#8fa7c8;font-size:10px;font-weight:950;letter-spacing:.07em;text-transform:uppercase}
+.trade-score strong,.trade-delta strong{display:block;margin-top:4px;font-size:27px;font-variant-numeric:tabular-nums}
+.trade-score small,.trade-delta small{display:block;margin-top:3px;color:#8fa7c8;font-size:10px}
+.trade-delta strong.positive{color:#7ee2ad}.trade-delta strong.negative{color:#ff9aab}
+.trade-columns{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#20395f}
+.trade-side{min-width:0;background:#0b192d;padding:14px}
+.trade-side-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.trade-side-head h3{margin:0;font-size:14px}
+.trade-side-head>span{color:#8fa7c8;font-size:10px;font-weight:800}
+.trade-search{margin-bottom:10px}
+.trade-assets{border:1px solid #1d3558;border-radius:9px;overflow:hidden}
+.trade-asset-group-title{display:flex;align-items:center;justify-content:space-between;padding:7px 9px;background:#132844;color:#8fa7c8;font-size:9px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}
+.trade-asset-row{display:grid;grid-template-columns:22px minmax(0,1fr) 76px;gap:8px;align-items:center;min-height:47px;padding:7px 9px;border-top:1px solid #18304f;cursor:pointer;background:#0c1b31}
+.trade-asset-row:nth-of-type(even){background:#0e2039}
+.trade-asset-row:hover,.trade-asset-row.selected{background:#163253}
+.trade-asset-row input{width:15px;height:15px}
+.trade-asset-main{min-width:0}
+.trade-asset-main strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trade-asset-main>span{display:block;color:#8fa7c8;font-size:10px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trade-asset-value{text-align:right;font-size:12px;font-weight:950;font-variant-numeric:tabular-nums;color:#fff}
+.trade-asset-value.missing{color:#8fa7c8}
+.trade-asset-empty{padding:12px;color:#7289a9;font-size:11px;text-align:center;border-top:1px solid #18304f}
+.trade-footnote{padding:10px 14px;border-top:1px solid #20395f;color:#8299b7;font-size:10px;line-height:1.45}
+@media(max-width:900px){
+  .trade-controls{grid-template-columns:1fr}
+  .trade-control-note{padding-bottom:0}
+  .trade-scoreboard{grid-template-columns:1fr}
+  .trade-columns{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .trade-titlebar{display:block}
+  .trade-ktc-time{margin-top:6px}
+  .trade-calculator{border-radius:10px}
+}
