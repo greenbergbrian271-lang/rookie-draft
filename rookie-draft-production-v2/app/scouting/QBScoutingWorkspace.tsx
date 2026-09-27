@@ -212,28 +212,12 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q));
   },[rankedPlayers,search]);
 
-  const metricData=selected?metricDataFor(selected):[];
-  const scouting=selected?scoutingFor(selected):null;
-  const analytical=selected?analyticalFor(selected):null;
-  const preDraft=selected?preDraftFor(selected):null;
-  const fields=selected?fieldsFor(selected):{};
-  const teamScore=num(fields["Team Score (10)"]),draftCapital=num(fields["Draft Capital Score (10)"]);
-  const finalGrade=preDraft==null||teamScore==null||draftCapital==null?null:draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
-
   const combinePopulation=useMemo(()=>({
     forty:(imports||[]).map(r=>num(r["40 Yard Dash"])).filter((x):x is number=>x!=null),
     speedScore:(imports||[]).map(r=>num(r["Speed Score"])).filter((x):x is number=>x!=null),
     broadJump:(imports||[]).map(r=>num(r["Broad Jump"])).filter((x):x is number=>x!=null),
     handSize:[],vertical:[],benchReps:[]
   }),[imports]);
-  const combineInput={
-    bmi:num(imported?.BMI)??undefined,
-    forty:num(imported?.["40 Yard Dash"])??undefined,
-    speedScore:num(imported?.["Speed Score"])??undefined,
-    broadJump:num(imported?.["Broad Jump"])??undefined
-  };
-  const combine=Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,(glossary.length?glossary:undefined) as GlossaryRows|undefined):null;
-
   async function persist(p:Player,cat:string,value:any){
     setSaveState("saving");
     setVals(v=>({...v,[p.id+"|"+cat]:value}));
@@ -266,166 +250,109 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     setNewGame(x=>({...x,[id]:{opponent:"",notes:""}}));setNewGameOpen(x=>({...x,[id]:false}));
   }
 
+  useEffect(()=>{
+    if(mode!=="Evaluate")return;
+    const nodes=rankedPlayers.map(p=>document.getElementById("qb-eval-"+p.id)).filter(Boolean) as HTMLElement[];
+    if(!nodes.length)return;
+    const obs=new IntersectionObserver(entries=>{
+      const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top);
+      if(visible[0])setSelectedId(String((visible[0].target as HTMLElement).dataset.playerId||""));
+    },{rootMargin:"-150px 0px -65% 0px",threshold:[0,.01]});
+    nodes.forEach(n=>obs.observe(n));return()=>obs.disconnect();
+  },[mode,rankedPlayers]);
+
+  function jumpToPlayer(p:Player){
+    setMode("Evaluate");setSelectedId(String(p.id));
+    requestAnimationFrame(()=>document.getElementById("qb-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}));
+  }
+
+  function renderPlayerSection(p:Player){
+    const id=String(p.id),imp=importedFor(p),metrics=metricDataFor(p),scouting=scoutingFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p);
+    const teamScore=num(fields["Team Score (10)"]),draftCapital=num(fields["Draft Capital Score (10)"]);
+    const finalGrade=preDraft==null||teamScore==null||draftCapital==null?null:draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    const combineInput={bmi:num(imp?.BMI)??undefined,forty:num(imp?.["40 Yard Dash"])??undefined,speedScore:num(imp?.["Speed Score"])??undefined,broadJump:num(imp?.["Broad Jump"])??undefined};
+    const combine=Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,(glossary.length?glossary:undefined) as GlossaryRows|undefined):null;
+    const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=num(evalFor(p,"Games watched"))||0,rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
+    return <article className="qb-evaluate-player" id={"qb-eval-"+p.id} data-player-id={p.id} key={p.id}>
+      <header className="qb-player-hero" style={style}>
+        <div className="qb-player-photo">{p.headshot_url?<img src={p.headshot_url} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{p.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>}</div>
+        <div className="qb-player-title">
+          <div className="qb-kicker">QB {rank} · {p.college||"College TBD"}{p.jersey_number?" · #"+p.jersey_number:""}</div>
+          <h1>{p.name}</h1>
+          <div className="qb-hero-meta">
+            <span>{imp?.Age?"Age "+imp.Age:"Age —"}</span><span>{imp?.Class||"Class —"}</span><span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span>
+            <span className="qb-draft-result-badge" title="Draft team will populate here after the NFL Draft"><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png" alt="NFL"/><b>TBD</b></span>
+            {!demoMode&&<button onClick={()=>openPlayer(p.id)}>Open player profile ↗</button>}
+          </div>
+        </div>
+        <div className={"qb-save-state "+saveState}>{demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
+      </header>
+      <div className="qb-grade-strip">
+        <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
+        <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>
+        <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scouting + analytics"/>
+        <GradeCard label="Final" value={finalGrade} accent="final" hint={finalGrade==null?"Waiting for NFL draft":"Draft-adjusted"}/>
+      </div>
+
+      {tab==="Film"&&<div className="qb-tab-content">
+        <div className="qb-section-head"><div><span className="ey">Scout Inputs</span><h2>Film Evaluation</h2></div><div className="qb-completion">{filmComplete}/9 complete</div></div>
+        <div className="qb-context-grid">
+          <Field label="Games watched" source="Scout"><input type="number" min="0" step="1" value={inputValue(evalFor(p,"Games watched"))} onChange={e=>local(p,"Games watched",e.target.value)} onBlur={e=>persist(p,"Games watched",e.target.value===""?"":Number(e.target.value))}/></Field>
+          <ConstrainedField label="Expected role" value={inputValue(evalFor(p,"Expected Role"))} options={[...ROLE_OPTIONS]} onLocal={v=>local(p,"Expected Role",v)} onCommit={v=>persist(p,"Expected Role",v)}/>
+          <ConstrainedField label="Draft projection" value={inputValue(evalFor(p,"Draft Projection"))} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
+        </div>
+        <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
+          <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
+          <input className="qb-grade-slider heat" style={{color:heatColor((n??50)/100)}} type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(p,trait,Number(e.target.value))} onMouseUp={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))}/>
+          <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
+          <input className="qb-grade-number" type="number" min="0" max="100" step=".01" value={inputValue(evalFor(p,trait))} onChange={e=>local(p,trait,e.target.value)} onBlur={e=>persist(p,trait,e.target.value===""?"":Math.round(Number(e.target.value)*100)/100)} placeholder="—"/>
+        </div>})}</div>
+        <div className="qb-section-head compact"><div><span className="ey">Context Adjustments</span><h2>Experience & Risk</h2></div></div>
+        <div className="qb-context-grid six">
+          <ReadOnly label="Career Starts" value={imp?.["Career Starts"]}/><ReadOnly label="Career Attempts" value={imp?.["Career Attempts"]}/><ReadOnly label="Career Max YPG" value={imp?.["Career Max YPG"]}/>
+          {ADJUSTMENTS.map(([label,options])=><Field key={label} label={label} source="Scout"><select value={inputValue(evalFor(p,label)||options[0])} onChange={e=>persist(p,label,e.target.value)}>{options.map(x=><option key={x}>{x}</option>)}</select></Field>)}
+        </div>
+        <div className="qb-game-log">
+          <div className="qb-section-head compact"><div><span className="ey">Game Log</span><h2>Scouting Commentary</h2><p>One entry per game, newest first.</p></div><button className="ghost" onClick={()=>setNewGameOpen(x=>({...x,[id]:!x[id]}))}>+ Add game</button></div>
+          {newGameOpen[id]&&<div className="qb-game-note new"><input value={draft.opponent} onChange={e=>setNewGame(x=>({...x,[id]:{...draft,opponent:e.target.value}}))} placeholder="Game label — e.g. 2026 · Ohio State"/><textarea value={draft.notes} onChange={e=>setNewGame(x=>({...x,[id]:{...draft,notes:e.target.value}}))} placeholder="Notes from this game…"/><div className="row-actions"><button onClick={()=>addSession(p)}>Add to top</button><button className="ghost" onClick={()=>setNewGameOpen(x=>({...x,[id]:false}))}>Cancel</button></div></div>}
+          {(sessions[id]||[]).length?(sessions[id]||[]).map((s,i)=><div className="qb-game-note" key={String(s.id)}><div className="qb-game-note-head"><span>{i===0?"Latest":"Game "+(i+1)}</span><input value={s.opponent||""} onChange={e=>setSessions(x=>({...x,[id]:(x[id]||[]).map(y=>String(y.id)===String(s.id)?{...y,opponent:e.target.value}:y)}))} onBlur={e=>saveSession(p,s,{opponent:e.target.value})} placeholder="Season · Opponent"/></div><textarea value={s.raw_notes||""} onChange={e=>setSessions(x=>({...x,[id]:(x[id]||[]).map(y=>String(y.id)===String(s.id)?{...y,raw_notes:e.target.value}:y)}))} onBlur={e=>saveSession(p,s,{raw_notes:e.target.value})}/></div>):<div className="qb-game-empty">No game notes yet. Add the first game above.</div>}
+        </div>
+      </div>}
+
+      {tab==="Analytics"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Imported + Calculated</span><h2>Analytical Profile</h2><p>Raw QB data is joined directly to the player; percentile direction matches the workbook model.</p></div><GradePill value={analytical}/></div><div className="qb-analytics-grid">
+        {metrics.map(m=><div className="qb-metric" key={m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>{m.inverse?"Lower raw value is better":"Higher raw value is better"}</small></div><b>{display(imp?.[m.label],m.pct,m.pct?1:2)}</b></div><div className={"qb-percentile heat "+(m.inverse?"inverse":"")}><i style={{left:((m.rawPercentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{m.percentile==null?"—":Math.round(m.percentile*100)}</strong></div></div>)}
+      </div></div>}
+
+      {tab==="Stats"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Imported Data</span><h2>Production</h2></div></div><div className="qb-stat-grid">
+        {STATS.map(([label,source])=>{const raw=valueFor(imp,source),isPct=label.includes("%");return <div className="qb-stat-card" key={label}><span>{label}</span><strong>{display(raw,isPct,isPct?1:2)}</strong></div>})}
+      </div><div className="qb-per-game"><h3>Per Game</h3>{[["Completions",num(imp?.Completions)],["Attempts",num(imp?.Attempts)],["Pass Yards",num(imp?.Yards)],["Pass TD",num(imp?.Touchdowns)],["INT",num(imp?.Interceptions)],["Rush Attempts",num(imp?.Rushes)],["Rush Yards",num(valueFor(imp,"Yards__rush"))],["Rush TD",num(valueFor(imp,"Touchdowns__rush"))]].map(([label,v])=><div key={String(label)}><span>{label}</span><b>{typeof v==="number"&&num(imp?.Games)?(v/(num(imp?.Games)||1)).toFixed(2):"—"}</b></div>)}</div></div>}
+
+      {tab==="Combine"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Imported + Calculated</span><h2>Combine / Pro Day</h2></div><GradePill value={combine}/></div><div className="qb-combine-grid"><ReadOnly label="Height" value={imp?.Height}/><ReadOnly label="Weight" value={imp?.Weight}/><ReadOnly label="BMI" value={display(imp?.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={display(imp?.["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={display(imp?.["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={imp?.["Broad Jump"]}/></div></div>}
+
+      {tab==="Draft"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2></div></div><div className="qb-draft-grid"><div className="qb-draft-card current"><span>Pre-Draft Grade</span><strong>{preDraft==null?"—":preDraft.toFixed(2)}</strong><small>Scouting + analytical grade</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card"><span>NFL Draft Result</span><strong>{fields["Draft Result"]||"Pending"}</strong><small>Auto-filled after the NFL Draft</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card final"><span>Draft-Adjusted Final</span><strong>{finalGrade==null?"—":finalGrade.toFixed(2)}</strong><small>Team fit + draft capital adjustment</small></div></div></div>}
+    </article>
+  }
+
   if(!players.length)return <div className="qb-workspace-empty"><h2>No watched QBs yet</h2><p>Add a quarterback to the watched pool to start a scouting report.</p><button className="success" onClick={onAdd}>+ New Player Watched</button></div>;
 
-  const filmComplete=FILM.filter(x=>num(evalValue(x))!=null).length;
-  const gamesWatched=num(evalValue("Games watched"))||0;
-  const collegeStyle=schoolStyle(selected?.college);
   const comparePlayers=rankedPlayers.filter(p=>compareIds.includes(String(p.id)));
 
   return <div className="qb-workspace">
     <aside className="qb-prospect-rail">
-      <div className="qb-rail-head">
-        <div><span className="ey">2027 Quarterbacks</span><strong>{players.length} available</strong></div>
-        <button className="qb-add" onClick={onAdd} title="Add watched quarterback">+</button>
-      </div>
-      <div className="qb-mode-toggle">
-        {(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}
-      </div>
+      <div className="qb-rail-head"><div><span className="ey">2027 Quarterbacks</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
+      <div className="qb-mode-toggle">{(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}</div>
       <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search quarterbacks…"/>
-      <div className="qb-prospect-list">
-        {filtered.map(p=>{
-          const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;
-          return <div className={"qb-prospect-row "+(String(p.id)===String(selected?.id)?"active":"")} key={p.id}>
-            <button className="qb-prospect-item" onClick={()=>{setSelectedId(String(p.id));setMode("Evaluate");setTab("Film")}}>
-              <span className="qb-rank">QB{rank}</span>
-              <span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/9 traits</small></span>
-              <span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span>
-            </button>
-          </div>
-        })}
-      </div>
-      {demoMode&&<div className="qb-demo-note">Preview seeded from the archived Arch Manning scouting row. Changes here are local to this preview.</div>}
+      <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">QB{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/9 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
+      {demoMode&&<div className="qb-demo-note">Preview data is local to this QB scouting build.</div>}
     </aside>
-
     <section className="qb-scouting-pane">
-      {mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} metricDataFor={metricDataFor} sessions={sessions}/>:<>
-        <header className="qb-player-hero" style={collegeStyle}>
-          <div className="qb-player-photo">
-            {selected.headshot_url?<img src={selected.headshot_url} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{selected.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>}
-          </div>
-          <div className="qb-player-title">
-            <div className="qb-kicker">QB {rankedPlayers.indexOf(selected)+1} · {selected.college||"College TBD"}{selected.jersey_number?" · #"+selected.jersey_number:""}</div>
-            <h1>{selected.name}</h1>
-            <div className="qb-hero-meta">
-              <span>{imported?.Age?"Age "+imported.Age:"Age —"}</span>
-              <span>{imported?.Class||"Class —"}</span>
-              <span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span>
-              <span className="qb-draft-result-badge" title="Draft team will populate here after the NFL Draft"><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png" alt="NFL"/><b>TBD</b></span>
-              {!demoMode&&<button onClick={()=>openPlayer(selected.id)}>Open player profile ↗</button>}
-            </div>
-          </div>
-          <div className={"qb-save-state "+saveState}>{demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
-        </header>
-
-        <div className="qb-grade-strip">
-          <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
-          <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>
-          <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scouting + analytics"/>
-          <GradeCard label="Final" value={finalGrade} accent="final" hint={finalGrade==null?"Waiting for NFL draft":"Draft-adjusted"}/>
-        </div>
-
-        <nav className="qb-section-tabs">
-          {(["Film","Analytics","Stats","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}
-        </nav>
-
-        {tab==="Film"&&<div className="qb-tab-content">
-          <div className="qb-section-head"><div><span className="ey">Scout Inputs</span><h2>Film Evaluation</h2></div><div className="qb-completion">{filmComplete}/9 complete</div></div>
-          <div className="qb-context-grid">
-            <Field label="Games watched" source="Scout"><input type="number" min="0" step="1" value={inputValue(evalValue("Games watched"))} onChange={e=>local("Games watched",e.target.value)} onBlur={e=>persist("Games watched",e.target.value===""?"":Number(e.target.value))}/></Field>
-            <ConstrainedField label="Expected role" value={inputValue(evalValue("Expected Role"))} options={[...ROLE_OPTIONS]} onLocal={v=>local("Expected Role",v)} onCommit={v=>persist("Expected Role",v)}/>
-            <ConstrainedField label="Draft projection" value={inputValue(evalValue("Draft Projection"))} options={[...PROJECTION_OPTIONS]} onLocal={v=>local("Draft Projection",v)} onCommit={v=>persist("Draft Projection",v)}/>
-          </div>
-
-          <div className="qb-film-grid">
-            {FILM.map(trait=>{
-              const n=num(evalValue(trait));
-              return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
-                <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
-                <input className="qb-grade-slider heat" style={{color:heatColor((n??50)/100)}} type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(trait,Number(e.target.value))} onMouseUp={e=>persist(trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(trait,Number((e.target as HTMLInputElement).value))}/>
-                <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
-                <input className="qb-grade-number" type="number" min="0" max="100" step=".01" value={inputValue(evalValue(trait))} onChange={e=>local(trait,e.target.value)} onBlur={e=>persist(trait,e.target.value===""?"":Math.round(Number(e.target.value)*100)/100)} placeholder="—"/>
-              </div>
-            })}
-          </div>
-
-          <div className="qb-section-head compact"><div><span className="ey">Context Adjustments</span><h2>Experience & Risk</h2></div></div>
-          <div className="qb-context-grid six">
-            <ReadOnly label="Career Starts" value={imported?.["Career Starts"]} />
-            <ReadOnly label="Career Attempts" value={imported?.["Career Attempts"]} />
-            <ReadOnly label="Career Max YPG" value={imported?.["Career Max YPG"]} />
-            {ADJUSTMENTS.map(([label,options])=><Field key={label} label={label} source="Scout"><select value={inputValue(evalValue(label)||options[0])} onChange={e=>persist(label,e.target.value)}>{options.map(x=><option key={x}>{x}</option>)}</select></Field>)}
-          </div>
-
-          <div className="qb-game-log">
-            <div className="qb-section-head compact"><div><span className="ey">Game Log</span><h2>Scouting Commentary</h2><p>One entry per game, newest first. This replaces spacing down inside one merged cell.</p></div><button className="ghost" onClick={()=>setNewGameOpen(x=>!x)}>+ Add game</button></div>
-            {newGameOpen&&<div className="qb-game-note new">
-              <input value={newGame.opponent} onChange={e=>setNewGame(x=>({...x,opponent:e.target.value}))} placeholder="Game label — e.g. 2026 · Ohio State"/>
-              <textarea value={newGame.notes} onChange={e=>setNewGame(x=>({...x,notes:e.target.value}))} placeholder="Notes from this game…"/>
-              <div className="row-actions"><button onClick={addSession}>Add to top</button><button className="ghost" onClick={()=>setNewGameOpen(false)}>Cancel</button></div>
-            </div>}
-            {(sessions[String(selected.id)]||[]).length?(sessions[String(selected.id)]||[]).map((s,i)=><div className="qb-game-note" key={String(s.id)}>
-              <div className="qb-game-note-head"><span>{i===0?"Latest":"Game "+(i+1)}</span><input value={s.opponent||""} onChange={e=>setSessions(x=>({...x,[String(selected.id)]:(x[String(selected.id)]||[]).map(y=>String(y.id)===String(s.id)?{...y,opponent:e.target.value}:y)}))} onBlur={e=>saveSession(s,{opponent:e.target.value})} placeholder="Season · Opponent"/></div>
-              <textarea value={s.raw_notes||""} onChange={e=>setSessions(x=>({...x,[String(selected.id)]:(x[String(selected.id)]||[]).map(y=>String(y.id)===String(s.id)?{...y,raw_notes:e.target.value}:y)}))} onBlur={e=>saveSession(s,{raw_notes:e.target.value})}/>
-            </div>):<div className="qb-game-empty">No game notes yet. Add the first game above.</div>}
-          </div>
-        </div>}
-
-        {tab==="Analytics"&&<div className="qb-tab-content">
-          <div className="qb-section-head"><div><span className="ey">Imported + Calculated</span><h2>Analytical Profile</h2><p>Raw QB data is joined directly to the player; percentile direction matches the workbook model.</p></div><GradePill value={analytical}/></div>
-          <div className="qb-analytics-grid">
-            {metricData.map(m=><div className="qb-metric" key={m.label}>
-              <div className="qb-metric-top"><div><span>{m.label}</span><small>{m.inverse?"Lower raw value is better":"Higher raw value is better"}</small></div><b>{display(imported?.[m.label],m.pct,m.pct?1:2)}</b></div>
-              <div className={"qb-percentile heat "+(m.inverse?"inverse":"")}><i style={{left:((m.rawPercentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div>
-              <div className="qb-metric-foot"><span>Percentile</span><strong>{m.percentile==null?"—":Math.round(m.percentile*100)}</strong></div>
-            </div>)}
-          </div>
-        </div>}
-
-        {tab==="Stats"&&<div className="qb-tab-content">
-          <div className="qb-section-head"><div><span className="ey">Imported Data</span><h2>Production</h2><p>The sheet's lookup columns are presented as one joined player data record.</p></div></div>
-          <div className="qb-stat-grid">
-            {STATS.map(([label,source])=>{
-              const raw=valueFor(imported,source),isPct=label.includes("%");
-              return <div className="qb-stat-card" key={label}><span>{label}</span><strong>{display(raw,isPct,isPct?1:2)}</strong></div>
-            })}
-          </div>
-          <div className="qb-per-game">
-            <h3>Per Game</h3>
-            {[
-              ["Completions",num(imported?.Completions)],["Attempts",num(imported?.Attempts)],["Pass Yards",num(imported?.Yards)],
-              ["Pass TD",num(imported?.Touchdowns)],["INT",num(imported?.Interceptions)],["Rush Attempts",num(imported?.Rushes)],
-              ["Rush Yards",num(valueFor(imported,"Yards__rush"))],["Rush TD",num(valueFor(imported,"Touchdowns__rush"))]
-            ].map(([label,v])=><div key={String(label)}><span>{label}</span><b>{typeof v==="number"&&num(imported?.Games)?(v/(num(imported?.Games)||1)).toFixed(2):"—"}</b></div>)}
-          </div>
-        </div>}
-
-        {tab==="Combine"&&<div className="qb-tab-content">
-          <div className="qb-section-head"><div><span className="ey">Imported + Calculated</span><h2>Combine / Pro Day</h2><p>Measurements and testing flow directly from the player dataset.</p></div><GradePill value={combine}/></div>
-          <div className="qb-combine-grid">
-            <ReadOnly label="Height" value={imported?.Height}/>
-            <ReadOnly label="Weight" value={imported?.Weight}/>
-            <ReadOnly label="BMI" value={display(imported?.BMI,false,1)}/>
-            <ReadOnly label="40 Yard Dash" value={display(imported?.["40 Yard Dash"],false,2)}/>
-            <ReadOnly label="Speed Score" value={display(imported?.["Speed Score"],false,1)}/>
-            <ReadOnly label="Broad Jump" value={imported?.["Broad Jump"]}/>
-          </div>
-        </div>}
-
-        {tab==="Draft"&&<div className="qb-tab-content">
-          <div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2><p>The scouting model remains intact without exposing spreadsheet lookup plumbing.</p></div></div>
-          <div className="qb-draft-grid">
-            <div className="qb-draft-card current"><span>Pre-Draft Grade</span><strong>{preDraft==null?"—":preDraft.toFixed(2)}</strong><small>Scouting + analytical grade</small></div>
-            <div className="qb-draft-arrow">→</div>
-            <div className="qb-draft-card"><span>NFL Draft Result</span><strong>{fields["Draft Result"]||"Pending"}</strong><small>Auto-filled after the NFL Draft</small></div>
-            <div className="qb-draft-arrow">→</div>
-            <div className="qb-draft-card final"><span>Draft-Adjusted Final</span><strong>{finalGrade==null?"—":finalGrade.toFixed(2)}</strong><small>Team fit + draft capital adjustment</small></div>
-          </div>
-        </div>}
-      </>}
+      {mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack">
+        <nav className="qb-section-tabs qb-shared-tabs">{(["Film","Analytics","Stats","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</nav>
+        {rankedPlayers.map(renderPlayerSection)}
+      </div>}
     </section>
   </div>
-}
+
 
 function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedFor,scoutingFor,analyticalFor,preDraftFor,metricDataFor,sessions}:{players:Player[],allPlayers:Player[],compareIds:string[],setCompareIds:React.Dispatch<React.SetStateAction<string[]>>,vals:Record<string,any>,importedFor:(p:Player)=>any,scoutingFor:(p:Player)=>number|null,analyticalFor:(p:Player)=>number|null,preDraftFor:(p:Player)=>number|null,metricDataFor:(p:Player)=>any[],sessions:Record<string,Session[]>}){
   type Metric={group:string;label:string;numeric?:boolean;inverse?:boolean;wide?:boolean;get:(p:Player)=>any;format?:(v:any)=>string};
