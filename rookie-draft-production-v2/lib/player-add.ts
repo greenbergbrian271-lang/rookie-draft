@@ -5,7 +5,7 @@ export const ALL_STAR_GAMES=["None","Senior Bowl","Shrine Bowl","Hula Bowl","Ame
 export type Position=(typeof POSITIONS)[number];
 export type AllStarGame=(typeof ALL_STAR_GAMES)[number];
 export type AddPlayerInput={name:string;college:string;position:Position;allStarGame?:AllStarGame|string};
-export type AddPlayerIssue={type:"exact_duplicate"|"possible_duplicate"|"queue_duplicate"|"college_mismatch"|"college_not_found"|"validation_error";message:string;suggestion?:string;existingPlayerId?:number};
+export type AddPlayerIssue={type:"exact_duplicate"|"possible_duplicate"|"queue_duplicate"|"college_mismatch"|"college_not_found";message:string;suggestion?:string;existingPlayerId?:number};
 export type ExistingPlayer={id?:number|string;name:string;college?:string|null};
 
 export function cleanText(value:unknown){return String(value??"").trim().replace(/\s+/g," ")}
@@ -40,7 +40,7 @@ export function resolveSchoolName(value:string){
 
 export function sanitizePlayerInput(raw:any):AddPlayerInput{
   const rawPos=cleanText(raw?.position).toUpperCase();
-  const position=rawPos as Position;
+  const position=(POSITIONS.includes(rawPos as Position)?rawPos:"QB") as Position;
   const allStarGame=cleanText(raw?.allStarGame)||"None";
   return {name:cleanText(raw?.name),college:cleanText(raw?.college),position,allStarGame};
 }
