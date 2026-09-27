@@ -196,7 +196,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       const raw=num(imp?.[metric.label],metric.pct);
       const base=raw==null?null:percentRankInc(population,raw);
       const percentile=base==null?null:(metric.inverse?1-base:base);
-      return {...metric,raw,percentile};
+      return {...metric,raw,rawPercentile:base,percentile};
     });
   }
   function analyticalFor(p:Player){
@@ -325,7 +325,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
               <span>{imported?.Age?"Age "+imported.Age:"Age —"}</span>
               <span>{imported?.Class||"Class —"}</span>
               <span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span>
-              <span className="qb-draft-result-badge">Draft {fields["Draft Result"]||"—"}</span>
+              <span className="qb-draft-result-badge" title="Draft team will populate here after the NFL Draft"><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png" alt="NFL"/><b>TBD</b></span>
               {!demoMode&&<button onClick={()=>openPlayer(selected.id)}>Open player profile ↗</button>}
             </div>
           </div>
@@ -354,9 +354,9 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
           <div className="qb-film-grid">
             {FILM.map(trait=>{
               const n=num(evalValue(trait));
-              return <div className="qb-trait-card" key={trait}>
+              return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as React.CSSProperties}>
                 <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
-                <input className="qb-grade-slider heat" style={{accentColor:heatColor((n??50)/100)}} type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(trait,Number(e.target.value))} onMouseUp={e=>persist(trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(trait,Number((e.target as HTMLInputElement).value))}/>
+                <input className="qb-grade-slider heat" style={{color:heatColor((n??50)/100)}} type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(trait,Number(e.target.value))} onMouseUp={e=>persist(trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(trait,Number((e.target as HTMLInputElement).value))}/>
                 <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
                 <input className="qb-grade-number" type="number" min="0" max="100" step=".01" value={inputValue(evalValue(trait))} onChange={e=>local(trait,e.target.value)} onBlur={e=>persist(trait,e.target.value===""?"":Math.round(Number(e.target.value)*100)/100)} placeholder="—"/>
               </div>
@@ -390,7 +390,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
           <div className="qb-analytics-grid">
             {metricData.map(m=><div className="qb-metric" key={m.label}>
               <div className="qb-metric-top"><div><span>{m.label}</span><small>{m.inverse?"Lower raw value is better":"Higher raw value is better"}</small></div><b>{display(imported?.[m.label],m.pct,m.pct?1:2)}</b></div>
-              <div className="qb-percentile heat"><i style={{left:((m.percentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div>
+              <div className={"qb-percentile heat "+(m.inverse?"inverse":"")}><i style={{left:((m.rawPercentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div>
               <div className="qb-metric-foot"><span>Percentile</span><strong>{m.percentile==null?"—":Math.round(m.percentile*100)}</strong></div>
             </div>)}
           </div>
@@ -442,7 +442,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
 }
 
 function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedFor,scoutingFor,analyticalFor,preDraftFor,metricDataFor,sessions}:{players:Player[],allPlayers:Player[],compareIds:string[],setCompareIds:React.Dispatch<React.SetStateAction<string[]>>,vals:Record<string,any>,importedFor:(p:Player)=>any,scoutingFor:(p:Player)=>number|null,analyticalFor:(p:Player)=>number|null,preDraftFor:(p:Player)=>number|null,metricDataFor:(p:Player)=>any[],sessions:Record<string,Session[]>}){
-  type Metric={group:string;label:string;numeric?:boolean;wide?:boolean;get:(p:Player)=>any;format?:(v:any)=>string};
+  type Metric={group:string;label:string;numeric?:boolean;inverse?:boolean;wide?:boolean;get:(p:Player)=>any;format?:(v:any)=>string};
   const metrics:Metric[]=[
     {group:"Grades",label:"Scouting",numeric:true,get:scoutingFor,format:v=>fmt(v)},
     {group:"Grades",label:"Analytical",numeric:true,get:analyticalFor,format:v=>fmt(v)},
@@ -455,11 +455,11 @@ function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedF
     {group:"Production",label:"Comp %",numeric:true,get:(p:Player)=>num(importedFor(p)["Completion %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
     {group:"Production",label:"Yards / Att",numeric:true,get:(p:Player)=>num(importedFor(p)["Yards/Attempt"]),format:(v:any)=>formatNumber(v,2)},
     {group:"Production",label:"Pass TD",numeric:true,get:(p:Player)=>num(importedFor(p).Touchdowns),format:(v:any)=>formatNumber(v,0)},
-    {group:"Production",label:"INT",numeric:true,get:(p:Player)=>num(importedFor(p).Interceptions),format:(v:any)=>formatNumber(v,0)},
+    {group:"Production",label:"INT",numeric:true,inverse:true,get:(p:Player)=>num(importedFor(p).Interceptions),format:(v:any)=>formatNumber(v,0)},
     {group:"Production",label:"QBR",numeric:true,get:(p:Player)=>num(importedFor(p).QBR),format:(v:any)=>formatNumber(v,1)},
     {group:"Production",label:"ADOT",numeric:true,get:(p:Player)=>num(importedFor(p).ADOT),format:(v:any)=>formatNumber(v,1)},
     {group:"Production",label:"Adjusted Y/A",numeric:true,get:(p:Player)=>num(importedFor(p)["Adjusted Y/A"]),format:(v:any)=>formatNumber(v,2)},
-    {group:"Production",label:"Pressure-to-Sack %",numeric:true,get:(p:Player)=>num(importedFor(p)["Pressure-to-Sack %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
+    {group:"Production",label:"Pressure-to-Sack %",numeric:true,inverse:true,get:(p:Player)=>num(importedFor(p)["Pressure-to-Sack %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
     {group:"Production",label:"Rush Yards",numeric:true,get:(p:Player)=>num(importedFor(p)["Rush Yards"]),format:(v:any)=>formatNumber(v,0)},
     {group:"Production",label:"Rush Yds / Att",numeric:true,get:(p:Player)=>num(importedFor(p)["Rush Yards/Attempt"]),format:(v:any)=>formatNumber(v,2)},
     ...ANALYTICS.map(a=>({group:"Analytics",label:a.label+" %ile",numeric:true,get:(p:Player)=>metricDataFor(p).find((m:any)=>m.label===a.label)?.percentile==null?null:metricDataFor(p).find((m:any)=>m.label===a.label)?.percentile*100,format:(v:any)=>v==null?"—":Math.round(Number(v)).toString()})),
@@ -491,7 +491,7 @@ function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedF
             {metrics.map(m=>{
               const raw=m.get(p),values=m.numeric?players.map(x=>m.get(x)).filter((v):v is number=>typeof v==="number"&&Number.isFinite(v)):[];
               const shown=m.format?m.format(raw):(raw==null||raw===""?"—":String(raw));
-              return <td key={m.group+m.label} className={(m.wide?"wide ":"")+(m.numeric?"numeric":"")} style={m.numeric?conditionalStyle(raw,values):undefined}>{shown}</td>
+              return <td key={m.group+m.label} className={(m.wide?"wide ":"")+(m.numeric?"numeric":"")} style={m.numeric?conditionalStyle(raw,values,m.inverse):undefined}>{shown}</td>
             })}
           </tr>)}
         </tbody>
@@ -501,9 +501,9 @@ function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedF
 }
 
 function heatColor(ratio:number){const r=Math.max(0,Math.min(1,ratio));return `hsl(${Math.round(r*120)} 72% 48%)`}
-function conditionalStyle(value:any,values:number[]){
+function conditionalStyle(value:any,values:number[],inverse=false){
   const n=typeof value==="number"?value:null;if(n==null||!Number.isFinite(n)||!values.length)return undefined;
-  const min=Math.min(...values),max=Math.max(...values),ratio=max===min?.5:(n-min)/(max-min),h=Math.round(ratio*120);
+  const min=Math.min(...values),max=Math.max(...values);let ratio=max===min?.5:(n-min)/(max-min);if(inverse)ratio=1-ratio;const h=Math.round(ratio*120);
   return {background:`hsl(${h} 72% 42% / .18)`,boxShadow:`inset 0 -2px 0 hsl(${h} 72% 48% / .75)`};
 }
 function formatNumber(v:any,digits=2){return typeof v==="number"&&Number.isFinite(v)?v.toLocaleString(undefined,{minimumFractionDigits:digits,maximumFractionDigits:digits}):"—"}
