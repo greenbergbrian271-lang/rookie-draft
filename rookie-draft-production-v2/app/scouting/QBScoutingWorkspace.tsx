@@ -165,6 +165,18 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     }).catch(()=>setSessions(x=>({...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]})));
   },[selected,vals,demoMode,sessions]);
 
+  useEffect(()=>{
+    if(demoMode)return;
+    for(const p of players.filter(p=>compareIds.includes(String(p.id)))){
+      const id=String(p.id);
+      if(sessions[id])continue;
+      fetch("/api/scouting-sessions?playerId="+encodeURIComponent(id),{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((rows:any[])=>{
+        const live=Array.isArray(rows)?rows:[],legacy=String(evalFor(p,"__COMMENTARY__")||"").trim(),label=String(evalFor(p,"__GAME_LABEL__")||"").trim();
+        setSessions(x=>x[id]?x:{...x,[id]:live.length?live:(legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[])});
+      }).catch(()=>{});
+    }
+  },[compareIds,players,demoMode]);
+
   const filtered=useMemo(()=>{
     const q=norm(search);
     return players.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q));
