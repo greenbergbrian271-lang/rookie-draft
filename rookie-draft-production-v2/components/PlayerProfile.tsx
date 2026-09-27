@@ -8,15 +8,26 @@ const fmt=(x:any)=>x==null||!Number.isFinite(Number(x))?"—":Number(x).toFixed(
 export function usePlayerProfile(){return useContext(C)}
 
 export function PlayerProfileProvider({children}:{children:React.ReactNode}){
-  const [id,setId]=useState<string|null>(null),[data,setData]=useState<any>(null),[tab,setTab]=useState("Summary"),[loading,setLoading]=useState(false),playersRef=useRef<{id:string,key:string}[]>([]);
-  const openPlayer=(x:string|number)=>{setId(String(x));setTab("Summary")};
+  const [id,setId]=useState<string|null>(null),[data,setData]=useState<any>(null),[tab,setTab]=useState("Summary"),[loading,setLoading]=useState(false),[status,setStatus]=useState<{kind:"success"|"warning",text:string}|null>(null),playersRef=useRef<{id:string,key:string}[]>([]);
+  const openPlayer=(x:string|number)=>{setId(String(x));setTab("Summary");setStatus(null)};
   const loadProfile=async(playerId:string,clear=false)=>{
     setLoading(true);
     if(clear)setData(null);
     try{
       const r=await fetch("/api/player-profile?id="+playerId,{cache:"no-store"});
-      setData(await r.json());
+      const next=await r.json();
+      if(!r.ok||!next?.player)throw new Error(next?.error||"Could not refresh player profile");
+      setData(next);
+      return true;
+    }catch{
+      return false;
     }finally{setLoading(false)}
+  };
+  const applyTransfer=async(result:any)=>{
+    setData((prev:any)=>prev?{...prev,player:result.player,transferHistory:[result.transfer,...(Array.isArray(prev.transferHistory)?prev.transferHistory:[])]}:prev);
+    window.dispatchEvent(new CustomEvent("rookie-draft:players-changed",{detail:{player:result.player}}));
+    const synced=id?await loadProfile(id):false;
+    setStatus(synced?{kind:"success",text:`Transfer saved: ${result.transfer.from_college||"Unknown"} → ${result.transfer.to_college}.`}:{kind:"warning",text:"Transfer saved, but the latest team details could not refresh automatically. The saved school change is preserved."});
   };
   useEffect(()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then((ps:any[])=>{if(Array.isArray(ps))playersRef.current=ps.filter(p=>p?.id&&p?.name).map(p=>({id:String(p.id),key:String(p.name).toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ")})).sort((a,b)=>b.key.length-a.key.length)}).catch(()=>{})},[]);
   useEffect(()=>{
@@ -37,15 +48,15 @@ export function PlayerProfileProvider({children}:{children:React.ReactNode}){
   },[]);
   useEffect(()=>{if(id)void loadProfile(id,true)},[id]);
   const reload=async()=>{if(id)await loadProfile(id)};
-  return <C.Provider value={{openPlayer}}>{children}{id&&<div className="player-profile-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setId(null)}><div className="player-profile-modal"><button className="player-profile-close" onClick={()=>setId(null)}>×</button>{loading&&!data?<div className="empty">Loading player profile…</div>:data?.player?<Profile d={data} tab={tab} setTab={setTab} open={openPlayer} reload={reload}/>:<div className="empty">Could not load player profile.</div>}</div></div>}</C.Provider>
+  return <C.Provider value={{openPlayer}}>{children}{id&&<div className="player-profile-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setId(null)}><div className="player-profile-modal"><button className="player-profile-close" onClick={()=>setId(null)}>×</button>{loading&&!data?<div className="empty">Loading player profile…</div>:data?.player?<><Profile d={data} tab={tab} setTab={setTab} open={openPlayer} applyTransfer={applyTransfer}/>{status&&<div className={"profile-save-status "+status.kind}>{status.text}</div>}</>:<div className="empty">Could not load player profile.</div>}</div></div>}</C.Provider>
 }
 
-function Profile({d,tab,setTab,open,reload}:{d:any,tab:string,setTab:(x:string)=>void,open:(id:any)=>void,reload:()=>Promise<void>}){
+function Profile({d,tab,setTab,open,applyTransfer}:{d:any,tab:string,setTab:(x:string)=>void,open:(id:any)=>void,applyTransfer:(result:any)=>Promise<void>}){
   const [transferOpen,setTransferOpen]=useState(false),p=d.player,g=d.grades,img=p.headshot_url,teamLogo=d.teamLogo||"";
-  return <><div className="player-profile-hero"><div className="profile-photo-wrap">{img?<img src={img} className="profile-photo" alt="" onError={e=>{const el=e.currentTarget;if(teamLogo){el.src=teamLogo;el.classList.add("player-college-logo")}else el.style.display="none"}}/>:teamLogo?<img src={teamLogo} className="profile-photo player-college-logo" alt=""/>:<div className="profile-photo profile-photo-fallback">{p.name.split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</div>}</div><div><div className="ey">{p.positionRank||p.position} · {p.college}{p.jersey_number?" · #"+p.jersey_number:""}</div><h1>{p.name}</h1><div className="profile-meta-actions"><div className="muted">2027 Prospect</div><button className="profile-transfer-trigger" onClick={()=>setTransferOpen(true)}>↗ Transfer</button></div></div><div className="profile-final"><span>Final Grade</span><strong>{fmt(g.final)}</strong></div></div><div className="profile-tabs">{["Summary","Grades","Stats","Team"].map(x=><button className={tab===x?"active":""} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>{tab==="Summary"&&<Summary d={d}/>} {tab==="Grades"&&<Grades d={d}/>} {tab==="Stats"&&<Stats d={d}/>} {tab==="Team"&&<Team d={d} open={open}/>} {transferOpen&&<TransferModal d={d} onClose={()=>setTransferOpen(false)} onSaved={reload}/>}</>
+  return <><div className="player-profile-hero"><div className="profile-photo-wrap">{img?<img src={img} className="profile-photo" alt="" onError={e=>{const el=e.currentTarget;if(teamLogo){el.src=teamLogo;el.classList.add("player-college-logo")}else el.style.display="none"}}/>:teamLogo?<img src={teamLogo} className="profile-photo player-college-logo" alt=""/>:<div className="profile-photo profile-photo-fallback">{p.name.split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</div>}</div><div><div className="ey">{p.positionRank||p.position} · {p.college}{p.jersey_number?" · #"+p.jersey_number:""}</div><h1>{p.name}</h1><div className="profile-meta-actions"><div className="muted">2027 Prospect</div><button className="profile-transfer-trigger" onClick={()=>setTransferOpen(true)}>↗ Transfer</button></div></div><div className="profile-final"><span>Final Grade</span><strong>{fmt(g.final)}</strong></div></div><div className="profile-tabs">{["Summary","Grades","Stats","Team"].map(x=><button className={tab===x?"active":""} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>{tab==="Summary"&&<Summary d={d}/>} {tab==="Grades"&&<Grades d={d}/>} {tab==="Stats"&&<Stats d={d}/>} {tab==="Team"&&<Team d={d} open={open}/>} {transferOpen&&<TransferModal d={d} onClose={()=>setTransferOpen(false)} onSaved={applyTransfer}/>}</>
 }
 
-function TransferModal({d,onClose,onSaved}:{d:any,onClose:()=>void,onSaved:()=>Promise<void>}){
+function TransferModal({d,onClose,onSaved}:{d:any,onClose:()=>void,onSaved:(result:any)=>Promise<void>}){
   const p=d.player,[school,setSchool]=useState(""),[season,setSeason]=useState(String(new Date().getFullYear())),[saving,setSaving]=useState(false),[error,setError]=useState("");
   const save=async(e:any)=>{
     e.preventDefault();setError("");
@@ -56,7 +67,7 @@ function TransferModal({d,onClose,onSaved}:{d:any,onClose:()=>void,onSaved:()=>P
       const j=await r.json();
       if(!r.ok)throw new Error(j?.error||j?.detail||"Could not save transfer");
       onClose();
-      await onSaved();
+      await onSaved(j);
     }catch(e:any){setError(e?.message||"Could not save transfer");setSaving(false)}
   };
   const history=Array.isArray(d.transferHistory)?d.transferHistory:[];
