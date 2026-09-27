@@ -65,7 +65,7 @@ const seeds:Record<string,Record<string,any>>={
 "__COMMENTARY__":"Ohio State: Almost the exact opposite of Julian Sayin. First half, would tell you he's a bust. Second half, mannnnnnn he's a top 5 pick. Threw the ball beautifully downfield (even if there was a Cam Coleman drop) The accuracy is a concern, no doubt about it, felt like he was just throwing with wayyyyyyy too much juice at times, take a little bit off and 62% could've been a lot higher. Multiple clutch 4th down conersions too. It's a LONG way to go but to me, he's QB1"
 },
 "Julian Sayin":{
-"Games watched":1,"Expected Role":"Developmental Starter","Draft Projection":"Other: Day 1-2","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Games watched":1,"Expected Role":"Developmental Starter","Draft Projection":"Day 1-2","Team Score (10)":5,"Draft Capital Score (10)":5,
 "Arm Strength":97,"Arm Velocity":75,"Accuracy":67.75,"Decision Making":95,"Poise + OOS":79,"Mechanics":85,"Mobility":69,"Leadership":80,"Size":74.5,
 "Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
 "__GAME_LABEL__":"2026 · Texas",
@@ -79,7 +79,7 @@ const seeds:Record<string,Record<string,any>>={
 "__COMMENTARY__":"Wisconsin: If we were giving out letter grades, I would give this a B. For a guy with as few starts under his belt as Carr has, he reads the field SOOOO well, undoubtedly my favorite trait from Carr. What I really want to see more of is pushing the ball down the field. In this one he was simply a game manager, ND put up 41 and Carr had 0 big time throws per PFF. Only 5 of his 29 throws went beyond 10+ yards. I need to see a guy who's willing to tkae a shot down the field if he's going to be a viable NFL QB."
 },
 "Colton Joseph":{
-"Games watched":1,"Expected Role":"Other: Gritty Backup","Draft Projection":"Other: Day 3","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Games watched":1,"Expected Role":"Gritty Backup","Draft Projection":"Day 3","Team Score (10)":5,"Draft Capital Score (10)":5,
 "Arm Strength":62.75,"Arm Velocity":65,"Accuracy":77,"Decision Making":68.75,"Poise + OOS":66,"Mechanics":71,"Mobility":89,"Leadership":70,"Size":69.75,
 "Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
 "__GAME_LABEL__":"2026 · Notre Dame",
