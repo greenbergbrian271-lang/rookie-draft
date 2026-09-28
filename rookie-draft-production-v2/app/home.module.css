@@ -10,3 +10,6 @@
 
 /* Desktop schedule controls: reserve the left side for day buttons and pin secondary controls into the same row/right-hand space. */
 .filterBar{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:end;column-gap:44px;width:100%}.filterBar .filters{align-self:end}.dropdowns{justify-self:end;align-self:end;display:grid;grid-template-columns:150px 180px 210px;gap:12px;width:auto;margin:0}.miniSlider{display:grid!important;grid-template-rows:auto 34px;align-items:end}.miniSlider span{white-space:nowrap}.miniSlider input{width:200px;height:34px;margin:0;accent-color:#36d5d1}@media(max-width:1050px){.filterBar{grid-template-columns:1fr;row-gap:12px}.dropdowns{justify-self:start;width:100%;grid-template-columns:150px 180px minmax(180px,220px)}}@media(max-width:650px){.dropdowns{grid-template-columns:1fr}.miniSlider input{width:100%}}
+
+/* Keep homepage/watch-list game cards as full-width rows with a subtle breathing gap. */
+.schedule{display:grid;grid-template-columns:1fr;gap:4px}
