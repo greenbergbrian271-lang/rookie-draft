@@ -1,1 +1,11 @@
-import type { NextConfig } from "next"; const config: NextConfig = {}; export default config;
+import type { NextConfig } from "next";
+
+const config: NextConfig = {
+  images: {
+    remotePatterns: [
+      {protocol:"https",hostname:"a.espncdn.com"},
+    ],
+  },
+};
+
+export default config;
