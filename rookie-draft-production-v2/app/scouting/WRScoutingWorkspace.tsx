@@ -120,9 +120,9 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
 
   useEffect(()=>{
     for(const p of players){
-      const id=String(p.id);if(sessions[id])continue;
+      const id=String(p.id);if(sessions[id]?.length||(!demoMode&&sessions[id]))continue;
       const legacy=String(evalFor(p,"__COMMENTARY__")||"").trim(),legacyLabel=String(evalFor(p,"__GAME_LABEL__")||"").trim();
-      if(demoMode){setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});continue}
+      if(demoMode){setSessions(x=>x[id]?.length?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});continue}
       fetch("/api/scouting-sessions?playerId="+encodeURIComponent(id),{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((rows:any[])=>{
         const live=Array.isArray(rows)?rows:[],fallback=!live.length&&legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[];
         setSessions(x=>x[id]?x:{...x,[id]:live.length?live:fallback});
