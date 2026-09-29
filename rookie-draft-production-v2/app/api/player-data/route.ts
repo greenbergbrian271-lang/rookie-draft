@@ -1,5 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {qbReference} from "@/lib/qb-reference";
+import {rbReference} from "@/lib/rb-reference";
 
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 const number=(v:any)=>{
@@ -59,17 +60,49 @@ function mergeQB(current:any[]){
   }
   return [...merged.values()].map(enrichQB);
 }
+
+function enrichRB(row:any){
+  const r:any={...row};
+  r.Class??=r["Draft Class"];
+  r.Carries??=r["Rush Attempts"];
+  r["Yards/Carry"]??=r["Yards/Attempt"];
+  r.Touchdowns??=r["Rush Touchdowns"];
+  r["Rec Yards"]??=r["Rec Yards"];
+  r["Rec Touchdowns"]??=r["Rec Touchdowns"];
+  r["40 Yard Dash"]??=r["40-YD"];
+  const h=heightInches(r.Height),w=number(r.Weight),forty=number(r["40 Yard Dash"]);
+  if(r.BMI==null&&h&&w)r.BMI=w*703/(h*h);
+  if(r["Speed Score"]==null&&w&&forty)r["Speed Score"]=w*200/Math.pow(forty,4);
+  const vals=(...keys:string[])=>keys.map(k=>number(r[k])||0);
+  r["FR + Soph Rush Yd"]??=(number(r["FR Rush Yds"])||0)+(number(r["Soph Rush Yds"])||0);
+  const recs=vals("FR Rec","Soph Rec","JR Rec","SR Rec");
+  if(r["Single Season Rec"]==null)r["Single Season Rec"]=Math.max(0,...recs);
+  if(r["Career Rec"]==null)r["Career Rec"]=recs.reduce((a,b)=>a+b,0);
+  return r;
+}
+function mergeRB(current:any[]){
+  const merged=new Map<string,any>();
+  for(const row of rbReference as readonly any[])if(row?.Player)merged.set(norm(row.Player),{...row});
+  for(const row of current||[]){
+    const key=norm(row?.Player);
+    if(!key)continue;
+    merged.set(key,{...(merged.get(key)||{}),...row});
+  }
+  return [...merged.values()].map(enrichRB);
+}
 export async function GET(req:Request){
   try{
     const pos=new URL(req.url).searchParams.get("position"),c=await ensureTursoSchema(),r=rows(await c.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
     if(!r.length){
       if(pos==="QB")return Response.json({position:"QB",rows:mergeQB([]),below:[],importedAt:null,referenceSource:"QB Data"});
+      if(pos==="RB")return Response.json({position:"RB",rows:mergeRB([]),below:[],importedAt:null,referenceSource:"RB Data"});
       return Response.json({position:pos,rows:[],importedAt:null});
     }
     let result:any={};try{result=JSON.parse(String(r[0].result||"{}"))}catch{}
     if(pos&&["QB","RB","WR","TE"].includes(pos)){
       const block=result[pos]||{},above=block.above?.primary||[],below=block.below?.primary||[];
       if(pos==="QB")return Response.json({position:pos,rows:mergeQB([...below,...above]),below,importedAt:r[0].imported_at,referenceSource:"QB Data + latest PFF import"});
+      if(pos==="RB")return Response.json({position:pos,rows:mergeRB([...below,...above]),below,importedAt:r[0].imported_at,referenceSource:"RB Data + latest PFF import"});
       return Response.json({position:pos,rows:above,below,importedAt:r[0].imported_at});
     }
     return Response.json({result,importedAt:r[0].imported_at});
