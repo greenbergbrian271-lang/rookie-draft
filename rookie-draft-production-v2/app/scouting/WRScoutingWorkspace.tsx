@@ -56,6 +56,8 @@ const STATS=[
   ["Target %","Target %",true],["YPTPA","YPTPA",false],["Weighted Dom Rtg","Weighted Dom Rtg",true],["Dom Rtg","Dom Rtg",true]
 ] as const;
 
+function mockDraftableSlug(name:string){return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}
+
 const norm=(s:any)=>String(s??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 function num(v:any,pct=false){
   if(v==null||v==="")return null;
@@ -332,9 +334,13 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         <div className="qb-per-game"><h3>Per Game</h3>{[["Receptions",num(imp?.Receptions)],["Targets",num(imp?.Targets)],["Rec Yards",num(imp?.Yards)],["TD",num(imp?.Touchdowns)]].map(([label,v])=><div key={String(label)}><span>{label}</span><b>{typeof v==="number"&&num(imp?.Games)?(v/(num(imp?.Games)||1)).toFixed(2):"—"}</b></div>)}</div>
       </div>}
 
-      {tab==="Combine"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Imported + Calculated</span><h2>Combine / Pro Day</h2></div><GradePill value={combine}/></div><div className="qb-combine-grid">
-        <ReadOnly label="Height" value={imp?.Height}/><ReadOnly label="Weight" value={imp?.Weight}/><ReadOnly label="BMI" value={display(imp?.BMI,false,1)}/><ReadOnly label="Hand Size" value={imp?.["Hand Size"]}/><ReadOnly label="40 Yard Dash" value={display(sourceValue(imp,"40 Yard Dash"),false,2)}/><ReadOnly label="Speed Score" value={display(imp?.["Speed Score"],false,1)}/><ReadOnly label="Vertical" value={sourceValue(imp,"Vertical")}/>
-      </div></div>}
+      {tab==="Combine"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Imported + Calculated</span><h2>Combine / Pro Day</h2><p>MockDraftable spider chart alongside the local testing inputs used by the receiver model.</p></div><GradePill value={combine}/></div><div className="mockdraftable-testing-layout"><div className="mockdraftable-frame-card"><div className="mockdraftable-frame-head"><div><span className="ey">MockDraftable</span><strong>{p.name} · WR</strong></div><a href={"https://www.mockdraftable.com/player/"+mockDraftableSlug(p.name)} target="_blank" rel="noreferrer">Open profile ↗</a></div><iframe title={p.name+" MockDraftable spider chart"} src={"https://www.mockdraftable.com/embed/"+mockDraftableSlug(p.name)+"?position=WR&page=GRAPH"} loading="lazy"/></div><div className="qb-analytics-grid mockdraftable-metrics">{[
+          {label:"Height",value:imp?.Height,percentile:null},{label:"Weight",value:imp?.Weight,percentile:null},{label:"BMI",value:display(imp?.BMI,false,1),percentile:null},
+          {label:"Hand Size",value:imp?.["Hand Size"],percentile:percentileFor("Hand Size",p,false,false)},
+          {label:"40 Yard Dash",value:display(sourceValue(imp,"40 Yard Dash"),false,2),percentile:percentileFor("40 Yard Dash",p,true,false)},
+          {label:"Speed Score",value:display(imp?.["Speed Score"],false,1),percentile:percentileFor("Speed Score",p,false,false)},
+          {label:"Vertical",value:sourceValue(imp,"Vertical"),percentile:percentileFor("Vertical",p,false,false)}
+        ].map(m=><div className="qb-metric" key={m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>{m.percentile==null?"Imported testing data":"Board percentile"}</small></div><b>{m.value||"—"}</b></div>{m.percentile!=null&&<><div className="qb-percentile heat"><i style={{left:(m.percentile*100)+"%",background:heatColor(m.percentile)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{Math.round(m.percentile*100)}</strong></div></>}</div>)}</div></div></div>}
 
       {tab==="Draft"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2></div></div>
         <div className="qb-context-grid"><Field label="Team Score (10)" source="Scout"><input type="number" min="0" max="10" step=".25" value={inputValue(evalFor(p,"Team Score (10)"))} onChange={e=>local(p,"Team Score (10)",e.target.value)} onBlur={e=>persist(p,"Team Score (10)",e.target.value===""?"":Number(e.target.value))}/></Field><Field label="Draft Capital Score (10)" source="Scout"><input type="number" min="0" max="10" step=".25" value={inputValue(evalFor(p,"Draft Capital Score (10)"))} onChange={e=>local(p,"Draft Capital Score (10)",e.target.value)} onBlur={e=>persist(p,"Draft Capital Score (10)",e.target.value===""?"":Number(e.target.value))}/></Field><ReadOnly label="Draft Result" value={fields["Draft Result"]||"Pending"}/></div>
