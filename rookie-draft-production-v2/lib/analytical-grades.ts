@@ -28,9 +28,9 @@ export function wrAnalyticalGrade(scouting:number|null,r:Record<string,number|nu
  if(productionAnalyticalDisabled(glossary))return scouting;
  const parts=[
   term(avg(r.dropPct,r.catchTrafficPct),glossaryNumber(168,glossary)),
-  term(avg(r.firstDowns,r.firstDownsPerTarget,r.yrr,r.yrrMan,r.yrrZone),glossaryNumber(170,glossary)),
+  term(avg(r.firstDowns,r.firstDownsPerTarget,r.targetsPerRoute,r.firstDownsPerRoute,r.yrr,r.yrrMan,r.yrrZone,r.contestedPct),glossaryNumber(170,glossary)),
   term(avg(r.yacPerRec,r.mtfs),glossaryNumber(172,glossary)),
-  term(avg(r.airYardsPct,r.yardsPerRec,r.adot),glossaryNumber(174,glossary)),
+  term(avg(r.airYardsPct,r.yardsPerRec,r.adot,r.screenPct),glossaryNumber(174,glossary)),
   term(avg(r.catchTrafficPct,r.catchesInTraffic,r.yacPerRec),glossaryNumber(176,glossary)+glossaryNumber(178,glossary)),
   term(avg(r.runBlockGrade),glossaryNumber(180,glossary))
  ];
