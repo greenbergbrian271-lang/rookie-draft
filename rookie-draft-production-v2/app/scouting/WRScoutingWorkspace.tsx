@@ -147,7 +147,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     if(out["Special Teams"]==null&&out["Special Teams?"]!=null)out["Special Teams"]=out["Special Teams?"];
     return out;
   }
-  function scoutingFor(p:Player){
+  function manualScoutingFor(p:Player){
     const grades=FILM.map(x=>num(evalFor(p,x))??NaN);
     return workbookScoutingGrade("WR",grades,fieldsFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
@@ -165,7 +165,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const base=percentRankInc(pop,raw);return base==null?null:(inverse?1-base:base);
   }
   function productionFor(p:Player){
-    const scout=scoutingFor(p),g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
+    const scout=manualScoutingFor(p),g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     if(productionAnalyticalDisabled(g))return scout;
     const w:any=productionWeights("WR",g);
     const pieces:[string,number,boolean,boolean][]=[
@@ -194,7 +194,13 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   }
   function analyticalFor(p:Player){
     const metrics=metricDataFor(p),record=Object.fromEntries(metrics.map(x=>[x.key,x.percentile])) as Record<string,number|null>;
-    return wrAnalyticalGrade(scoutingFor(p),record,penaltyFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    return wrAnalyticalGrade(manualScoutingFor(p),record,penaltyFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+  }
+  function scoutingFor(p:Player){
+    const watched=num(evalFor(p,"Games watched")??evalFor(p,"Games Watched"))||0;
+    if(watched>=1)return manualScoutingFor(p);
+    const fallback=[productionFor(p),analyticalFor(p)].filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
+    return fallback.length?fallback.reduce((s,v)=>s+v,0)/fallback.length:null;
   }
   function preDraftFor(p:Player){
     const scout=scoutingFor(p);if(scout==null)return null;
