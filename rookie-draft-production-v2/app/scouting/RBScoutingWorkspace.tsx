@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import {useEffect,useMemo,useState} from "react";
@@ -136,4 +135,19 @@ function GradePill({value}:{value:number|null}){return <div className="qb-grade-
 function Field({label,children}:{label:string,children:React.ReactNode}){return <label className="qb-field"><span>{label}<em>Scout</em></span>{children}</label>}
 function ReadOnly({label,value}:{label:string,value:any}){return <div className="qb-readonly"><span>{label}<em>Data</em></span><strong>{value==null||value===""?"—":String(value)}</strong></div>}
 function Stat({label,value}:{label:string,value:any}){return <div className="qb-stat-card"><span>{label}</span><strong>{value}</strong></div>}
-function ConstrainedField({label,value,options,onLocal,onCommit}:{label:string,value:string,options:string[],onLocal:(v:string)=>void,onCommit:(v:string)=>void|Promise<any>}){const [other,setOther]=useState(Boolean(value)&&!options.includes(value));useEffect(()=>setOther(Boolean(value)&&!options.includes(value)),[value,options]);return <Field label={label}><div className="qb-constrained"><select value={other?"Other":value} onChange={e=>{if(e.target.value==="Other"){setOther(true);onLocal("")}else{setOther(false);onLocal(e.target.value);onCommit(e.target.value)}}><option value="">Select…</option>{options.map(x=><option key={x}>{x}</option>)}<option>Other</option></select>{other&&<input value={value} onChange={e=>onLocal(e.target.value)} onBlur={e=>onCommit(e.target.value)} placeholder={"Other "+label.toLowerCase()+"…"}/>}</div></Field>}
+function ConstrainedField({label,value,options,onLocal,onCommit}:{label:string,value:string,options:string[],onLocal:(v:string)=>void,onCommit:(v:string)=>void|Promise<any>}){
+  const isCustom=Boolean(value)&&!options.includes(value);
+  const [other,setOther]=useState(isCustom);
+  useEffect(()=>setOther(Boolean(value)&&!options.includes(value)),[value,options]);
+  return <Field label={label}><div className="qb-constrained">
+    <select value={other?"Other":value} onChange={e=>{
+      if(e.target.value==="Other"){setOther(true);onLocal("")}
+      else{setOther(false);onLocal(e.target.value);onCommit(e.target.value)}
+    }}>
+      <option value="">Select…</option>
+      {options.map(x=><option key={x}>{x}</option>)}
+      <option>Other</option>
+    </select>
+    {other&&<input value={value} onChange={e=>onLocal(e.target.value)} onBlur={e=>onCommit(e.target.value)} placeholder={"Other "+label.toLowerCase()+"…"}/>}
+  </div></Field>
+}
