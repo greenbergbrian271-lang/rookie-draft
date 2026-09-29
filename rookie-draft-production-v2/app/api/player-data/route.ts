@@ -1,6 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {qbReference} from "@/lib/qb-reference";
-import {wrReference} from "@/lib/wr-reference";
+import {wrReference,wrReferenceGeneratedAt} from "@/lib/wr-reference";
 
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 const number=(v:any)=>{
@@ -88,7 +88,7 @@ export async function GET(req:Request){
     if(pos&&["QB","RB","WR","TE"].includes(pos)){
       const block=result[pos]||{},above=block.above?.primary||[],below=block.below?.primary||[];
       if(pos==="QB")return Response.json({position:pos,rows:mergeQB([...below,...above]),below,importedAt:r[0].imported_at,referenceSource:"QB Data + latest PFF import"});
-      if(pos==="WR")return Response.json({position:pos,rows:mergeWR([...below,...above]),below,importedAt:r[0].imported_at,referenceSource:"WR Data + latest PFF import"});
+      if(pos==="WR"){const importedAt=String(r[0].imported_at||"");const useImport=importedAt>wrReferenceGeneratedAt;return Response.json({position:pos,rows:mergeWR(useImport?[...below,...above]:[]),below,importedAt:r[0].imported_at,referenceSource:useImport?"WR Data + newer PFF import":"WR Data"});}
       return Response.json({position:pos,rows:above,below,importedAt:r[0].imported_at});
     }
     return Response.json({result,importedAt:r[0].imported_at});
