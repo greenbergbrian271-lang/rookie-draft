@@ -384,6 +384,9 @@
 .te-workspace .qb-rank{color:#fead58}
 .te-workspace .qb-prospect-row.active{background:rgba(254,173,88,.12);border-color:#fead58;box-shadow:inset 3px 0 0 #fead58}
 .te-workspace .qb-prospect-row.active .qb-rank{color:#fead58}
+.te-workspace .qb-context-grid.six{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:22px;row-gap:14px}
+@media(max-width:900px){.te-workspace .qb-context-grid.six{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.te-workspace .qb-context-grid.six{grid-template-columns:1fr}}
 
 /* Testing values should never wrap units onto a second line */
 .mockdraftable-metrics .qb-metric-top{gap:8px}
