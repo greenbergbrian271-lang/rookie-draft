@@ -82,6 +82,9 @@ const STATS=[
   ["Rushes","Rushes"],["Rush Yards","Yards__rush"],["Rush Yards / Attempt","Yards/Attempt__rush"],["Rush TD","Touchdowns__rush"]
 ] as const;
 
+function mockDraftableSlug(name:string){return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}
+function boardPercentile(values:number[],value:number|null,inverse=false){if(value==null)return null;const p=percentRankInc(values,value);return p==null?null:(inverse?1-p:p)}
+
 const norm=(s:any)=>String(s??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 function num(v:any,pct=false){
   if(v==null||v==="")return null;
