@@ -61,7 +61,7 @@ useEffect(()=>{fetch("/api/scouting-glossary",{cache:"no-store"}).then(r=>r.json
 const watchedPlayers=useMemo(()=>rows.filter(x=>x.draft_class===2027&&x.position===pos&&x.scouting_status==="WATCHED").sort((a,b)=>(a.watch_order||0)-(b.watch_order||0)),[rows,pos]);
 const demoQbNames=["Arch Manning","Julian Sayin","CJ Carr","Colton Joseph"];
 const demoQbs=useMemo(()=>demoQbNames.map(name=>rows.find(x=>x.draft_class===2027&&x.position==="QB"&&x.name===name)).filter(Boolean) as Player[],[rows]);
-const demoTes=useMemo(()=>[{id:"demo-kenyon-sadiq-2026",name:"Kenyon Sadiq",position:"TE" as Pos,college:"Oregon",draft_class:2026,scouting_status:"WATCHED",watch_order:1}] as Player[],[]);
+const demoTes=useMemo(()=>[{id:"demo-kenyon-sadiq-2027",name:"Kenyon Sadiq",position:"TE" as Pos,college:"Oregon",draft_class:2027,scouting_status:"WATCHED",watch_order:1}] as Player[],[]);
 const qbDemoMode=pos==="QB"&&watchedPlayers.length===0;
 const teDemoMode=pos==="TE";
 const tePreviewGlossary=useMemo(()=>{if(!teDemoMode)return glossary;const g=glossary.map(r=>Array.isArray(r)?[...r]:r);while(g.length<86)g.push([]);g[85]=Array.isArray(g[85])?[...g[85]]:[];g[85][1]=false;return g},[glossary,teDemoMode]);
