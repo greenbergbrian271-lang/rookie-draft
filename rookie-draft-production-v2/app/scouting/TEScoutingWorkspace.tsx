@@ -80,7 +80,7 @@ function heatColor(ratio:number){const r=Math.max(0,Math.min(1,ratio));return `h
 function conditionalStyle(value:any,values:number[]){const n=typeof value==="number"?value:null;if(n==null||!Number.isFinite(n)||!values.length)return undefined;const min=Math.min(...values),max=Math.max(...values),ratio=max===min?.5:(n-min)/(max-min),h=Math.round(ratio*120);return {background:`hsl(${h} 72% 42% / .18)`,boxShadow:`inset 0 -2px 0 hsl(${h} 72% 48% / .75)`}}
 function scoreLabel(n:number|null){if(n==null)return "Not graded";if(n>=90)return"Elite";if(n>=80)return"Plus";if(n>=70)return"Solid";if(n>=60)return"Fringe";return"Concern"}
 
-// Preview refresh: latest TE scouting UX batch
+// Preview v2: verified TE scouting UX batch
 export default function TEScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false}:Props){
   const {openPlayer}=usePlayerProfile();
   const [mode,setMode]=useState<Mode>("Evaluate"),[tab,setTab]=useState<Tab>("Film"),[search,setSearch]=useState(""),[selectedId,setSelectedId]=useState("");
