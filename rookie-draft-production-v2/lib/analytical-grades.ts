@@ -34,13 +34,13 @@ export function wrAnalyticalGrade(scouting:number,r:Record<string,number|null|un
  term(avg(r.BM),glossaryNumber(180))
  ],scouting);return g-(lowAdotHighContested?glossaryNumber(205):0);
 }
-export function teAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>){
- if(productionAnalyticalDisabled())return scouting;return sum([
- term(avg(r.AU,r.AV),glossaryNumber(208)),
- term(avg(r.AW,r.AX,r.AY,r.AZ,r.BA,r.BB),glossaryNumber(210)),
- term(avg(r.BK,r.BL),glossaryNumber(212)),
- term(avg(r.BC,r.BD,r.BF),glossaryNumber(214)),
- term(avg(r.AV,r.BG),glossaryNumber(216)+glossaryNumber(218)),
- term(avg(r.BE,r.BH,r.BI,r.BJ),glossaryNumber(220))
+export function teAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>,glossary?:GlossaryRows){
+ if(productionAnalyticalDisabled(glossary))return scouting;return sum([
+ term(avg(r.AU,r.AV),glossaryNumber(208,glossary)),
+ term(avg(r.AW,r.AX,r.AY,r.AZ,r.BA,r.BB),glossaryNumber(210,glossary)),
+ term(avg(r.BK,r.BL),glossaryNumber(212,glossary)),
+ term(avg(r.BC,r.BD,r.BF),glossaryNumber(214,glossary)),
+ term(avg(r.AV,r.BG),glossaryNumber(216,glossary)+glossaryNumber(218,glossary)),
+ term(avg(r.BE,r.BH,r.BI,r.BJ),glossaryNumber(220,glossary))
  ],scouting);
 }
