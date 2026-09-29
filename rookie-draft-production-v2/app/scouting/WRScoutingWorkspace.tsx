@@ -34,18 +34,20 @@ const ANALYTICS=[
   {key:"catchTrafficPct",label:"Catch in Traffic %",source:"Catch in Traffic %",inverse:false,pct:true,weighted:true},
   {key:"firstDowns",label:"1st Downs",source:"1st Downs",inverse:false,pct:false,weighted:true},
   {key:"firstDownsPerTarget",label:"1st Downs / Tgt",source:"1st Downs / Tgt",inverse:false,pct:false,weighted:true},
+  {key:"targetsPerRoute",label:"Targets / Route",source:"Targets/Route",inverse:false,pct:false,weighted:true},
+  {key:"firstDownsPerRoute",label:"1st Downs / Route",source:"1st Downs/Route",inverse:false,pct:false,weighted:true},
   {key:"yrr",label:"Y/RR",source:"Y/RR",inverse:false,pct:false,weighted:true},
   {key:"yrrMan",label:"Y/RR vs Man",source:"Y/RR vs Man",inverse:false,pct:false,weighted:true},
   {key:"yrrZone",label:"Y/RR vs Zone",source:"Y/RR vs Zone",inverse:false,pct:false,weighted:true},
+  {key:"contestedPct",label:"Contested Target %",source:"Contested Target %",inverse:true,pct:true,weighted:true},
   {key:"airYardsPct",label:"Air Yards %",source:"Air Yards %",inverse:false,pct:true,weighted:true},
   {key:"yacPerRec",label:"YAC/Rec",source:"YAC/Rec",inverse:false,pct:false,weighted:true},
   {key:"mtfs",label:"MTFs",source:"MTFs",inverse:false,pct:false,weighted:true},
   {key:"yardsPerRec",label:"Yards/Rec",source:"Yards/Rec",inverse:false,pct:false,weighted:true},
   {key:"adot",label:"ADOT",source:"ADOT",inverse:false,pct:false,weighted:true},
+  {key:"screenPct",label:"Screen %",source:"Screen %",inverse:true,pct:true,weighted:true},
   {key:"catchesInTraffic",label:"Catches in Traffic",source:"Catches in Traffic",inverse:false,pct:false,weighted:true},
-  {key:"runBlockGrade",label:"Run Block Grade",source:"Run Block Grade",inverse:false,pct:false,weighted:true},
-  {key:"contestedPct",label:"Contested Target %",source:"Contested Target %",inverse:false,pct:true,weighted:false},
-  {key:"screenPct",label:"Screen %",source:"Screen %",inverse:false,pct:true,weighted:false}
+  {key:"runBlockGrade",label:"Run Block Grade",source:"Run Block Grade",inverse:false,pct:false,weighted:true}
 ] as const;
 const STATS=[
   ["Games","Games",false],["Receptions","Receptions",false],["Targets","Targets",false],["Yards","Yards",false],
