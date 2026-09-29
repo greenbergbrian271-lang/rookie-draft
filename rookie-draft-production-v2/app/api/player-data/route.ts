@@ -1,5 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {qbReference} from "@/lib/qb-reference";
+import {wrReference} from "@/lib/wr-reference";
 
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 const number=(v:any)=>{
@@ -29,7 +30,6 @@ function enrichQB(row:any){
   q["Career Starts"]??=q["Games Started"];
   q["Career Attempts"]??=q["Total Attempts"];
   q["Career Max YPG"]??=q["Max YPG"];
-
   q.Attempts??=q["Passing Attempts"];
   q["Completion %"]??=q["Comp %"];
   q.Yards??=q["Passing Yards"];
@@ -38,38 +38,57 @@ function enrichQB(row:any){
   q["Rush Yards"]??=q["Rushing Yards"];
   q["Rush Yards/Attempt"]??=q["Rush Yds/Att"];
   q["Rush Touchdowns"]??=q["Rushing TDs"];
-
   q["Screen %"]??=q["Screen throw %"];
   q["ADJ Comp %"]??=q["Adjusted Comp %"];
   q["Time to Throw"]??=q["Time to throw"];
   q["40 Yard Dash"]??=q["40-YD"];
-
   const height=heightInches(q.Height),weight=number(q.Weight),forty=number(q["40 Yard Dash"]);
   if(q.BMI==null&&height&&weight)q.BMI=weight*703/(height*height);
   if(q["Speed Score"]==null&&weight&&forty)q["Speed Score"]=weight*200/Math.pow(forty,4);
   return q;
 }
-function mergeQB(current:any[]){
+function enrichWR(row:any){
+  const q:any={...row};
+  q.Class??=q["Draft Class"];
+  q["Yards/Tgt"]??=q["Yards/target"];
+  q["1st Downs / Tgt"]??=q["1st/target"];
+  q["Targets/Route"]??=q["Targets/Route Run"];
+  q["1st Downs/Route"]??=q["1st Downs/Route Run"];
+  q["Contested Target %"]??=q["contested_targets %"];
+  q["Screen %"]??=q["Screen target %"];
+  q["40 Yard Dash"]??=q["40-YD"];
+  q.Vertical??=q["Vertical Jump"];
+  const height=heightInches(q.Height),weight=number(q.Weight),forty=number(q["40 Yard Dash"]);
+  if(q.BMI==null&&height&&weight)q.BMI=weight*703/(height*height);
+  if(q["Speed Score"]==null&&weight&&forty)q["Speed Score"]=weight*200/Math.pow(forty,4);
+  return q;
+}
+function mergeReference(reference:readonly any[],current:any[],enrich:(row:any)=>any){
   const merged=new Map<string,any>();
-  for(const row of qbReference as readonly any[])if(row?.Player)merged.set(norm(row.Player),{...row});
+  for(const row of reference)if(row?.Player)merged.set(norm(row.Player),{...row});
   for(const row of current||[]){
     const key=norm(row?.Player);
     if(!key)continue;
     merged.set(key,{...(merged.get(key)||{}),...row});
   }
-  return [...merged.values()].map(enrichQB);
+  return [...merged.values()].map(enrich);
 }
+const mergeQB=(current:any[])=>mergeReference(qbReference as readonly any[],current,enrichQB);
+const mergeWR=(current:any[])=>mergeReference(wrReference as readonly any[],current,enrichWR);
+
 export async function GET(req:Request){
   try{
     const pos=new URL(req.url).searchParams.get("position"),c=await ensureTursoSchema(),r=rows(await c.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
     if(!r.length){
       if(pos==="QB")return Response.json({position:"QB",rows:mergeQB([]),below:[],importedAt:null,referenceSource:"QB Data"});
+      if(pos==="WR")return Response.json({position:"WR",rows:mergeWR([]),below:[],importedAt:null,referenceSource:"WR Data"});
       return Response.json({position:pos,rows:[],importedAt:null});
     }
     let result:any={};try{result=JSON.parse(String(r[0].result||"{}"))}catch{}
     if(pos&&["QB","RB","WR","TE"].includes(pos)){
       const block=result[pos]||{},above=block.above?.primary||[],below=block.below?.primary||[];
       if(pos==="QB")return Response.json({position:pos,rows:mergeQB([...below,...above]),below,importedAt:r[0].imported_at,referenceSource:"QB Data + latest PFF import"});
+      if(pos==="WR")return Response.json({position:pos,rows:mergeWR([...below,...above]),below,importedAt:r[0].imported_at,referenceSource:"WR Data + latest PFF import"});
       return Response.json({position:pos,rows:above,below,importedAt:r[0].imported_at});
     }
     return Response.json({result,importedAt:r[0].imported_at});
