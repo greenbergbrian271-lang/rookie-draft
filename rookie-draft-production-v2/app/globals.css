@@ -382,7 +382,7 @@
 
 /* TE uses the established yellow position color in its prospect rail */
 .te-workspace .qb-rank{color:#fead58}
-.te-workspace .qb-prospect-row.active{border-color:#9d733b;box-shadow:inset 3px 0 0 #fead58}
+.te-workspace .qb-prospect-row.active{background:rgba(254,173,88,.12);border-color:#fead58;box-shadow:inset 3px 0 0 #fead58}
 .te-workspace .qb-prospect-row.active .qb-rank{color:#fead58}
 
 /* Testing values should never wrap units onto a second line */
