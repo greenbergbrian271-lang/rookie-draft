@@ -24,15 +24,19 @@ export function rbAnalyticalGrade(scouting:number,r:Record<string,number|null|un
  term(avg(r.BP),glossaryNumber(142))
  ],scouting);
 }
-export function wrAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>,lowAdotHighContested=false){
- if(productionAnalyticalDisabled())return scouting;const g=sum([
- term(avg(r.AV,r.AW),glossaryNumber(168)),
- term(avg(r.AX,r.AY,r.AZ,r.BA,r.BB,r.BC,r.BD,r.BE),glossaryNumber(170)),
- term(avg(r.BG,r.BH),glossaryNumber(172)),
- term(avg(r.BF,r.BI,r.BJ,r.BK),glossaryNumber(174)),
- term(avg(r.AW,r.BL,r.BG),glossaryNumber(176)+glossaryNumber(178)),
- term(avg(r.BM),glossaryNumber(180))
- ],scouting);return g-(lowAdotHighContested?glossaryNumber(205):0);
+export function wrAnalyticalGrade(scouting:number|null,r:Record<string,number|null|undefined>,lowAdotHighContested=false,glossary?:GlossaryRows){
+ if(productionAnalyticalDisabled(glossary))return scouting;
+ const parts=[
+  term(avg(r.dropPct,r.catchTrafficPct),glossaryNumber(168,glossary)),
+  term(avg(r.firstDowns,r.firstDownsPerTarget,r.yrr,r.yrrMan,r.yrrZone),glossaryNumber(170,glossary)),
+  term(avg(r.yacPerRec,r.mtfs),glossaryNumber(172,glossary)),
+  term(avg(r.airYardsPct,r.yardsPerRec,r.adot),glossaryNumber(174,glossary)),
+  term(avg(r.catchTrafficPct,r.catchesInTraffic,r.yacPerRec),glossaryNumber(176,glossary)+glossaryNumber(178,glossary)),
+  term(avg(r.runBlockGrade),glossaryNumber(180,glossary))
+ ];
+ if(parts.some(v=>v==null))return scouting;
+ const g=parts.reduce<number>((s,v)=>s+(v||0),0);
+ return g-(lowAdotHighContested?glossaryNumber(205,glossary):0);
 }
 export function teAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>){
  if(productionAnalyticalDisabled())return scouting;return sum([
