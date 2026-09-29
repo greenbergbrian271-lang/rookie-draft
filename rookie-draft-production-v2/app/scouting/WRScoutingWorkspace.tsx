@@ -165,7 +165,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   function productionFor(p:Player){
     const scout=scoutingFor(p),g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     if(productionAnalyticalDisabled(g))return scout;
-    const w=productionWeights("WR",g);
+    const w:any=productionWeights("WR",g);
     const pieces:[string,number,boolean,boolean][]=[
       ["Yards/Rec",w.yardsPerReception,false,false],["Yards/Tgt",w.yardsPerTarget,false,false],["Target %",w.targetShare,false,true],
       ["Catch %",w.catchPct,false,true],["YPTPA",w.yptpa,false,false],["Weighted Dom Rtg",w.weightedDomRtg,false,true],["Dom Rtg",w.domRtg,false,true]
