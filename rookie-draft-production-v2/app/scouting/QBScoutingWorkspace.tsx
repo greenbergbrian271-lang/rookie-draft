@@ -192,6 +192,15 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       return {...metric,raw,rawPercentile:base,percentile};
     });
   }
+  function productionMetricDataFor(p:Player){
+    const imp=importedFor(p),all=(imports||[]).filter(r=>r&&norm(r.Player||String(r["Player, College"]||"").split(",")[0]));
+    return STATS.map(([label,source])=>{
+      const isPct=String(label).includes("%"),inverse=label==="Interceptions",raw=num(valueFor(imp,source),isPct);
+      const population=all.map(r=>num(valueFor(r,source),isPct)).filter((x):x is number=>x!=null);
+      const base=raw==null?null:percentRankInc(population,raw),percentile=base==null?null:(inverse?1-base:base);
+      return {label,source,isPct,inverse,raw,percentile};
+    });
+  }
   function analyticalFor(p:Player){
     const scout=scoutingFor(p);
     if(scout==null)return null;
@@ -272,7 +281,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   }
 
   function renderPlayerSection(p:Player){
-    const id=String(p.id),imp=importedFor(p),metrics=metricDataFor(p),scouting=scoutingFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p);
+    const id=String(p.id),imp=importedFor(p),metrics=metricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p);
     const teamScore=num(fields["Team Score (10)"]),draftCapital=num(fields["Draft Capital Score (10)"]);
     const finalGrade=preDraft==null||teamScore==null||draftCapital==null?null:draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
     const combineInput={bmi:num(imp?.BMI)??undefined,forty:num(imp?.["40 Yard Dash"])??undefined,speedScore:num(imp?.["Speed Score"])??undefined,broadJump:num(imp?.["Broad Jump"])??undefined};
