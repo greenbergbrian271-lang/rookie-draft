@@ -1,5 +1,5 @@
 import {glossaryColumnA,glossaryNumber,productionAnalyticalDisabled,type GlossaryRows} from "./scouting-formulas";
-import {percentRankInc} from "./combine-formulas";
+import {percentRankIncSheet} from "./combine-formulas";
 
 export type WRProductionInput={
   scouting:number|null;
@@ -28,7 +28,7 @@ export type WRProductionPopulation={
 };
 const rank=(values:number[],value:number|null|undefined)=>{
   if(value==null||!Number.isFinite(value))return null;
-  const r=percentRankInc(values,value);
+  const r=percentRankIncSheet(values,value,3);
   return r==null?null:r*100;
 };
 const boolAt=(row:number,g?:GlossaryRows)=>String(g?.[row-1]?.[1]??"").toUpperCase()==="TRUE";
