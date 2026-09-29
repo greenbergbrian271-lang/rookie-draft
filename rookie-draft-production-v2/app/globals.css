@@ -360,3 +360,16 @@
 .watched-player-list label.school-coded .pos,.watched-player-list label.school-coded .college{color:inherit;opacity:.88}
 .watched-player-list label.school-coded .name{color:inherit}
 .watched-player-list label.school-coded.queued{opacity:.5;filter:saturate(.7)}
+
+
+/* RB scouting workspace */
+.rb-workspace .qb-rank{color:#20ceb7}
+.rb-workspace .qb-prospect-row.active{box-shadow:inset 3px 0 0 #20ceb7}
+.rb-workspace .qb-add{background:#148a78}
+.rb-workspace .qb-rail-head .ey,.rb-workspace .qb-section-head .ey{color:#38e3ca}
+.rb-workspace .qb-grade-card:before{background:#20ceb7}
+.rb-grade-strip{grid-template-columns:repeat(5,1fr)}
+.rb-production-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}
+@media(max-width:1180px){.rb-grade-strip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:850px){.rb-grade-strip{grid-template-columns:repeat(2,1fr)}.rb-production-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.rb-production-grid{grid-template-columns:1fr}}
