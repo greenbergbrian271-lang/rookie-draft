@@ -389,3 +389,14 @@
 @media(max-width:1100px){.mockdraftable-testing-layout{grid-template-columns:1fr}.mockdraftable-frame-card{max-width:520px}.mockdraftable-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:720px){.mockdraftable-frame-card iframe{height:620px}.mockdraftable-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.mockdraftable-metrics{grid-template-columns:1fr}}
+
+/* Position color language across the scouting workspace */
+.scouting-position-tab{border:1px solid #31527f!important;background:#10213a!important;color:#9eb1cd!important}
+.scouting-position-tab.active{font-weight:950!important;color:#fff!important}
+.scouting-position-tab.active.pos-qb{background:#fc2b6d!important;border-color:#fc2b6d!important}
+.scouting-position-tab.active.pos-rb{background:#20ceb7!important;border-color:#20ceb7!important;color:#06101e!important}
+.scouting-position-tab.active.pos-wr{background:#58a7ff!important;border-color:#58a7ff!important}
+.scouting-position-tab.active.pos-te{background:#fead58!important;border-color:#fead58!important;color:#06101e!important}
+.mockdraftable-metrics .qb-metric-top{gap:8px}
+.mockdraftable-metrics .qb-metric-top b{white-space:nowrap;font-size:clamp(14px,1.25vw,22px);line-height:1}
+.qb-draft-detail{grid-template-columns:repeat(3,minmax(0,1fr))}
