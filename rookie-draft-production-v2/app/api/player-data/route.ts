@@ -70,6 +70,8 @@ function enrichRB(row:any){
   r["Rec Yards"]??=r["Rec Yards"];
   r["Rec Touchdowns"]??=r["Rec Touchdowns"];
   r["40 Yard Dash"]??=r["40-YD"];
+  r["1st Downs/ATT"]??=r["1st/rush"];
+  r["1st Downs/Tgt"]??=r["1st/target"];
   const h=heightInches(r.Height),w=number(r.Weight),forty=number(r["40 Yard Dash"]);
   if(r.BMI==null&&h&&w)r.BMI=w*703/(h*h);
   if(r["Speed Score"]==null&&w&&forty)r["Speed Score"]=w*200/Math.pow(forty,4);
