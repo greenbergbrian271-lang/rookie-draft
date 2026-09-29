@@ -179,17 +179,24 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     domRtg:(imports||[]).map(r=>num(sourceValue(r,"Dom Rtg"),true)).filter((x):x is number=>x!=null),
     speedScore:(imports||[]).map(r=>num(sourceValue(r,"Speed Score"))).filter((x):x is number=>x!=null)
   }),[imports]);
+  function productionContextFor(p:Player){
+    const r=importedFor(p),college=collegeFor(p),yards=num(r.Yards),tds=num(r.Touchdowns),attempts=num(college?.passAttempts),teamYards=num(college?.passYards),teamTds=num(college?.passTDs);
+    const yptpa=yards!=null&&attempts?yards/attempts:num(sourceValue(r,"YPTPA"));
+    const weightedDom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)*.8)+((tds/teamTds)*.2):num(sourceValue(r,"Weighted Dom Rtg"),true);
+    const dom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)+(tds/teamTds))/2:num(sourceValue(r,"Dom Rtg"),true);
+    return {yptpa,weightedDom,dom};
+  }
   function productionFor(p:Player){
-    const r=importedFor(p),college=collegeFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
+    const r=importedFor(p),college=collegeFor(p),ctx=productionContextFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
     return wrProductionGrade({
       scouting:manualScoutingFor(p),
       yardsPerReception:num(sourceValue(r,"Yards/Rec")),
       yardsPerTarget:num(sourceValue(r,"Yards/Tgt")),
       targetShare:num(sourceValue(r,"Target %"),true),
       catchPct:num(sourceValue(r,"Catch %"),true),
-      yptpa:num(sourceValue(r,"YPTPA")),
-      weightedDomRtg:num(sourceValue(r,"Weighted Dom Rtg"),true),
-      domRtg:num(sourceValue(r,"Dom Rtg"),true),
+      yptpa:ctx.yptpa,
+      weightedDomRtg:ctx.weightedDom,
+      domRtg:ctx.dom,
       speedScore:num(sourceValue(r,"Speed Score")),
       combineScore:combineFor(p),
       maxFrSophYards:frY==null&&soY==null?null:Math.max(frY??0,soY??0),
