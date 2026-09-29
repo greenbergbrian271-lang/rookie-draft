@@ -13,15 +13,15 @@ export function qbAnalyticalGrade(scouting:number,r:Record<string,number|null|un
  term(avg(r.AY,r.AZ),glossaryNumber(107,glossary))
  ],scouting);return g+(Number(r.pressureToSack||0)>.22?-5:0);
 }
-export function rbAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>){
- if(productionAnalyticalDisabled())return scouting;return sum([
- term(avg(r.BA),glossaryNumber(128)+glossaryNumber(126)/3),
- term(avg(r.BB,r.BC),glossaryNumber(130)),
- term(avg(r.BD,r.BE,r.BF),glossaryNumber(132)+glossaryNumber(126)/3),
- term(avg(r.BG,r.BH),glossaryNumber(134)),
- term(avg(r.BI,r.BJ),glossaryNumber(136)+glossaryNumber(138)+glossaryNumber(126)/3),
- term(avg(r.BK,r.BL,r.BM,r.BN,r.BO),glossaryNumber(140)),
- term(avg(r.BP),glossaryNumber(142))
+export function rbAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>,glossary?:GlossaryRows){
+ if(productionAnalyticalDisabled(glossary))return scouting;return sum([
+ term(avg(r.BA),glossaryNumber(128,glossary)+glossaryNumber(126,glossary)/3),
+ term(avg(r.BB,r.BC),glossaryNumber(130,glossary)),
+ term(avg(r.BD,r.BE,r.BF),glossaryNumber(132,glossary)+glossaryNumber(126,glossary)/3),
+ term(avg(r.BG,r.BH),glossaryNumber(134,glossary)),
+ term(avg(r.BI,r.BJ),glossaryNumber(136,glossary)+glossaryNumber(138,glossary)+glossaryNumber(126,glossary)/3),
+ term(avg(r.BK,r.BL,r.BM,r.BN,r.BO),glossaryNumber(140,glossary)),
+ term(avg(r.BP),glossaryNumber(142,glossary))
  ],scouting);
 }
 export function wrAnalyticalGrade(scouting:number,r:Record<string,number|null|undefined>,lowAdotHighContested=false){
