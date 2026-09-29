@@ -366,7 +366,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     </aside>
     <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>
       {mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack">
-        <nav className="qb-section-tabs qb-shared-tabs">{(["Film","Analytics","Stats","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</nav>
+        <nav className="qb-section-tabs qb-shared-tabs">{(["Film","Analytics","Stats","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x==="Stats"?"Production":x}</button>)}</nav>
         {rankedPlayers.map(renderPlayerSection)}
       </div>}
     </section>
