@@ -103,21 +103,21 @@ setVals(v=>{const next={...v};for(const p of demoQbs){const seed=seeds[p.name]||
 useEffect(()=>{if(!rbDemoMode||!demoRbs.length)return;
 const seeds:Record<string,Record<string,any>>={
 "Hollywood Smothers":{
-"Games watched":1,"Expected Role":"RB1","Draft Projection":"Day 2","Early Declare":"No","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Games watched":1,"Expected Role":"RB1","Draft Projection":"Day 2","Early Declare":"Yes","Team Score (10)":5,"Draft Capital Score (10)":5,
 "Ball Carrier Vision":89,"Carrying":90,"Elusiveness":89,"Big Play Speed":85,"Patience":95,"Contact Balance":93,"Effort":95,"Receiving Skills":70,"Pass Blocking":80,
 "Special Teams?":"Yes","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
 "__GAME_LABEL__":"2026 · Ohio State",
 "__COMMENTARY__":"Ohio State: I wrote this note several times in just one game: I'm going to be IRRATIONALLY high on Smothers. I cooled it down a little bit in my initial rankings now that it's a couple days later, but by GOD he's so good. "
 },
 "Raleek Brown":{
-"Games watched":1,"Expected Role":"RB2","Draft Projection":"Day 3","Early Declare":"No","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Games watched":1,"Expected Role":"RB2","Draft Projection":"Day 3","Early Declare":"","Team Score (10)":5,"Draft Capital Score (10)":5,
 "Ball Carrier Vision":72.5,"Carrying":25,"Elusiveness":65,"Big Play Speed":72.5,"Patience":72.5,"Contact Balance":85,"Effort":60,"Receiving Skills":67,"Pass Blocking":79,
 "Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
 "__GAME_LABEL__":"2026 · Ohio State",
 "__COMMENTARY__":"Ohio State: I know there are some that really like Raleek Brown and potentially even more than his running mate Smothers...however Smothers is wayyyyyyyyy better imo. 2 fumbles, one in the pass game and one in the run game. There was also a play early in the game where he didn't dive for a 1st down when Texas was still treading water on offense. Don't want to rule him out after just 1 game but it's an uphill battle rn."
 },
 "Abu Sama III":{
-"Games watched":1,"Expected Role":"Thumper Back","Draft Projection":"Day 3","Early Declare":"No","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Games watched":1,"Expected Role":"Thumper Back","Draft Projection":"Day 3","Early Declare":"","Team Score (10)":5,"Draft Capital Score (10)":5,
 "Ball Carrier Vision":75,"Carrying":75,"Elusiveness":76,"Big Play Speed":65,"Patience":66,"Contact Balance":89.75,"Effort":92,"Receiving Skills":60,"Pass Blocking":77,
 "Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
 "__GAME_LABEL__":"2026 · Notre Dame",
