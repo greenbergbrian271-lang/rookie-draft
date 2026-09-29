@@ -15,6 +15,16 @@ export type TEProductionInput={
   maxYardsPerRec?:number|null;
   isNonFbs?:boolean;
 };
+export type TEProductionPercentiles={
+  yardsPerReception:number;
+  yardsPerTarget:number;
+  targetShare:number;
+  catchPct:number;
+  yptpa:number;
+  weightedDomRtg:number;
+  domRtg:number;
+  speedScore:number;
+};
 export type TEProductionPopulation={
   yardsPerReception:number[];
   yardsPerTarget:number[];
@@ -38,17 +48,18 @@ function maxYprBonus(value:number|null|undefined,glossary?:GlossaryRows){
   return bonus;
 }
 
-export function teProductionGrade(x:TEProductionInput,p:TEProductionPopulation,glossary?:GlossaryRows){
+export function teProductionGrade(x:TEProductionInput,p:TEProductionPopulation,glossary?:GlossaryRows,percentiles?:Partial<TEProductionPercentiles>){
   if(productionAnalyticalDisabled(glossary))return x.scouting;
+  const rank=(key:keyof TEProductionPercentiles,values:number[],value:number|null|undefined)=>percentiles?.[key]!=null?Number(percentiles[key])*100:pct(values,value);
   let grade=
-    pct(p.yardsPerReception,x.yardsPerReception)*glossaryNumber(222,glossary)+
-    pct(p.yardsPerTarget,x.yardsPerTarget)*glossaryNumber(223,glossary)+
-    pct(p.targetShare,x.targetShare)*glossaryNumber(224,glossary)+
-    pct(p.catchPct,x.catchPct)*glossaryNumber(225,glossary)+
-    pct(p.yptpa,x.yptpa)*glossaryNumber(226,glossary)+
-    pct(p.weightedDomRtg,x.weightedDomRtg)*glossaryNumber(227,glossary)+
-    pct(p.domRtg,x.domRtg)*glossaryNumber(228,glossary)+
-    pct(p.speedScore,x.speedScore)*glossaryNumber(229,glossary)+
+    rank("yardsPerReception",p.yardsPerReception,x.yardsPerReception)*glossaryNumber(222,glossary)+
+    rank("yardsPerTarget",p.yardsPerTarget,x.yardsPerTarget)*glossaryNumber(223,glossary)+
+    rank("targetShare",p.targetShare,x.targetShare)*glossaryNumber(224,glossary)+
+    rank("catchPct",p.catchPct,x.catchPct)*glossaryNumber(225,glossary)+
+    rank("weightedDomRtg",p.weightedDomRtg,x.weightedDomRtg)*glossaryNumber(226,glossary)+
+    rank("yptpa",p.yptpa,x.yptpa)*glossaryNumber(227,glossary)+
+    rank("domRtg",p.domRtg,x.domRtg)*glossaryNumber(228,glossary)+
+    rank("speedScore",p.speedScore,x.speedScore)*glossaryNumber(229,glossary)+
     (x.combineScore??0)*glossaryNumber(253,glossary)+
     (x.speedScore??0)*glossaryNumber(253,glossary)+
     maxYprBonus(x.maxYardsPerRec,glossary);
