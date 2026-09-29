@@ -61,7 +61,8 @@ const players=useMemo(()=>qbDemoMode?demoQbs.map(p=>({...p,scouting_status:"WATC
 useEffect(()=>{
   const ids=Array.from(new Set([
     ...rows.filter(x=>x.draft_class===2027&&["WATCHED","FINISHED","MAYBE"].includes(x.scouting_status)).map(x=>String(x.id)),
-    ...(qbDemoMode?demoQbs.map(x=>String(x.id)):[]),\n    ...(wrDemoMode?demoWrs.map(x=>String(x.id)):[])
+    ...(qbDemoMode?demoQbs.map(x=>String(x.id)):[]),
+    ...(wrDemoMode?demoWrs.map(x=>String(x.id)):[])
   ]));
   try{sessionStorage.setItem("rookie-draft:scouting-sheet-player-ids",JSON.stringify(ids))}catch{}
 },[rows,qbDemoMode,wrDemoMode,demoQbs,demoWrs]);
