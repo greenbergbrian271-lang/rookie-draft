@@ -8,7 +8,7 @@ import {teAnalyticalGrade} from "@/lib/analytical-grades";
 import {teProductionGrade} from "@/lib/te-grades";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 
-type Player={id:string|number;name:string;position:"QB"|"TE"|"WR"|"TE";college?:string;draft_class:number;scouting_status:string;watch_order?:number;headshot_url?:string;jersey_number?:string};
+type Player={id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;scouting_status:string;watch_order?:number;headshot_url?:string;jersey_number?:string};
 type Session={id:string|number;opponent?:string|null;raw_notes?:string|null;game_date?:string|null;overall_writeup?:string|null;legacy?:boolean};
 type Mode="Evaluate"|"Compare";
 type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft";
