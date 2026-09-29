@@ -2,7 +2,7 @@
 
 import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
-import {draftAdjustedFinalGrade,preDraftGrade,workbookScoutingGrade,type GlossaryRows} from "@/lib/scouting-formulas";
+import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,workbookScoutingGrade,type GlossaryRows} from "@/lib/scouting-formulas";
 import {qbAnalyticalGrade} from "@/lib/analytical-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
@@ -170,12 +170,14 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     }
   },[players,vals,demoMode]);
 
+  function gameCountFor(p:Player){return (sessions[String(p.id)]||[]).length}
   function fieldsFor(p:Player){
     const out:Record<string,any>={...importedFor(p)};
-    for(const cat of [...FILM,"Games watched","Expected Role","Draft Projection","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){
+    for(const cat of [...FILM,"Expected Role","Draft Projection","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){
       const v=evalFor(p,cat);
       if(v!==undefined&&v!==null&&v!=="")out[cat]=v;
     }
+    out["Games watched"]=gameCountFor(p);
     return out;
   }
   function scoutingFor(p:Player){
@@ -282,11 +284,12 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
 
   function renderPlayerSection(p:Player){
     const id=String(p.id),imp=importedFor(p),metrics=metricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p);
-    const teamScore=num(fields["Team Score (10)"]),draftCapital=num(fields["Draft Capital Score (10)"]);
-    const finalGrade=preDraft==null||teamScore==null||draftCapital==null?null:draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    const teamScore=num(fields["Team Score (10)"]),draftCapital=num(fields["Draft Capital Score (10)"]),g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
+    const teamAdj=preDraft==null||teamScore==null?null:(teamScore-5)*2*glossaryNumber(23,g),capitalAdj=preDraft==null||draftCapital==null?null:(draftCapital-5)*2*glossaryNumber(24,g);
+    const finalGrade=preDraft==null||teamScore==null||draftCapital==null?null:draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,g);
     const combineInput={bmi:num(imp?.BMI)??undefined,forty:num(imp?.["40 Yard Dash"])??undefined,speedScore:num(imp?.["Speed Score"])??undefined,broadJump:num(imp?.["Broad Jump"])??undefined};
     const combine=Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,(glossary.length?glossary:undefined) as GlossaryRows|undefined):null;
-    const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=num(evalFor(p,"Games watched"))||0,rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
+    const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     return <article className="qb-evaluate-player" id={"qb-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <header className="qb-player-hero" style={style}>
         <div className="qb-player-photo">{p.headshot_url?<img src={p.headshot_url} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{p.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>}</div>
@@ -311,7 +314,6 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       {tab==="Film"&&<div className="qb-tab-content">
         <div className="qb-section-head"><div><span className="ey">Scout Inputs</span><h2>Film Evaluation</h2></div><div className="qb-completion">{filmComplete}/9 complete</div></div>
         <div className="qb-context-grid">
-          <Field label="Games watched" source="Scout"><input type="number" min="0" step="1" value={inputValue(evalFor(p,"Games watched"))} onChange={e=>local(p,"Games watched",e.target.value)} onBlur={e=>persist(p,"Games watched",e.target.value===""?"":Number(e.target.value))}/></Field>
           <ConstrainedField label="Expected role" value={inputValue(evalFor(p,"Expected Role"))} options={[...ROLE_OPTIONS]} onLocal={v=>local(p,"Expected Role",v)} onCommit={v=>persist(p,"Expected Role",v)}/>
           <ConstrainedField label="Draft projection" value={inputValue(evalFor(p,"Draft Projection"))} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
         </div>
@@ -348,7 +350,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
           {label:"Broad Jump",value:imp?.["Broad Jump"],percentile:boardPercentile(combinePopulation.broadJump,num(imp?.["Broad Jump"]))}
         ].map(m=><div className="qb-metric" key={m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>{m.percentile==null?"Imported testing data":"Board percentile"}</small></div><b>{m.value||"—"}</b></div>{m.percentile!=null&&<><div className="qb-percentile heat"><i style={{left:(m.percentile*100)+"%",background:heatColor(m.percentile)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{Math.round(m.percentile*100)}</strong></div></>}</div>)}</div></div></div>}
 
-      {tab==="Draft"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2></div></div><div className="qb-draft-grid"><div className="qb-draft-card current"><span>Pre-Draft Grade</span><strong>{preDraft==null?"—":preDraft.toFixed(2)}</strong><small>Scouting + analytical grade</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card"><span>NFL Draft Result</span><strong>{fields["Draft Result"]||"Pending"}</strong><small>Auto-filled after the NFL Draft</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card final"><span>Draft-Adjusted Final</span><strong>{finalGrade==null?"—":finalGrade.toFixed(2)}</strong><small>Team fit + draft capital adjustment</small></div></div></div>}
+      {tab==="Draft"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2></div></div><div className="qb-draft-grid"><div className="qb-draft-card current"><span>Pre-Draft Grade</span><strong>{preDraft==null?"—":preDraft.toFixed(2)}</strong><small>Scouting + analytical grade</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card"><span>NFL Draft Result</span><strong>{fields["Draft Result"]||"Pending"}</strong><small>Auto-filled after the NFL Draft</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card final"><span>Draft-Adjusted Final</span><strong>{finalGrade==null?"—":finalGrade.toFixed(2)}</strong><small>Team fit + draft capital adjustment</small></div></div><div className="qb-draft-detail"><div className="qb-draft-card"><span>Team Fit</span><strong>{teamScore==null?"—":teamScore.toFixed(2)+" / 10"}</strong><small>{teamAdj==null?"Waiting for team score":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" grade points")}</small></div><div className="qb-draft-card"><span>Draft Capital</span><strong>{draftCapital==null?"—":draftCapital.toFixed(2)+" / 10"}</strong><small>{capitalAdj==null?"Waiting for draft capital":((capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" grade points")}</small></div><div className="qb-draft-card final"><span>Adjustment Math</span><strong>{preDraft==null||finalGrade==null?"—":(finalGrade-preDraft).toFixed(2)}</strong><small>{teamAdj==null||capitalAdj==null?"Post-draft inputs populate this breakdown":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" team fit · "+(capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" draft capital")}</small></div></div></div>}
     </article>
   }
 
