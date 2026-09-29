@@ -44,19 +44,20 @@ const approxLookup=(value:number|null|undefined,rows:number[],g?:GlossaryRows)=>
 
 export function wrProductionGrade(x:WRProductionInput,p:WRProductionPopulation,g?:GlossaryRows){
   if(productionAnalyticalDisabled(g))return x.scouting;
-  const terms=[
+  const core=[
     [rank(p.yardsPerReception,x.yardsPerReception),glossaryNumber(182,g)],
     [rank(p.yardsPerTarget,x.yardsPerTarget),glossaryNumber(183,g)],
     [rank(p.targetShare,x.targetShare),glossaryNumber(184,g)],
     [rank(p.catchPct,x.catchPct),glossaryNumber(185,g)],
     [rank(p.weightedDomRtg,x.weightedDomRtg),glossaryNumber(186,g)],
     [rank(p.yptpa,x.yptpa),glossaryNumber(187,g)],
-    [rank(p.domRtg,x.domRtg),glossaryNumber(188,g)],
-    [rank(p.speedScore,x.speedScore),glossaryNumber(189,g)]
+    [rank(p.domRtg,x.domRtg),glossaryNumber(188,g)]
   ] as const;
-  // Workbook IFERROR wraps this entire weighted block: one missing/error percentile zeroes the block.
-  let weighted=terms.some(([v])=>v==null)?0:terms.reduce((s,[v,w])=>s+(v||0)*w,0)+(x.combineScore??0)*glossaryNumber(253,g);
-  // The live sheet then adds raw Speed Score * the combine/pro-day multiplier outside that IFERROR.
+  // Workbook's outer IFERROR covers the seven core percentiles. Speed Score has its own IFERROR(...,0).
+  let weighted=core.some(([v])=>v==null)?0:core.reduce((s,[v,w])=>s+(v||0)*w,0);
+  weighted+=(rank(p.speedScore,x.speedScore)??0)*glossaryNumber(189,g);
+  weighted+=(x.combineScore??0)*glossaryNumber(253,g);
+  // The live sheet then adds raw Speed Score * the combine/pro-day multiplier outside that block.
   weighted+=(x.speedScore??0)*glossaryNumber(253,g);
   if(!boolAt(203,g)){
     weighted+=approxLookup(x.maxFrSophYards,[192,193,194,195,196,197],g);
