@@ -54,8 +54,8 @@ useEffect(()=>{fetch("/api/scouting-glossary",{cache:"no-store"}).then(r=>r.json
 const watchedPlayers=useMemo(()=>rows.filter(x=>x.draft_class===2027&&x.position===pos&&x.scouting_status==="WATCHED").sort((a,b)=>(a.watch_order||0)-(b.watch_order||0)),[rows,pos]);
 const demoQbNames=["Arch Manning","Julian Sayin","CJ Carr","Colton Joseph"];
 const demoQbs=useMemo(()=>demoQbNames.map(name=>rows.find(x=>x.draft_class===2027&&x.position==="QB"&&x.name===name)).filter(Boolean) as Player[],[rows]);
-const wrPreview=[["Jeremiah Smith","Ohio State"],["Cam Coleman","Auburn"],["Jordan Faison","Notre Dame"]] as const;
-const demoWrs=useMemo(()=>wrPreview.map(([name,college])=>rows.find(x=>x.draft_class===2027&&x.position==="WR"&&x.name===name)||({id:"wr-preview-"+norm(name),name,position:"WR",college,draft_class:2027,scouting_status:"WATCHED"} as Player)),[rows]);
+const wrPreview=[["Jeremiah Smith","Ohio State"],["Cam Coleman","Texas"],["Jordan Faison","Notre Dame"]] as const;
+const demoWrs=useMemo(()=>wrPreview.map(([name,college])=>{const found=rows.find(x=>x.draft_class===2027&&x.position==="WR"&&x.name===name);return found?({...found,college} as Player):({id:"wr-preview-"+norm(name),name,position:"WR",college,draft_class:2027,scouting_status:"WATCHED"} as Player)}),[rows]);
 const qbDemoMode=pos==="QB"&&watchedPlayers.length===0;
 const wrDemoMode=pos==="WR"&&watchedPlayers.length===0;
 const players=useMemo(()=>qbDemoMode?demoQbs.map(p=>({...p,scouting_status:"WATCHED"})):wrDemoMode?demoWrs.map(p=>({...p,scouting_status:"WATCHED"})):watchedPlayers,[qbDemoMode,wrDemoMode,demoQbs,demoWrs,watchedPlayers]);
@@ -99,6 +99,31 @@ const seeds:Record<string,Record<string,any>>={
 }};
 setVals(v=>{const next={...v};for(const p of demoQbs){const seed=seeds[p.name]||{};for(const [k,val] of Object.entries(seed)){const key=p.id+"|"+k;if(next[key]===undefined||next[key]==="")next[key]=val}}return next})
 },[qbDemoMode,demoQbs]);
+useEffect(()=>{if(!wrDemoMode||!demoWrs.length)return;
+const seeds:Record<string,Record<string,any>>={
+"Jeremiah Smith":{
+"Games watched":1,"Early Declare?":"No","Expected Role":"WR 1","Draft Projection":"Top 5","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Catching":98,"Route Running":100,"Elusiveness":100,"Game Speed":100,"Competitiveness":100,"Size":95,"Blocking":95,
+"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
+"__GAME_LABEL__":"2026 · Texas",
+"__COMMENTARY__":"Texas: I will be watching more of Jeremiah Smith, but not for Jeremiah Smith. Super easy evaluation."
+},
+"Cam Coleman":{
+"Games watched":1,"Early Declare?":"No","Expected Role":"WR 1","Draft Projection":"Round 1","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Catching":82.5,"Route Running":98,"Elusiveness":80,"Game Speed":85,"Competitiveness":85,"Size":95,"Blocking":78,
+"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
+"__GAME_LABEL__":"2026 · Ohio State",
+"__COMMENTARY__":"Ohio State: A Chrysler 300 (Coleman) looks like a Phantom until a Phantom (Jeremiah Smith) rolls up. This game was as clear evidence as you'll get that Jeremiah Smith is WR1 and Coleman is WR2 (or lower). He had his chance to get under Arch's deep ball and run in for the score, and he didn't, in fact it turned into an INT. Could the ball have been slightly better? Yes. It was a touchdown ball though. Now he definitely is a great route runner don't get me wrong, he was WIDE OPEN a number of times in this game, just need to see better hands and a little more juice."
+},
+"Jordan Faison":{
+"Games watched":1,"Early Declare?":"No","Expected Role":"WR 3-5","Draft Projection":"Early Day 3","Team Score (10)":5,"Draft Capital Score (10)":5,
+"Catching":64,"Route Running":70,"Elusiveness":86.75,"Game Speed":85,"Competitiveness":75,"Size":58,"Blocking":51,
+"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None",
+"__GAME_LABEL__":"2026 · Wisconsin",
+"__COMMENTARY__":"Wisconsin: The #1 WR for the Irish...undoubtedly. He's not a big guy nor a route running savant, but he's electric with the ball in his hands, which is kinda the archetype I thought Greathouse was. He's technically the punt returner but not a very good one. For now I'm going to check it off for him but I don't really like it. Think he could be a rotation WR."
+}};
+setVals(v=>{const next={...v};for(const p of demoWrs){const seed=seeds[p.name]||{};for(const [k,val] of Object.entries(seed)){const key=p.id+"|"+k;if(next[key]===undefined||next[key]==="")next[key]=val}}return next})
+},[wrDemoMode,demoWrs]);
 
 async function save(p:Player,cat:string,value:any){setVals(v=>({...v,[p.id+"|"+cat]:value}));const r=await fetch("/api/evaluations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,category:cat,value:typeof value==="number"?value:null,commentary:typeof value==="number"?null:String(value)})});if(!r.ok)throw new Error("Could not save evaluation");return r.json()}
 function grade(p:Player){const fields:any={};for(const h of HEAD[pos])fields[h]=vals[p.id+"|"+h];return workbookScoutingGrade(pos,FILM[pos].map(h=>Number(vals[p.id+"|"+h])),fields,glossary.length?glossary:undefined)}
