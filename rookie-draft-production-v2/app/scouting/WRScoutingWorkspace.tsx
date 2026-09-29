@@ -2,8 +2,9 @@
 
 import {useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
-import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,productionAnalyticalDisabled,productionWeights,workbookScoutingGrade,type GlossaryRows} from "@/lib/scouting-formulas";
+import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,workbookScoutingGrade,type GlossaryRows} from "@/lib/scouting-formulas";
 import {wrAnalyticalGrade} from "@/lib/analytical-grades";
+import {wrProductionGrade} from "@/lib/wr-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 
@@ -101,8 +102,10 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   const [sessions,setSessions]=useState<Record<string,Session[]>>({});
   const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
   const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
+  const [colleges,setColleges]=useState<any[]>([]);
 
   useEffect(()=>{window.scrollTo({top:0,left:0,behavior:"auto"})},[]);
+  useEffect(()=>{fetch("/api/college-stats",{cache:"no-store"}).then(r=>r.json()).then(j=>Array.isArray(j)&&setColleges(j)).catch(()=>{})},[]);
   useEffect(()=>{
     if(!players.length){setSelectedId("");return}
     if(!players.some(p=>String(p.id)===selectedId))setSelectedId(String(players[0].id));
@@ -114,7 +117,9 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     for(const row of imports||[]){const name=row?.Player??String(row?.["Player, College"]||"").split(",")[0];if(name)m.set(norm(name),row)}
     return m;
   },[imports]);
+  const collegeMap=useMemo(()=>new Map<string,any>(colleges.map(x=>[norm(x.team),x] as [string,any])),[colleges]);
   const importedFor=(p:Player)=>importMap.get(norm(p.name))||{};
+  const collegeFor=(p:Player)=>collegeMap.get(norm(p.college))||{};
   const evalFor=(p:Player,cat:string)=>vals[p.id+"|"+cat];
   const selected=players.find(p=>String(p.id)===selectedId)||players[0];
 
@@ -164,19 +169,33 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const pop=(imports||[]).map(r=>num(sourceValue(r,source),pct)).filter((x):x is number=>x!=null);
     const base=percentRankInc(pop,raw);return base==null?null:(inverse?1-base:base);
   }
+  const productionPopulation=useMemo(()=>({
+    yardsPerReception:(imports||[]).map(r=>num(sourceValue(r,"Yards/Rec"))).filter((x):x is number=>x!=null),
+    yardsPerTarget:(imports||[]).map(r=>num(sourceValue(r,"Yards/Tgt"))).filter((x):x is number=>x!=null),
+    targetShare:(imports||[]).map(r=>num(sourceValue(r,"Target %"),true)).filter((x):x is number=>x!=null),
+    catchPct:(imports||[]).map(r=>num(sourceValue(r,"Catch %"),true)).filter((x):x is number=>x!=null),
+    yptpa:(imports||[]).map(r=>num(sourceValue(r,"YPTPA"))).filter((x):x is number=>x!=null),
+    weightedDomRtg:(imports||[]).map(r=>num(sourceValue(r,"Weighted Dom Rtg"),true)).filter((x):x is number=>x!=null),
+    domRtg:(imports||[]).map(r=>num(sourceValue(r,"Dom Rtg"),true)).filter((x):x is number=>x!=null),
+    speedScore:(imports||[]).map(r=>num(sourceValue(r,"Speed Score"))).filter((x):x is number=>x!=null)
+  }),[imports]);
   function productionFor(p:Player){
-    const scout=manualScoutingFor(p),g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
-    if(productionAnalyticalDisabled(g))return scout;
-    const w:any=productionWeights("WR",g);
-    const pieces:[string,number,boolean,boolean][]=[
-      ["Yards/Rec",w.yardsPerReception,false,false],["Yards/Tgt",w.yardsPerTarget,false,false],["Target %",w.targetShare,false,true],
-      ["Catch %",w.catchPct,false,true],["YPTPA",w.yptpa,false,false],["Weighted Dom Rtg",w.weightedDomRtg,false,true],["Dom Rtg",w.domRtg,false,true]
-    ];
-    let total=0;
-    for(const [source,weight,inverse,pct] of pieces){const pr=percentileFor(source,p,inverse,pct);if(pr==null)return scout;total+=pr*100*weight}
-    const speed=percentileFor("Speed Score",p,false,false);if(speed!=null)total+=speed*100*w.speedScore;
-    const combine=combineFor(p);if(combine!=null)total+=combine*glossaryNumber(253,g);
-    return total;
+    const r=importedFor(p),college=collegeFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
+    return wrProductionGrade({
+      scouting:manualScoutingFor(p),
+      yardsPerReception:num(sourceValue(r,"Yards/Rec")),
+      yardsPerTarget:num(sourceValue(r,"Yards/Tgt")),
+      targetShare:num(sourceValue(r,"Target %"),true),
+      catchPct:num(sourceValue(r,"Catch %"),true),
+      yptpa:num(sourceValue(r,"YPTPA")),
+      weightedDomRtg:num(sourceValue(r,"Weighted Dom Rtg"),true),
+      domRtg:num(sourceValue(r,"Dom Rtg"),true),
+      speedScore:num(sourceValue(r,"Speed Score")),
+      combineScore:combineFor(p),
+      maxFrSophYards:frY==null&&soY==null?null:Math.max(frY??0,soY??0),
+      maxFrSophTds:frTd==null&&soTd==null?null:Math.max(frTd??0,soTd??0),
+      isNonFbs:college?.subdivision==="FCS"
+    },productionPopulation,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
   function metricDataFor(p:Player){
     const imp=importedFor(p);
@@ -212,7 +231,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const ga=rankingGradeFor(a),gb=rankingGradeFor(b);
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
     if(ga==null)return 1;if(gb==null)return -1;return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
-  }),[players,vals,imports,glossary]);
+  }),[players,vals,imports,colleges,glossary]);
   const filtered=useMemo(()=>{const q=norm(search);return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[rankedPlayers,search]);
 
   async function persist(p:Player,cat:string,value:any){
