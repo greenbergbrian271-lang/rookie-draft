@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {glossaryColumnA,glossaryNumber,productionAnalyticalDisabled,type GlossaryRows} from "./scouting-formulas";
 import {percentRankInc} from "./combine-formulas";
 
