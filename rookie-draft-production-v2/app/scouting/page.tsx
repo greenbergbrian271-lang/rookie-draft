@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import {Fragment,useEffect,useMemo,useState} from "react";import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";import {schoolStyle} from "@/lib/school-colors";import {preDraftGrade,workbookScoutingGrade} from "@/lib/scouting-formulas";import PlayerName from "@/components/PlayerName";import QBScoutingWorkspace from "./QBScoutingWorkspace";import RBScoutingWorkspace from "./RBScoutingWorkspace";
 type Pos="QB"|"RB"|"WR"|"TE";type Player={id:string|number,name:string,position:Pos,college?:string,draft_class:number,scouting_status:string,watch_order?:number};
