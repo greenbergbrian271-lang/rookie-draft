@@ -180,20 +180,24 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     speedScore:(imports||[]).map(r=>num(sourceValue(r,"Speed Score"))).filter((x):x is number=>x!=null)
   }),[imports]);
   function productionContextFor(p:Player){
-    const r=importedFor(p),college=collegeFor(p),yards=num(r.Yards),tds=num(r.Touchdowns),attempts=num(college?.passAttempts),teamYards=num(college?.passYards),teamTds=num(college?.passTDs);
+    const r=importedFor(p),college=collegeFor(p),receptions=num(r.Receptions),targets=num(r.Targets),yards=num(r.Yards),tds=num(r.Touchdowns),attempts=num(college?.passAttempts),teamYards=num(college?.passYards),teamTds=num(college?.passTDs);
+    const yardsPerReception=receptions&&yards!=null?yards/receptions:num(sourceValue(r,"Yards/Rec"));
+    const yardsPerTarget=targets&&yards!=null?yards/targets:num(sourceValue(r,"Yards/Tgt"));
+    const targetShare=targets!=null&&attempts?targets/attempts:num(sourceValue(r,"Target %"),true);
+    const catchPct=receptions!=null&&targets?receptions/targets:num(sourceValue(r,"Catch %"),true);
     const yptpa=yards!=null&&attempts?yards/attempts:num(sourceValue(r,"YPTPA"));
     const weightedDom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)*.8)+((tds/teamTds)*.2):num(sourceValue(r,"Weighted Dom Rtg"),true);
     const dom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)+(tds/teamTds))/2:num(sourceValue(r,"Dom Rtg"),true);
-    return {yptpa,weightedDom,dom};
+    return {yardsPerReception,yardsPerTarget,targetShare,catchPct,yptpa,weightedDom,dom};
   }
   function productionFor(p:Player){
     const r=importedFor(p),college=collegeFor(p),ctx=productionContextFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
     return wrProductionGrade({
       scouting:manualScoutingFor(p),
-      yardsPerReception:num(sourceValue(r,"Yards/Rec")),
-      yardsPerTarget:num(sourceValue(r,"Yards/Tgt")),
-      targetShare:num(sourceValue(r,"Target %"),true),
-      catchPct:num(sourceValue(r,"Catch %"),true),
+      yardsPerReception:ctx.yardsPerReception,
+      yardsPerTarget:ctx.yardsPerTarget,
+      targetShare:ctx.targetShare,
+      catchPct:ctx.catchPct,
       yptpa:ctx.yptpa,
       weightedDomRtg:ctx.weightedDom,
       domRtg:ctx.dom,
