@@ -1,5 +1,6 @@
 import {createClient} from "@libsql/client";
 import {rebuild2027} from "@/lib/rebuild-2027";
+import {scoutingSeed2027} from "@/lib/scouting-seed-2027";
 let client:ReturnType<typeof createClient>|null=null,schemaReady:Promise<ReturnType<typeof createClient>>|null=null;
 export function turso(){if(!process.env.TURSO_DATABASE_URL||!process.env.TURSO_AUTH_TOKEN)throw new Error("Turso is not configured");return client||=(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}))}
 export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaReady=(async()=>{const c=turso();await c.execute("pragma foreign_keys=on");for(const sql of [
@@ -36,6 +37,21 @@ if(!marker.rows.length){
   if(Number(verified.rows[0]?.count||0)!==rebuild2027.length)throw new Error("2027 player baseline verification failed");
   const now=new Date().toISOString();
   await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["baseline_2027_seeded",JSON.stringify({source:"Players to Scout",count:rebuild2027.length,seededAt:now}),now]});
+}
+const scoutingMarker=await c.execute({sql:"select value from settings where key=?",args:["scouting_workspace_seed_v1"]});
+if(!scoutingMarker.rows.length){
+  const now=new Date().toISOString();
+  for(const seed of scoutingSeed2027){
+    const p=await c.execute({sql:"select id,scouting_status from players where draft_class=2027 and name=?",args:[seed.name]});
+    if(!p.rows.length)continue;
+    const id=Number(p.rows[0].id),status=String(p.rows[0].scouting_status||"");
+    if(status==="TO_SCOUT")await c.execute({sql:"update players set scouting_status='WATCHED',updated_at=? where id=?",args:[now,id]});
+    for(const [category,raw] of Object.entries(seed.values)){
+      const isNum=typeof raw==="number";
+      await c.execute({sql:"insert into evaluations(player_id,category,value,commentary,updated_at) values(?,?,?,?,?) on conflict(player_id,category) do nothing",args:[id,category,isNum?raw:null,isNum?null:String(raw),now]});
+    }
+  }
+  await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["scouting_workspace_seed_v1",JSON.stringify({seededAt:now,players:scoutingSeed2027.map(x=>x.name)}),now]});
 }
 return c})().catch(e=>{schemaReady=null;throw e});return schemaReady}
 export const rows=(r:any)=>r.rows.map((x:any)=>Object.fromEntries(Object.entries(x)));
