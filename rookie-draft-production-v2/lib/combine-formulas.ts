@@ -1,10 +1,13 @@
 import {glossaryNumber,type GlossaryRows} from "./scouting-formulas";
-export function percentRankInc(values:Array<number|null|undefined>,value:number|null|undefined){
+export function percentRankInc(values:Array<number|null|undefined>,value:number|null|undefined,significance=3){
  const a=values.filter((v):v is number=>typeof v==="number"&&Number.isFinite(v)).sort((x,y)=>x-y);
  if(value==null||!Number.isFinite(value)||!a.length)return null;if(a.length===1)return value===a[0]?1:null;
  if(value<a[0]||value>a[a.length-1])return null;let lo=0;while(lo<a.length&&a[lo]<value)lo++;
- if(lo<a.length&&a[lo]===value){let hi=lo;while(hi+1<a.length&&a[hi+1]===value)hi++;return ((lo+hi)/2)/(a.length-1)}
- const hi=lo,low=lo-1;return (low+(value-a[low])/(a[hi]-a[low]))/(a.length-1);
+ let out:number;
+ // Google Sheets / Excel PERCENTRANK.INC returns the lower rank for an exact tied value.
+ if(lo<a.length&&a[lo]===value)out=lo/(a.length-1);
+ else{const hi=lo,low=lo-1;out=(low+(value-a[low])/(a[hi]-a[low]))/(a.length-1)}
+ return Number(out.toFixed(significance));
 }
 const pr=(vals:number[],v:number|undefined,inverse=false)=>{const x=percentRankInc(vals,v);return x==null?0:(inverse?1-x:x)*100};
 export type CombineInput={bmi?:number,forty?:number,speedScore?:number,broadJump?:number,handSize?:number,vertical?:number,benchReps?:number,weight?:number,heightInches?:number};
