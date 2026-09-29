@@ -378,3 +378,37 @@
 /* RB early-declare automation */
 .rb-early-declare-badge{display:inline-flex!important;align-items:center;gap:5px!important;padding:4px 9px!important;border:1px solid #d6ad38!important;border-radius:999px!important;background:linear-gradient(180deg,#7a5a0a,#4d3908)!important;color:#ffe28a!important;font-size:9px!important;font-weight:950!important;letter-spacing:.055em!important;box-shadow:inset 0 0 0 1px rgba(255,235,160,.08),0 0 14px rgba(214,173,56,.12)}
 .rb-early-control{display:grid;gap:5px}.rb-early-control small{color:#9eb0c9;font-size:9px;font-weight:800;letter-spacing:.02em;text-transform:none}
+
+
+/* TE scouting workspace + combine data */
+.mockdraftable-testing-layout{display:grid;grid-template-columns:minmax(360px,480px) minmax(0,1fr);gap:16px;align-items:start}
+.mockdraftable-frame-card{background:#0c1d35;border:1px solid #20395f;border-radius:14px;padding:12px;min-width:0}
+.mockdraftable-frame-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.mockdraftable-frame-head strong{display:block;margin-top:2px}
+.mockdraftable-frame-head a{font-size:11px;font-weight:900;color:#9fc7ff;text-decoration:none;white-space:nowrap}
+.mockdraftable-frame-card iframe{display:block;width:100%;height:651px;border:0;border-radius:10px;background:#fff}
+.mockdraftable-metrics{grid-template-columns:repeat(2,minmax(0,1fr));align-content:start}
+.mockdraftable-unique-metrics{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px}
+.mockdraftable-frame-full{width:100%;max-width:none}
+.mockdraftable-frame-full iframe{height:760px}
+@media(max-width:900px){.mockdraftable-unique-metrics{grid-template-columns:1fr}.mockdraftable-frame-full iframe{height:680px}}
+@media(max-width:1100px){.mockdraftable-testing-layout{grid-template-columns:1fr}.mockdraftable-frame-card{max-width:520px}.mockdraftable-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){.mockdraftable-frame-card iframe{height:620px}.mockdraftable-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.mockdraftable-metrics{grid-template-columns:1fr}}
+
+.scouting-position-tab{border:1px solid #31527f!important;background:#10213a!important;color:#9eb1cd!important}
+.scouting-position-tab.active{font-weight:950!important;color:#fff!important}
+.scouting-position-tab.active.pos-qb{background:#fc2b6d!important;border-color:#fc2b6d!important}
+.scouting-position-tab.active.pos-rb{background:#20ceb7!important;border-color:#20ceb7!important;color:#06101e!important}
+.scouting-position-tab.active.pos-wr{background:#58a7ff!important;border-color:#58a7ff!important}
+.scouting-position-tab.active.pos-te{background:#fead58!important;border-color:#fead58!important;color:#06101e!important}
+
+.te-workspace .qb-rank{color:#fead58}
+.te-workspace .qb-prospect-row.active{background:rgba(254,173,88,.12);border-color:#fead58;box-shadow:inset 3px 0 0 #fead58}
+.te-workspace .qb-prospect-row.active .qb-rank{color:#fead58}
+.te-workspace .qb-context-grid.six{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:22px;row-gap:14px}
+@media(max-width:900px){.te-workspace .qb-context-grid.six{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.te-workspace .qb-context-grid.six{grid-template-columns:1fr}}
+.mockdraftable-metrics .qb-metric-top{gap:8px}
+.mockdraftable-metrics .qb-metric-top b{white-space:nowrap;font-size:clamp(14px,1.25vw,22px);line-height:1}
+.qb-draft-detail{grid-template-columns:repeat(3,minmax(0,1fr))}
