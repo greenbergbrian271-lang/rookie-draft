@@ -222,7 +222,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
     if(ga==null)return 1;if(gb==null)return -1;
     return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
-  }),[players,vals,imports,glossary]);
+  }),[players,vals,imports,glossary,sessions]);
   const filtered=useMemo(()=>{
     const q=norm(search);
     return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q));
