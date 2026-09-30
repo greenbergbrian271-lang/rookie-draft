@@ -5,7 +5,7 @@ import {schoolStyle} from "@/lib/school-colors";
 import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,workbookScoutingGrade,type GlossaryRows} from "@/lib/scouting-formulas";
 import {wrAnalyticalGrade} from "@/lib/analytical-grades";
 import {wrProductionGrade} from "@/lib/wr-grades";
-import {combineGrade,percentRankIncSheet} from "@/lib/combine-formulas";
+import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 
 type Player={
@@ -169,7 +169,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const imp=importedFor(p),raw=num(sourceValue(imp,source),pct);
     if(raw==null)return null;
     const pop=(imports||[]).map(r=>num(sourceValue(r,source),pct)).filter((x):x is number=>x!=null);
-    const base=percentRankIncSheet(pop,raw,3);return base==null?null:(inverse?1-base:base);
+    const base=percentRankInc(pop,raw,3);return base==null?null:(inverse?1-base:base);
   }
   const productionPopulation=useMemo(()=>({
     yardsPerReception:(imports||[]).map(r=>num(sourceValue(r,"Yards/Rec"))).filter((x):x is number=>x!=null),
@@ -215,7 +215,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     return ANALYTICS.map(metric=>{
       const raw=num(sourceValue(imp,metric.source),metric.pct);
       const population=(imports||[]).map(r=>num(sourceValue(r,metric.source),metric.pct)).filter((x):x is number=>x!=null);
-      const base=raw==null?null:percentRankIncSheet(population,raw,3);
+      const base=raw==null?null:percentRankInc(population,raw,3);
       const percentile=base==null?null:(metric.inverse?1-base:base);
       return {...metric,raw,rawPercentile:base,percentile};
     });
