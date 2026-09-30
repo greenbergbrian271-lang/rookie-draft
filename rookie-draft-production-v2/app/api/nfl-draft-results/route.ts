@@ -50,10 +50,10 @@ export async function GET(){
   try{
     const calls=Array.from({length:7},(_,i)=>fetch(`https://site.web.api.espn.com/apis/v2/scoreboard/header?draft_year=2027&draft_round=${i+1}`,{next:{revalidate:60}}).then(r=>r.ok?r.json():null).catch(()=>null));
     const payloads=(await Promise.all(calls)).filter(Boolean);
-    if(!payloads.length)return Response.json({available:false,picks:[]});
+    if(!payloads.length)return Response.json({available:false,picks:[],updatedAt:new Date().toISOString()});
     const raw=payloads.flatMap(extract);
     const unique=[...new Map(raw.map((p:any)=>[`${p.overall}|${norm(p.name)}`,p])).values()] as any[];
     const picks:Pick[]=unique.sort((a,b)=>a.overall-b.overall).map(p=>({...p,teamScore:teamScore(p.pos,p.team),draftCapitalScore:capitalScore(p.pos,p.overall)}));
-    return Response.json({available:true,picks});
-  }catch{return Response.json({available:false,picks:[]})}
+    return Response.json({available:true,picks,updatedAt:new Date().toISOString()});
+  }catch{return Response.json({available:false,picks:[],updatedAt:new Date().toISOString()})}
 }
