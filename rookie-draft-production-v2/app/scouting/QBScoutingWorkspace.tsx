@@ -6,7 +6,7 @@ import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,workbookScoutingGra
 import {qbAnalyticalGrade} from "@/lib/analytical-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,MockDraftablePanel,PercentileMetricCard,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,PercentileMetricCard,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
 
 type Player={
   id:string|number;
@@ -351,7 +351,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
         <div className="qb-per-game"><h3>Per Game</h3>{[["Completions",num(imp?.Completions)],["Attempts",num(imp?.Attempts)],["Pass Yards",num(imp?.Yards)],["Pass TD",num(imp?.Touchdowns)],["INT",num(imp?.Interceptions)],["Rush Attempts",num(imp?.Rushes)],["Rush Yards",num(valueFor(imp,"Yards__rush"))],["Rush TD",num(valueFor(imp,"Touchdowns__rush"))]].map(([label,v])=><div key={String(label)}><span>{label}</span><b>{typeof v==="number"&&num(imp?.Games)?(v/(num(imp?.Games)||1)).toFixed(2):"—"}</b></div>)}</div>
       </div>}
 
-      {tab==="Combine"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Imported + Calculated</span><h2>Combine / Pro Day</h2></div><GradePill value={combine}/></div><div className="qb-combine-grid"><ReadOnly label="Height" value={imp?.Height}/><ReadOnly label="Weight" value={imp?.Weight}/><ReadOnly label="BMI" value={display(imp?.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={display(imp?.["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={display(imp?.["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={imp?.["Broad Jump"]}/></div><MockDraftablePanel playerName={p.name} position="QB" data={imp}/></div>}
+      {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="QB" data={imp} grade={combine}><div className="qb-combine-grid"><ReadOnly label="Height" value={imp?.Height}/><ReadOnly label="Weight" value={imp?.Weight}/><ReadOnly label="BMI" value={display(imp?.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={display(imp?.["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={display(imp?.["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={imp?.["Broad Jump"]}/></div></CombineTestingSection>}
 
       {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={false} updatedAt={draftUpdatedAt}/>}
     </article>
