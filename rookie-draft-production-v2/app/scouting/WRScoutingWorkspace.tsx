@@ -13,6 +13,7 @@ type Player={
   scouting_status:string;watch_order?:number;headshot_url?:string;jersey_number?:string;
 };
 type Session={id:string|number;player_id?:string|number;game_date?:string|null;opponent?:string|null;raw_notes?:string|null;overall_writeup?:string|null;created_at?:string|null;legacy?:boolean};
+type DraftPick={overall:number;pos:"QB"|"RB"|"WR"|"TE";name:string;team:string;college?:string;teamScore:number;draftCapitalScore:number};
 type Props={
   players:Player[];vals:Record<string,any>;setVals:React.Dispatch<React.SetStateAction<Record<string,any>>>;
   imports:any[];glossary:any[][];onSave:(player:Player,category:string,value:any)=>Promise<any>;onAdd:()=>void;demoMode?:boolean;
@@ -22,6 +23,7 @@ type Mode="Evaluate"|"Compare";
 
 const FILM=["Catching","Route Running","Elusiveness","Game Speed","Competitiveness","Size","Blocking"] as const;
 const ROLE_OPTIONS=["WR 1","WR 1/2","WR 2","WR 2/3","WR 3","WR 4/5","Specialist"] as const;
+const ARCHETYPE_OPTIONS=["X WR","Z WR","Slot WR"] as const;
 const PROJECTION_OPTIONS=["Top 5","Top 10","Round 1","Late Round 1","Day 2","Early Day 3","Late Day 3","UDFA"] as const;
 const ADJUSTMENTS=[
   ["Special Teams",["No","Yes"]],
@@ -106,9 +108,15 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
   const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
   const [colleges,setColleges]=useState<any[]>([]);
+  const [draftPicks,setDraftPicks]=useState<DraftPick[]>([]);
 
   useEffect(()=>{window.scrollTo({top:0,left:0,behavior:"auto"})},[]);
   useEffect(()=>{fetch("/api/college-stats",{cache:"no-store"}).then(r=>r.json()).then(j=>Array.isArray(j)&&setColleges(j)).catch(()=>{})},[]);
+  useEffect(()=>{
+    let live=true;
+    const load=()=>fetch("/api/nfl-draft-results",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(live&&Array.isArray(j?.picks))setDraftPicks(j.picks)}).catch(()=>{});
+    load();const timer=setInterval(load,60000);return()=>{live=false;clearInterval(timer)};
+  },[]);
   useEffect(()=>{
     if(!players.length){setSelectedId("");return}
     if(!players.some(p=>String(p.id)===selectedId))setSelectedId(String(players[0].id));
@@ -149,7 +157,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   function gameCountFor(p:Player){return (sessions[String(p.id)]||[]).length}
   function fieldsFor(p:Player){
     const out:Record<string,any>={...importedFor(p)};
-    for(const cat of [...FILM,"Games watched","Games Watched","Expected Role","Draft Projection","Early Declare?","Special Teams","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){
+    for(const cat of [...FILM,"Games watched","Games Watched","Expected Role","Archetype","Draft Projection","Early Declare?","Special Teams","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){
       const v=evalFor(p,cat);if(v!==undefined&&v!==null&&v!=="")out[cat]=v;
     }
     out["Games watched"]=gameCountFor(p);
@@ -188,10 +196,10 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const yardsPerReception=num(sourceValue(r,"Yards/Rec"))??(receptions&&yards!=null?yards/receptions:null);
     const yardsPerTarget=num(sourceValue(r,"Yards/Tgt"))??(targets&&yards!=null?yards/targets:null);
     const catchPct=num(sourceValue(r,"Catch %"),true)??(receptions!=null&&targets?receptions/targets:null);
-    const targetShare=targets!=null&&attempts?targets/attempts:num(sourceValue(r,"Target %"),true);
-    const yptpa=yards!=null&&attempts?yards/attempts:num(sourceValue(r,"YPTPA"));
-    const weightedDom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)*.8)+((tds/teamTds)*.2):num(sourceValue(r,"Weighted Dom Rtg"),true);
-    const dom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)+(tds/teamTds))/2:num(sourceValue(r,"Dom Rtg"),true);
+    const targetShare=num(sourceValue(r,"Target %"),true)??(targets!=null&&attempts?targets/attempts:null);
+    const yptpa=num(sourceValue(r,"YPTPA"))??(yards!=null&&attempts?yards/attempts:null);
+    const weightedDom=num(sourceValue(r,"Weighted Dom Rtg"),true)??(yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)*.8)+((tds/teamTds)*.2):null);
+    const dom=num(sourceValue(r,"Dom Rtg"),true)??(yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)+(tds/teamTds))/2:null);
     return {yardsPerReception,yardsPerTarget,targetShare,catchPct,yptpa,weightedDom,dom};
   }
   function productionFor(p:Player){
@@ -310,6 +318,18 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     nodes.forEach(n=>obs.observe(n));return()=>obs.disconnect();
   },[mode,rankedPlayers]);
   function jumpToPlayer(p:Player){setMode("Evaluate");setSelectedId(String(p.id));requestAnimationFrame(()=>document.getElementById("wr-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}))}
+
+  function draftContextFor(p:Player){
+    const live=draftPicks.find(x=>x.pos==="WR"&&norm(x.name)===norm(p.name));
+    const stored=String(evalFor(p,"Draft Result")||"").trim();
+    return {
+      result:live?("Pick "+live.overall+", "+live.team):(stored||"Pending"),
+      team:live?.team||"",
+      teamScore:live?.teamScore??5,
+      draftCapitalScore:live?.draftCapitalScore??5,
+      automated:Boolean(live)
+    };
+  }
 
   function renderPlayerSection(p:Player){
     const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),ras=rasDataFor(p);
