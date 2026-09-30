@@ -33,8 +33,7 @@ export function DraftAdjustmentPanel({preDraft,finalGrade,draftResult,teamScore,
   const fmt=(v:number|null)=>v==null?"—":v.toFixed(2);
   return <div className="qb-tab-content">
     <div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2><p>See exactly how landing spot and draft capital move the pre-draft grade after the NFL Draft.</p></div></div>
-    <div className="qb-context-grid"><ReadOnly label="Team Score (10)" value={teamScore.toFixed(2)}/><ReadOnly label="Draft Capital Score (10)" value={draftCapital.toFixed(2)}/><ReadOnly label="Draft Result" value={draftResult}/></div>
-    <div className="qb-draft-grid scouting-draft-flow">
+    <div className="qb-draft-grid">
       <div className="qb-draft-card current"><span>Pre-Draft Grade</span><strong>{fmt(preDraft)}</strong><small>{production?"Scouting + production + analytics":"Scouting + analytics"}</small></div>
       <div className="qb-draft-arrow">→</div>
       <div className="qb-draft-card"><span>NFL Draft Result</span><strong>{draftResult}</strong><small>Auto-filled after the NFL Draft</small></div>
