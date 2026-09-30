@@ -397,14 +397,14 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
 
   if(!players.length)return <div className="qb-workspace-empty"><h2>No watched WRs yet</h2><p>Add a wide receiver to the watched pool to start a scouting report.</p><button className="success" onClick={onAdd}>+ New Player Watched</button></div>;
   const comparePlayers=rankedPlayers.filter(p=>compareIds.includes(String(p.id)));
-  return <div className="qb-workspace">
+  return <div className="qb-workspace wr-workspace">
     <aside className="qb-prospect-rail"><div className="qb-rail-head"><div><span className="ey">2027 Wide Receivers</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
       <div className="qb-mode-toggle">{(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}</div>
       <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search wide receivers…"/>
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">WR{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/7 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
       {demoMode&&<div className="qb-demo-note">Previewing Jeremiah Smith, Cam Coleman and Jordan Faison from WR Data. Film grades remain blank until you scout them.</div>}
     </aside>
-    <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>{mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} productionFor={productionFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor}/>:<div className="qb-evaluate-stack"><nav className="qb-section-tabs qb-shared-tabs">{(["Film","Analytics","Stats","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</nav>{rankedPlayers.map(renderPlayerSection)}</div>}</section>
+    <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>{mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} productionFor={productionFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack"><nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</nav>{rankedPlayers.map(renderPlayerSection)}</div>}</section>
   </div>
 }
 
@@ -426,6 +426,7 @@ function GradeCard({label,value,accent,hint}:{label:string,value:number|null,acc
 function GradePill({value}:{value:number|null}){return <div className="qb-grade-pill"><span>Grade</span><b>{value==null?"—":value.toFixed(2)}</b></div>}
 function Field({label,source,children}:{label:string,source:string,children:React.ReactNode}){return <label className="qb-field"><span>{label}<em>{source}</em></span>{children}</label>}
 function ReadOnly({label,value}:{label:string,value:any}){return <div className="qb-readonly"><span>{label}<em>Data</em></span><strong>{value==null||value===""?"—":String(value)}</strong></div>}
+function Stat({label,value}:{label:string,value:any}){return <div className="qb-stat-card"><span>{label}</span><strong>{value}</strong></div>}
 function ConstrainedField({label,value,options,onLocal,onCommit}:{label:string,value:string,options:string[],onLocal:(v:string)=>void,onCommit:(v:string)=>void|Promise<any>}){
   const isCustom=Boolean(value)&&!options.includes(value),[other,setOther]=useState(isCustom);
   useEffect(()=>setOther(Boolean(value)&&!options.includes(value)),[value,options]);
