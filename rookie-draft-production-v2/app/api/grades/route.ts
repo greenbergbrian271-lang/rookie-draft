@@ -81,18 +81,18 @@ export async function GET(req:Request){
       target[String(e.category)]=e.value??e.commentary;
       evalMap.set(id,target);
     }
-    const sessionMap=new Map(sessions.map((s:any)=>[String(s.player_id),Number(s.game_count)||0]));
-    const importMaps=Object.fromEntries(importsByPos.map(([position,data])=>[
+    const sessionMap=new Map<string,number>(sessions.map((s:any)=>[String(s.player_id),Number(s.game_count)||0] as [string,number]));
+    const importMaps=new Map<Pos,Map<string,any>>(importsByPos.map(([position,data])=>[
       position,
-      new Map((data||[]).map((row:any)=>[norm(row?.Player??String(row?.["Player, College"]||"").split(",")[0]),row]))
-    ])) as Record<Pos,Map<string,any>>;
+      new Map<string,any>((data||[]).map((row:any)=>[norm(row?.Player??String(row?.["Player, College"]||"").split(",")[0]),row] as [string,any]))
+    ] as [Pos,Map<string,any>]));
 
     const out=[];
     for(const p of players){
       const position=p.position as Pos;
       if(!POSITIONS.includes(position))continue;
       const vals=evalMap.get(String(p.id))||{};
-      const imported=importMaps[position]?.get(norm(p.name))||{};
+      const imported=importMaps.get(position)?.get(norm(p.name))||{};
       const liveGames=sessionMap.get(String(p.id))||0;
       const legacy=String(vals["__COMMENTARY__"]??"").trim();
       const gamesWatched=liveGames>0?liveGames:(legacy?1:0);
