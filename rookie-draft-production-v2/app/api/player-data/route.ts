@@ -1,6 +1,7 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {qbReference} from "@/lib/qb-reference";
 import {rbReference,rbReferenceGeneratedAt} from "@/lib/rb-reference";
+import {wrReference} from "@/lib/wr-reference";
 import {workbookSecondary} from "@/lib/workbook-secondary";
 
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -140,7 +141,7 @@ function enrichWR(row:any){
   return q;
 }
 function wrPlayerDataRows(){
-  return playerDataRows(workbookSecondary.wrData as readonly (readonly any[])[]).map(enrichWR);
+  return (wrReference as readonly any[]).map(row=>enrichWR({...row}));
 }
 export async function GET(req:Request){
   try{
