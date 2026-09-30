@@ -1,6 +1,7 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {qbReference} from "@/lib/qb-reference";
 import {rbReference,rbReferenceGeneratedAt} from "@/lib/rb-reference";
+import {wrReference} from "@/lib/wr-reference";
 import {workbookSecondary} from "@/lib/workbook-secondary";
 
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -122,21 +123,63 @@ function enrichTE(row:any){
 function tePlayerDataRows(){
   return playerDataRows(workbookSecondary.teData as readonly (readonly any[])[]).map(enrichTE);
 }
+function enrichWR(row:any){
+  const q:any={...row};
+  q.Class??=q["Draft Class"];
+  q["Yards/Tgt"]??=q["Yards/target"];
+  q["1st Downs / Tgt"]??=q["1st/target"];
+  q["Targets/Route"]??=q["Targets/Route Run"];
+  q["1st Downs/Route"]??=q["1st Downs/Route Run"];
+  q["Contested Target %"]??=q["contested_targets %"];
+  q["Screen %"]??=q["Screen target %"];
+  q["40 Yard Dash"]??=q["40-YD"];
+  q["Vertical"]??=q["Vertical Jump"];
+  q["Weighted Dom Rtg"]??=q["Weightd Dom Rtg"];
+  const h=heightInches(q.Height),w=number(q.Weight),forty=number(q["40 Yard Dash"]);
+  if(q.BMI==null&&h&&w)q.BMI=w*703/(h*h);
+  if(q["Speed Score"]==null&&w&&forty)q["Speed Score"]=w*200/Math.pow(forty,4);
+  return q;
+}
+function wrPlayerDataRows(){
+  return (wrReference as readonly any[]).map(row=>enrichWR({...row}));
+}
+function applyCombine(base:any[],combine:any[],position:string){
+  const map=new Map(combine.map(r=>[norm(r.player_name),r]));
+  const enrich=position==="QB"?enrichQB:position==="RB"?enrichRB:position==="WR"?enrichWR:enrichTE;
+  return base.map(row=>{
+    const hit=map.get(norm(row?.Player));if(!hit)return row;
+    const next:any={...row};
+    if(hit.height!=null&&hit.height!=="")next.Height=hit.height;
+    if(hit.weight!=null)next.Weight=Number(hit.weight);
+    if(hit.forty!=null)next["40 Yard Dash"]=Number(hit.forty);
+    if(hit.bench!=null){next["Bench Reps"]=Number(hit.bench);next["Bench Press"]=Number(hit.bench)}
+    if(hit.vertical!=null){next.Vertical=Number(hit.vertical);next["Vertical Jump"]=Number(hit.vertical)}
+    if(hit.broad_jump!=null)next["Broad Jump"]=Number(hit.broad_jump);
+    if(hit.cone!=null)next["3 Cone"]=Number(hit.cone);
+    if(hit.shuttle!=null)next.Shuttle=Number(hit.shuttle);
+    next["Combine Data Source"]="NFLverse / PFR";
+    next["Combine Refreshed At"]=hit.refreshed_at;
+    return enrich(next);
+  });
+}
 export async function GET(req:Request){
   try{
     const pos=new URL(req.url).searchParams.get("position");
-    if(pos==="TE")return Response.json({position:"TE",rows:tePlayerDataRows(),below:[],importedAt:null,referenceSource:"Player Data · TE Data"});
-    const c=await ensureTursoSchema(),r=rows(await c.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
+    const db=await ensureTursoSchema();
+    const combine=pos&&["QB","RB","WR","TE"].includes(pos)?rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=2027 and p.position=?",args:[pos]})):[];
+    if(pos==="TE")return Response.json({position:"TE",rows:applyCombine(tePlayerDataRows(),combine,"TE"),below:[],importedAt:null,referenceSource:"Player Data · TE Data + refreshed combine data"});
+    if(pos==="WR")return Response.json({position:"WR",rows:applyCombine(wrPlayerDataRows(),combine,"WR"),below:[],importedAt:null,referenceSource:"Player Data · WR Data + refreshed combine data"});
+    const r=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
     if(!r.length){
-      if(pos==="QB")return Response.json({position:"QB",rows:mergeQB([]),below:[],importedAt:null,referenceSource:"QB Data"});
-      if(pos==="RB")return Response.json({position:"RB",rows:mergeRB([]),below:[],importedAt:null,referenceSource:"RB Data"});
+      if(pos==="QB")return Response.json({position:"QB",rows:applyCombine(mergeQB([]),combine,"QB"),below:[],importedAt:null,referenceSource:"QB Data + refreshed combine data"});
+      if(pos==="RB")return Response.json({position:"RB",rows:applyCombine(mergeRB([]),combine,"RB"),below:[],importedAt:null,referenceSource:"RB Data + refreshed combine data"});
       return Response.json({position:pos,rows:[],importedAt:null});
     }
     let result:any={};try{result=JSON.parse(String(r[0].result||"{}"))}catch{}
     if(pos&&["QB","RB","WR","TE"].includes(pos)){
       const block=result[pos]||{},above=block.above?.primary||[],below=block.below?.primary||[];
-      if(pos==="QB")return Response.json({position:pos,rows:mergeQB([...below,...above]),below,importedAt:r[0].imported_at,referenceSource:"QB Data + latest PFF import"});
-      if(pos==="RB"){const importedAt=String(r[0].imported_at||"");const useImport=importedAt>rbReferenceGeneratedAt;return Response.json({position:pos,rows:mergeRB(useImport?[...below,...above]:[]),below,importedAt:r[0].imported_at,referenceSource:useImport?"RB Data + newer PFF import":"RB Data"});}
+      if(pos==="QB")return Response.json({position:pos,rows:applyCombine(mergeQB([...below,...above]),combine,"QB"),below,importedAt:r[0].imported_at,referenceSource:"QB Data + latest PFF import + refreshed combine data"});
+      if(pos==="RB"){const importedAt=String(r[0].imported_at||"");const useImport=importedAt>rbReferenceGeneratedAt;return Response.json({position:pos,rows:applyCombine(mergeRB(useImport?[...below,...above]:[]),combine,"RB"),below,importedAt:r[0].imported_at,referenceSource:(useImport?"RB Data + newer PFF import":"RB Data")+" + refreshed combine data"});}
       return Response.json({position:pos,rows:above,below,importedAt:r[0].imported_at});
     }
     return Response.json({result,importedAt:r[0].imported_at});

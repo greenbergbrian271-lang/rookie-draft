@@ -414,3 +414,39 @@
 .mockdraftable-metrics .qb-metric-top{gap:8px}
 .mockdraftable-metrics .qb-metric-top b{white-space:nowrap;font-size:clamp(14px,1.25vw,22px);line-height:1}
 .qb-draft-detail{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+
+/* Shared scouting profile refinements */
+.profile-clickable{cursor:pointer}
+.profile-clickable:focus-visible{outline:2px solid #75b8ff;outline-offset:-3px}
+.qb-context-data-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+.qb-context-risk-row{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}
+.qb-multi-field{position:relative}
+.qb-multi-select{position:relative}
+.qb-multi-trigger{width:100%;min-height:36px;padding:7px 9px;background:#071426;border:1px solid #31527f;color:#f4f7fb;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;font-size:13px}
+.qb-multi-trigger b{color:#8fa7c8}
+.qb-multi-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:45;background:#08172b;border:1px solid #31527f;border-radius:9px;padding:5px;box-shadow:0 16px 38px rgba(0,0,0,.48)}
+.qb-multi-menu button{display:grid;grid-template-columns:18px 1fr;align-items:center;width:100%;gap:6px;padding:8px 9px;border:0;background:transparent;color:#cbdaf0;text-align:left;border-radius:6px;font-size:12px}
+.qb-multi-menu button:hover{background:#112743}
+.qb-multi-menu button.selected{background:#15395e;color:#fff}
+.qb-multi-menu button span{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid #3b5f89;border-radius:4px;font-size:10px}
+.mockdraftable-unavailable{margin-top:16px;border:1px dashed #31527f;background:#0b1a31;border-radius:16px;padding:26px 24px;text-align:center}
+.mockdraftable-unavailable .ey{display:block;margin-bottom:7px}
+.mockdraftable-unavailable strong{display:block;font-size:18px;color:#eef5ff}
+.mockdraftable-unavailable p{margin:7px auto 0;max-width:620px;color:#8fa7c8;line-height:1.5}
+
+/* WR scouting workspace */
+.wr-workspace .qb-rank{color:#58a7ff}
+.wr-workspace .qb-prospect-row.active{background:rgba(88,167,255,.12);border-color:#58a7ff;box-shadow:inset 3px 0 0 #58a7ff}
+.wr-workspace .qb-prospect-row.active .qb-rank{color:#58a7ff}
+.wr-workspace .qb-add{background:#287fc4}
+.wr-workspace .qb-rail-head .ey,.wr-workspace .qb-section-head .ey{color:#75b8ff}
+.wr-workspace .qb-grade-card:before{background:#58a7ff}
+.wr-grade-strip{grid-template-columns:repeat(5,minmax(0,1fr))}
+.wr-workspace .qb-context-grid.six{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:22px;row-gap:14px}
+.wr-production-model-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:1100px;margin-left:auto;margin-right:auto}
+.wr-analytics-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.wr-penalty-badge{display:inline-flex;align-items:center;border:1px solid rgba(255,82,82,.55);background:rgba(164,28,40,.28);color:#ff9da6;border-radius:999px;padding:7px 10px;font-size:10px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+@media(max-width:900px){.wr-workspace .qb-context-grid.six,.qb-context-risk-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.wr-production-model-grid{grid-template-columns:1fr}.wr-grade-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.wr-workspace .qb-context-grid.six,.qb-context-data-row,.qb-context-risk-row{grid-template-columns:1fr}}
