@@ -7,6 +7,7 @@ import {wrAnalyticalGrade} from "@/lib/analytical-grades";
 import {wrProductionGrade} from "@/lib/wr-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,MultiSelectField} from "./ScoutingShared";
 
 type Player={
   id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;
@@ -24,7 +25,7 @@ type Mode="Evaluate"|"Compare";
 const FILM=["Catching","Route Running","Elusiveness","Game Speed","Competitiveness","Size","Blocking"] as const;
 const ROLE_OPTIONS=["WR 1","WR 1/2","WR 2","WR 2/3","WR 3","WR 4/5","Specialist"] as const;
 const ARCHETYPE_OPTIONS=["X WR","Z WR","Slot WR"] as const;
-const PROJECTION_OPTIONS=["Top 5","Top 10","Round 1","Late Round 1","Day 2","Early Day 3","Late Day 3","UDFA"] as const;
+const PROJECTION_OPTIONS=DRAFT_PROJECTION_OPTIONS;
 const ADJUSTMENTS=[
   ["Special Teams",["No","Yes"]],
   ["Injury Concerns",["No","Short Term","Long Term"]],
@@ -342,7 +343,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const teamAdj=preDraft==null?(null):(teamScore-5)*2*glossaryNumber(29,g),capitalAdj=preDraft==null?(null):(draftCapital-5)*2*glossaryNumber(30,g);
     const finalGrade=preDraft==null?null:draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g);
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
-    const penalty=penaltyFor(p),previewPenaltyBadge=demoMode&&p.name==="Jordan Faison",showPenaltyBadge=penalty||previewPenaltyBadge;
+    const penalty=penaltyFor(p),showPenaltyBadge=penalty;
     const mockMeasurements=[imp.Wingspan,imp["Arm Length"],imp["Hand Size"]].filter(v=>v!==null&&v!==undefined&&v!=="");
     const hasMockDraftable=Boolean(imp["MockDraftable URL"]||imp.MockDraftable||mockMeasurements.length);
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
@@ -367,7 +368,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         <div className="qb-section-head"><div><span className="ey">Scout Inputs</span><h2>Film Evaluation</h2><p>Seven WR traits retain the workbook weights while using the same focused interaction model as QB scouting.</p></div><div className="qb-completion">{filmComplete}/7 complete</div></div>
         <div className="qb-context-grid">
           <ConstrainedField label="Expected role" value={inputValue(evalFor(p,"Expected Role"))} options={[...ROLE_OPTIONS]} onLocal={v=>local(p,"Expected Role",v)} onCommit={v=>persist(p,"Expected Role",v)}/>
-          <ConstrainedField label="Archetype" value={inputValue(evalFor(p,"Archetype"))} options={[...ARCHETYPE_OPTIONS]} onLocal={v=>local(p,"Archetype",v)} onCommit={v=>persist(p,"Archetype",v)}/>
+          <MultiSelectField label="Archetype" value={evalFor(p,"Archetype")} options={ARCHETYPE_OPTIONS} onCommit={v=>persist(p,"Archetype",v)}/>
           <ConstrainedField label="Draft projection" value={inputValue(evalFor(p,"Draft Projection"))} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
         </div>
         <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
@@ -413,11 +414,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         <div className="mockdraftable-frame-card mockdraftable-frame-full"><div className="mockdraftable-frame-head"><div><span className="ey">MockDraftable</span><strong>{p.name} · WR</strong></div><a href={String(imp["MockDraftable URL"]||("https://www.mockdraftable.com/player/"+mockDraftableSlug(p.name)))} target="_blank" rel="noreferrer">Open profile ↗</a></div><iframe title={p.name+" MockDraftable spider chart"} src={"https://www.mockdraftable.com/embed/"+mockDraftableSlug(p.name)+"?position=WR&page=GRAPH"} loading="lazy"/></div></>:<div className="mockdraftable-unavailable"><span className="ey">MockDraftable</span><strong>MockDraftable data not available yet</strong><p>The spider chart and supplemental measurements will appear automatically once the player has MockDraftable data.</p></div>}
       </div>}
 
-      {tab==="Draft"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2><p>Team fit and draft capital default to 5.00, then update automatically from the NFL Draft feed when a player is selected.</p></div></div>
-        <div className="qb-context-grid"><ReadOnly label="Team Score (10)" value={teamScore.toFixed(2)}/><ReadOnly label="Draft Capital Score (10)" value={draftCapital.toFixed(2)}/><ReadOnly label="Draft Result" value={draftCtx.result}/></div>
-        <div className="qb-draft-grid wr-draft-flow"><div className="qb-draft-card current"><span>Pre-Draft Grade</span><strong>{fmt(preDraft)}</strong><small>Scouting + production + analytics</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card"><span>NFL Draft Result</span><strong>{draftCtx.result}</strong><small>{draftCtx.automated?"Auto-filled from the NFL Draft feed":"Auto-filled after the NFL Draft"}</small></div><div className="qb-draft-arrow">→</div><div className="qb-draft-card final"><span>Draft-Adjusted Final</span><strong>{fmt(finalGrade)}</strong><small>Team fit + draft capital adjustment</small></div></div>
-        <div className="qb-draft-detail"><div className="qb-draft-card"><span>Team Fit</span><strong>{teamScore.toFixed(2)+" / 10"}</strong><small>{teamAdj==null?"Waiting for pre-draft grade":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" grade points")}</small></div><div className="qb-draft-card"><span>Draft Capital</span><strong>{draftCapital.toFixed(2)+" / 10"}</strong><small>{capitalAdj==null?"Waiting for pre-draft grade":((capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" grade points")}</small></div><div className="qb-draft-card final"><span>Adjustment Math</span><strong>{preDraft==null||finalGrade==null?"—":(finalGrade-preDraft).toFixed(2)}</strong><small>{teamAdj==null||capitalAdj==null?"Post-draft inputs populate this breakdown":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" team fit · "+(capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" draft capital")}</small></div></div>
-      </div>}
+      {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true}/>}
     </article>
   }
 
