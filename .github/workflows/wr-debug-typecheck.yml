@@ -1,0 +1,21 @@
+name: WR Debug Typecheck
+on:
+  push:
+    branches:
+      - wr-scouting-card-v2-20260929
+  workflow_dispatch:
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rookie-draft-production-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: rookie-draft-production-v2/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
