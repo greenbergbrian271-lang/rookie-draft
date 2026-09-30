@@ -118,7 +118,7 @@ export default function Page(){
       ...leagueViews
     ];
   },[leagues]);
-  const activeView=views.find(x=>x.key===viewKey)||views[0];
+  const activeView:BoardView=views.find(x=>x.key===viewKey)||{key:"base",label:"Base",tePremium:false};
   const activeRoster=activeView?.rosterKey?rosters.find(x=>x.key===activeView.rosterKey):undefined;
   const g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
 
@@ -275,7 +275,7 @@ export default function Page(){
       </div>}
     </section>
 
-    <style jsx global>{\`
+    <style jsx global>{`
       .final-board-page{max-width:1560px;margin:0 auto}
       .final-board-head{align-items:center;margin-bottom:12px}
       .final-board-head p{max-width:900px;margin:5px 0 0;line-height:1.5}
@@ -351,6 +351,6 @@ export default function Page(){
         .board-card-head{display:block}
         .board-auto-note{display:block;margin-top:7px}
       }
-    \`}</style>
+    `}</style>
   </div>;
 }
