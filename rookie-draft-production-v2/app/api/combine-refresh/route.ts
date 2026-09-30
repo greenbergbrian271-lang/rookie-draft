@@ -14,6 +14,15 @@ function heightText(v:any){
   if(Number.isFinite(n)&&n>=60&&n<=90){const ft=Math.floor(n/12),inch=n-ft*12;return ft+"'"+inch+'"'}
   return s;
 }
+export async function GET(){
+  try{
+    const q=await ensureTursoSchema();
+    const rs=rows(await q.execute({sql:"select value,updated_at from settings where key=?",args:["combine_refresh_2027"]}));
+    if(!rs.length)return Response.json({updated:0,unmatched:0,refreshedAt:null,source:SOURCE});
+    let value:any={};try{value=JSON.parse(String(rs[0].value||"{}"))}catch{}
+    return Response.json({...value,refreshedAt:value.refreshedAt||rs[0].updated_at||null,source:value.source||SOURCE});
+  }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not load combine refresh status"},{status:500})}
+}
 export async function POST(){
   try{
     const q=await ensureTursoSchema();
@@ -36,6 +45,6 @@ export async function POST(){
       updated++;
     }
     await q.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?) on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at",args:["combine_refresh_2027",JSON.stringify({updated,unmatched:unmatched.length,refreshedAt:now,source:SOURCE}),now]});
-    return Response.json({updated,unmatched,message:`Updated combine data for ${updated} players.`,source:SOURCE});
+    return Response.json({updated,unmatched,unmatchedCount:unmatched.length,refreshedAt:now,message:`Updated combine data for ${updated} players.`,source:SOURCE});
   }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Combine refresh failed"},{status:500})}
 }
