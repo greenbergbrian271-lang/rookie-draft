@@ -20,9 +20,10 @@ type GradeRow={
   authoritativeGrade:number|null;
   gradeSource:"Pre-Draft"|"Final";
   draftResult?:string|null;
+  draftTeam?:string|null;
 };
 type HandcuffItem={slot:string;name:string;team?:string};
-type RosterView={key:string;label:string;bonus?:HandcuffItem[]};
+type RosterView={key:string;label:string;startingCoverage?:HandcuffItem[];benchCoverage?:HandcuffItem[];bonus?:HandcuffItem[]};
 type League={key:string;name:string;tePremium?:boolean;enabled?:boolean};
 type BoardView={key:string;label:string;tePremium:boolean;rosterKey?:string};
 type ScoredRow=GradeRow&{
@@ -49,12 +50,34 @@ const SHORT_LABELS:Record<string,string>={
   "last-man-standing":"Last Man Standing",
   "last-minute-dynasty":"Last Minute"
 };
+const NFL_TEAM_ALIASES:Record<string,string[]>={
+  "49ers":["49ers","san francisco 49ers"],bears:["bears","chicago bears"],bengals:["bengals","cincinnati bengals"],bills:["bills","buffalo bills"],
+  broncos:["broncos","denver broncos"],browns:["browns","cleveland browns"],buccaneers:["buccaneers","bucs","tampa bay buccaneers"],cardinals:["cardinals","arizona cardinals"],
+  chargers:["chargers","los angeles chargers"],chiefs:["chiefs","kansas city chiefs"],colts:["colts","indianapolis colts"],commanders:["commanders","washington commanders"],
+  cowboys:["cowboys","dallas cowboys"],dolphins:["dolphins","miami dolphins"],eagles:["eagles","philadelphia eagles"],falcons:["falcons","atlanta falcons"],
+  giants:["giants","new york giants"],jaguars:["jaguars","jacksonville jaguars"],jets:["jets","new york jets"],lions:["lions","detroit lions"],
+  packers:["packers","green bay packers"],panthers:["panthers","carolina panthers"],patriots:["patriots","new england patriots"],raiders:["raiders","las vegas raiders"],
+  rams:["rams","los angeles rams"],ravens:["ravens","baltimore ravens"],saints:["saints","new orleans saints"],seahawks:["seahawks","seattle seahawks"],
+  steelers:["steelers","pittsburgh steelers"],texans:["texans","houston texans"],titans:["titans","tennessee titans"],vikings:["vikings","minnesota vikings"]
+};
 const norm=(v:any)=>String(v??"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 const fmt=(v:number|null,digits=2)=>v==null?"—":v.toFixed(digits);
 
-function matchBonus(item:HandcuffItem,playerName:string){
-  const player=norm(playerName),cell=norm(item?.name);
-  return Boolean(player&&cell&&cell.includes(player));
+function teamKey(value:any){
+  const n=norm(value);
+  if(!n)return "";
+  for(const [key,aliases] of Object.entries(NFL_TEAM_ALIASES)){
+    if(aliases.some(alias=>{const a=norm(alias);return n===a||n.endsWith(a)||n.includes(a)}))return key;
+  }
+  return n;
+}
+function coverageHasTeam(items:HandcuffItem[]|undefined,slot:string|undefined,team:string){
+  if(!team)return false;
+  return (items||[]).some(item=>{
+    if(slot&&norm(item.slot)!==norm(slot))return false;
+    const names=String(item.name||"").split(",").map(teamKey).filter(Boolean);
+    return names.includes(team);
+  });
 }
 function posClass(position:Pos){return "board-pos board-pos-"+position.toLowerCase()}
 function gradeTone(value:number|null){
@@ -127,10 +150,10 @@ export default function Page(){
       const sourceGrade=row.finalGrade??row.preDraftGrade??null;
       const multiplierRow=row.position==="TE"&&activeView?.tePremium?8:POS_MULTIPLIER_ROW[row.position];
       const multiplier=glossaryNumber(multiplierRow,g);
-      const bonusItems=activeRoster?.bonus||[];
-      const positionHit=bonusItems.some(item=>norm(item.slot)===norm(row.position)&&matchBonus(item,row.name));
-      const benchHit=bonusItems.some(item=>norm(item.slot)==="bench"&&matchBonus(item,row.name));
-      const handcuffAdjustment=(positionHit?glossaryNumber(HANDCUFF_ROW[row.position],g):0)+(benchHit?glossaryNumber(20,g):0);
+      const rookieTeam=teamKey(row.draftTeam||row.draftResult||"");
+      const positionHit=coverageHasTeam(activeRoster?.startingCoverage,row.position,rookieTeam);
+      const benchHit=!positionHit&&coverageHasTeam(activeRoster?.benchCoverage,undefined,rookieTeam);
+      const handcuffAdjustment=positionHit?glossaryNumber(HANDCUFF_ROW[row.position],g):(benchHit?glossaryNumber(20,g):0);
       const boardGrade=sourceGrade==null?null:sourceGrade*multiplier+handcuffAdjustment;
       return {...row,sourceGrade,multiplier,handcuffAdjustment,boardGrade,overallRank:null,positionRank:null};
     });
