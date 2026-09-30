@@ -10,6 +10,7 @@ import {rbProductionGrade} from "./rb-grades";
 import {wrProductionGrade} from "./wr-grades";
 import {teProductionGrade} from "./te-grades";
 import {combineGrade,percentRankInc} from "./combine-formulas";
+import {getNflDraftPicks,normalizeDraftName} from "./nfl-draft-results";
 
 export type BoardPosition="QB"|"RB"|"WR"|"TE";
 export type BoardPlayer={
@@ -262,7 +263,8 @@ export async function buildBoardGradeRows(input:{
   glossary:GlossaryRows;
 }){
   const {db,draftClass,players,evaluations,sessions,glossary}=input;
-  const [imports,colleges]=await Promise.all([loadImports(db,draftClass),loadCollegeRows(db)]);
+  const [imports,colleges,draftPicks]=await Promise.all([loadImports(db,draftClass),loadCollegeRows(db),getNflDraftPicks(draftClass)]);
+  const draftPickMap=new Map(draftPicks.map(p=>[p.pos+"|"+normalizeDraftName(p.name),p] as const));
   const collegeMap=new Map(colleges.map((r:any)=>[norm(r.team),r] as [string,any]));
   const evalMap=new Map<string,Record<string,any>>();
   for(const e of evaluations){const id=String(e.player_id),target=evalMap.get(id)||{};target[String(e.category)]=e.value??e.commentary;evalMap.set(id,target)}
@@ -348,10 +350,14 @@ export async function buildBoardGradeRows(input:{
     if(p.position==="WR"){productionGrade=production(p,manual);analyticalGrade=analytical(p,manual)}
     const {vals}=valuesFor(p),early=earlyDeclare(p.position,vals,importedFor(p));
     const pre=preDraftGrade(p.position,scoutingGrade,productionGrade,analyticalGrade,early,glossary);
-    const team=num(vals["Team Score (10)"]),capital=num(vals["Draft Capital Score (10)"]),draftResult=String(vals["Draft Result"]??"").trim();
-    const hasFinal=team!=null&&capital!=null&&draftResult!==""&&!/^pending$/i.test(draftResult);
-    const finalGrade=hasFinal?draftAdjustedFinalGrade(p.position,pre,team!,capital!,glossary):null;
-    out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:finalGrade==null?"Pre-Draft":"Final",draftResult:draftResult||null});
+    const livePick=draftPickMap.get(p.position+"|"+normalizeDraftName(p.name));
+    const storedResult=String(vals["Draft Result"]??"").trim();
+    const storedTeam=num(vals["Team Score (10)"]),storedCapital=num(vals["Draft Capital Score (10)"]);
+    const team=livePick?.teamScore??storedTeam,capital=livePick?.draftCapitalScore??storedCapital;
+    const draftResult=livePick?("Pick "+livePick.overall+", "+livePick.team):storedResult;
+    const hasFinal=Boolean(livePick)||(team!=null&&capital!=null&&draftResult!==""&&!/^pending$/i.test(draftResult));
+    const finalGrade=hasFinal&&team!=null&&capital!=null?draftAdjustedFinalGrade(p.position,pre,team,capital,glossary):null;
+    out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:finalGrade==null?"Pre-Draft":"Final",draftResult:draftResult||null,draftTeam:livePick?.team||null});
   }
   return out;
 }
