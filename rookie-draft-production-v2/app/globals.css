@@ -414,3 +414,18 @@
 .mockdraftable-metrics .qb-metric-top{gap:8px}
 .mockdraftable-metrics .qb-metric-top b{white-space:nowrap;font-size:clamp(14px,1.25vw,22px);line-height:1}
 .qb-draft-detail{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+
+/* WR scouting workspace — mirrors finalized TE card feedback */
+.wr-workspace .qb-rank{color:#58a7ff}
+.wr-workspace .qb-prospect-row.active{background:rgba(88,167,255,.12);border-color:#58a7ff;box-shadow:inset 3px 0 0 #58a7ff}
+.wr-workspace .qb-prospect-row.active .qb-rank{color:#58a7ff}
+.wr-workspace .qb-add{background:#287fc4}
+.wr-workspace .qb-rail-head .ey,.wr-workspace .qb-section-head .ey{color:#75b8ff}
+.wr-workspace .qb-grade-card:before{background:#58a7ff}
+.wr-grade-strip{grid-template-columns:repeat(5,minmax(0,1fr))}
+.wr-workspace .qb-context-grid.six{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:22px;row-gap:14px}
+.wr-production-model-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:1100px;margin-left:auto;margin-right:auto}
+@media(max-width:900px){.wr-workspace .qb-context-grid.six{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.wr-production-model-grid{grid-template-columns:1fr}.wr-grade-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.wr-workspace .qb-context-grid.six{grid-template-columns:1fr}}
