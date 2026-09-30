@@ -249,7 +249,7 @@ export default function Page(){
           onClick={()=>setPosition(pos)}
         >{pos}</button>)}
       </div>
-      <label className="board-detail-toggle">
+      <label className="board-detail-toggle" title="Show the Pre-Draft or Final Draft grade feeding the board calculation">
         <input type="checkbox" checked={showGradeDetails} onChange={e=>setShowGradeDetails(e.target.checked)}/>
         <span>Show grade details</span>
       </label>
