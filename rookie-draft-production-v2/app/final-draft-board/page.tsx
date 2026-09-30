@@ -137,6 +137,12 @@ export default function Page(){
     return()=>{live=false};
   },[]);
 
+  useEffect(()=>{
+    const refresh=()=>{fetch("/api/grades?draftClass=2027",{cache:"no-store"}).then(r=>r.json()).then(data=>{if(Array.isArray(data))setGrades(data)}).catch(()=>{})};
+    window.addEventListener("rookie-draft:players-changed",refresh);
+    return()=>window.removeEventListener("rookie-draft:players-changed",refresh);
+  },[]);
+
   const views=useMemo<BoardView[]>(()=>{
     const leagueViews=leagues.filter(x=>x.enabled!==false).map(x=>({
       key:"league:"+x.key,
