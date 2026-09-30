@@ -212,6 +212,31 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       isNonFbs:college?.subdivision==="FCS"
     },productionPopulation,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
+  function rawProductionMetricDataFor(p:Player){
+    const r=importedFor(p),m=productionContextFor(p);
+    const specs=[
+      {label:"Games",raw:num(r.Games),pct:false,values:imports.map(x=>num(x.Games)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Receptions",raw:num(r.Receptions),pct:false,values:imports.map(x=>num(x.Receptions)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Targets",raw:num(r.Targets),pct:false,values:imports.map(x=>num(x.Targets)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Yards",raw:num(r.Yards),pct:false,values:imports.map(x=>num(x.Yards)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Yards/Rec",raw:m.yardsPerReception,pct:false,values:productionPopulation.yardsPerReception,digits:2},
+      {label:"Yards/Tgt",raw:m.yardsPerTarget,pct:false,values:productionPopulation.yardsPerTarget,digits:2},
+      {label:"Touchdowns",raw:num(r.Touchdowns),pct:false,values:imports.map(x=>num(x.Touchdowns)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Target %",raw:m.targetShare,pct:true,values:productionPopulation.targetShare,digits:1},
+      {label:"Catch %",raw:m.catchPct,pct:true,values:productionPopulation.catchPct,digits:1}
+    ];
+    return specs.map(s=>({...s,percentile:s.raw==null?null:percentRankInc(s.values,s.raw,3)}));
+  }
+  function productionMetricDataFor(p:Player){
+    const r=importedFor(p),m=productionContextFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
+    const peakY=frY==null&&soY==null?null:Math.max(frY??0,soY??0),peakTd=frTd==null&&soTd==null?null:Math.max(frTd??0,soTd??0);
+    return [
+      {label:"Weighted Dom Rtg",raw:m.weightedDom,pct:true,percentile:m.weightedDom==null?null:percentRankInc(productionPopulation.weightedDomRtg,m.weightedDom,3),detail:"Higher is better",displayValue:null as string|null},
+      {label:"Dom Rtg",raw:m.dom,pct:true,percentile:m.dom==null?null:percentRankInc(productionPopulation.domRtg,m.dom,3),detail:"Higher is better",displayValue:null as string|null},
+      {label:"YPTPA",raw:m.yptpa,pct:false,percentile:m.yptpa==null?null:percentRankInc(productionPopulation.yptpa,m.yptpa,3),detail:"Higher is better",displayValue:null as string|null},
+      {label:"FR / SO Peak",raw:null,pct:false,percentile:null,detail:"Threshold bonus input",displayValue:peakY==null&&peakTd==null?"—":(peakY==null?"—":Math.round(peakY)+" yds")+" · "+(peakTd==null?"—":Math.round(peakTd)+" TD")}
+    ];
+  }
   function metricDataFor(p:Player){
     const imp=importedFor(p);
     return ANALYTICS.map(metric=>{
