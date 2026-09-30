@@ -237,6 +237,17 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       {label:"FR / SO Peak",raw:null,pct:false,percentile:null,detail:"Threshold bonus input",displayValue:peakY==null&&peakTd==null?"—":(peakY==null?"—":Math.round(peakY)+" yds")+" · "+(peakTd==null?"—":Math.round(peakTd)+" TD")}
     ];
   }
+  function rasDataFor(p:Player){
+    const r=importedFor(p),score=num(r.RAS)??num(r["Raw Athletic Score"])??num(r["Relative Athletic Score"]),url=String(r["RAS URL"]||"");
+    const specs=[
+      ["Height",r.Height,r["Height RAS"]??r["Height Score"]],["Weight",r.Weight,r["Weight RAS"]??r["Weight Score"]],
+      ["40 Yard Dash",sourceValue(r,"40 Yard Dash"),r["40 RAS"]??r["40 Yard Dash RAS"]??r["40 Score"]],
+      ["20 Yard Split",r["20 Yard Split"],r["20 Yard Split RAS"]??r["20 Split Score"]],["10 Yard Split",r["10 Yard Split"],r["10 Yard Split RAS"]??r["10 Split Score"]],
+      ["Bench Press",r["Bench Press"],r["Bench RAS"]??r["Bench Score"]],["Vertical",sourceValue(r,"Vertical"),r["Vertical RAS"]??r["Vertical Score"]],["Broad Jump",r["Broad Jump"],r["Broad Jump RAS"]??r["Broad Score"]]
+    ] as const;
+    const metrics=specs.map(([label,value,rawScore])=>({label,value:value==null||value===""?"—":String(value),score:num(rawScore)})).filter(m=>m.score!=null);
+    return {score,url,metrics};
+  }
   function metricDataFor(p:Player){
     const imp=importedFor(p);
     return ANALYTICS.map(metric=>{
@@ -301,7 +312,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   function jumpToPlayer(p:Player){setMode("Evaluate");setSelectedId(String(p.id));requestAnimationFrame(()=>document.getElementById("wr-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}))}
 
   function renderPlayerSection(p:Player){
-    const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p);
+    const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),ras=rasDataFor(p);
     const teamScore=num(fields["Team Score (10)"]),draftCapital=num(fields["Draft Capital Score (10)"]),g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     const teamAdj=preDraft==null||teamScore==null?null:(teamScore-5)*2*glossaryNumber(29,g),capitalAdj=preDraft==null||draftCapital==null?null:(draftCapital-5)*2*glossaryNumber(30,g);
     const finalGrade=preDraft==null||teamScore==null||draftCapital==null?null:draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g);
