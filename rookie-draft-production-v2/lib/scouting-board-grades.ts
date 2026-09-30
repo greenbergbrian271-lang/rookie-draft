@@ -217,16 +217,17 @@ function wrProductionPopulation(imports:any[]){
 }
 function teProductionPopulation(imports:any[]){return wrProductionPopulation(imports)}
 function rbProdMetrics(r:any,c:any){
-  const carries=num(r.Carries??r["Rush Attempts"]),rushYards=num(r["Rush Yards"]),recs=num(r.Receptions),recYards=num(r["Rec Yards"]),rushTd=num(r["Rush Touchdowns"]??r.Touchdowns),recTd=num(r["Rec Touchdowns"]);
-  const teamY=(num(c.rushYards)||0)+(num(c.passYards)||0),teamTd=(num(c.rushTDs)||0)+(num(c.passTDs)||0);
+  const carries=num(r.Carries??r["Rush Attempts"]),rushYards=num(r["Rush Yards"]),recs=num(r.Receptions),recYards=num(r["Rec Yards"]);
+  const rushTd=num(r["Rush Touchdowns"])||0,recTd=num(r["Rec Touchdowns"])||0,rushY=rushYards||0,recY=recYards||0;
+  const teamY=(num(c.rushYards)||0)+(num(c.passYards)||0),teamTd=(num(c.rushTDs)||0)+(num(c.passTDs)||0),totalTouches=(carries||0)+(recs||0);
   return {
     carries,receptions:recs,
-    yardsPerCarry:num(r["Yards/Carry"]??r["Yards/Attempt"])??(carries&&rushYards!=null?rushYards/carries:null),
-    yardsPerReception:num(r["Yards/Reception"])??(recs&&recYards!=null?recYards/recs:null),
-    yardsPerTouch:num(r["Yards/Touch"])??((carries||0)+(recs||0)>0?((rushYards||0)+(recYards||0))/((carries||0)+(recs||0)):null),
-    yptp:num(r.YPTP)??(num(c.totalPlays)?((rushYards||0)+(recYards||0))/(num(c.totalPlays)||1):null),
-    recShare:num(r["Rec Share %"],true)??(num(c.completions)&&recs!=null?recs/(num(c.completions)||1):null),
-    domRtg:num(r["Dom Rtg"],true)??(teamY&&teamTd?((((rushYards||0)+(recYards||0))/teamY)+(((rushTd||0)+(recTd||0))/teamTd))/2:null)
+    yardsPerCarry:carries&&rushYards!=null?rushYards/carries:null,
+    yardsPerReception:recs&&recYards!=null?recYards/recs:null,
+    yardsPerTouch:totalTouches&&rushYards!=null&&recYards!=null?(rushYards+recYards)/totalTouches:null,
+    yptp:num(c.totalPlays)?(rushY+recY)/(num(c.totalPlays)||1):num(r.YPTP),
+    recShare:num(c.completions)?(recs||0)/(num(c.completions)||1):num(r["Rec Share %"],true),
+    domRtg:teamY&&teamTd?(((rushY+recY)/teamY)+((rushTd+recTd)/teamTd))/2:num(r["Dom Rtg"],true)
   };
 }
 function wrProdMetrics(r:any,c:any){
