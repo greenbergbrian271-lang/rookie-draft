@@ -34,6 +34,7 @@ export function ensureSchema() {
     await q`ALTER TABLE game_notes ADD COLUMN IF NOT EXISTS need_to_grade boolean NOT NULL DEFAULT false`;
     await q`ALTER TABLE game_notes ADD COLUMN IF NOT EXISTS matchup_snapshot jsonb`;
     await q`CREATE TABLE IF NOT EXISTS settings (key text primary key, value jsonb not null, updated_at timestamptz default now())`;
+    await q`CREATE TABLE IF NOT EXISTS archived_players (original_player_id bigint primary key, player_name text not null, draft_class int not null, position text, college text, reason text, snapshot jsonb not null, archived_at timestamptz default now())`;
     await q`CREATE TABLE IF NOT EXISTS pff_imports (id bigserial primary key, imported_at timestamptz default now(), thresholds jsonb not null, result jsonb not null)`;
     await q`CREATE TABLE IF NOT EXISTS nfl_draft_picks (year int not null, selection text not null, round int, overall_pick int, position text, player text not null, college text, team text, imported_at timestamptz default now(), primary key(year,selection))`;
     await q`CREATE TABLE IF NOT EXISTS workflow_tags (player_id bigint references players(id) on delete cascade, tag text not null, detail text, created_at timestamptz default now(), updated_at timestamptz default now(), primary key(player_id,tag))`;
