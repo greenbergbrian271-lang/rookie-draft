@@ -127,7 +127,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   },[imports]);
   const collegeMap=useMemo(()=>new Map<string,any>(colleges.map(x=>[norm(x.team),x] as [string,any])),[colleges]);
   const importedFor=(p:Player)=>importMap.get(norm(p.name))||{};
-  const collegeFor=(p:Player)=>collegeMap.get(norm(p.college))||{};
+  const collegeFor=(p:Player)=>importedFor(p)?.["Team Context"]||collegeMap.get(norm(p.college))||{};
   const evalFor=(p:Player,cat:string)=>vals[p.id+"|"+cat];
   const selected=players.find(p=>String(p.id)===selectedId)||players[0];
 
