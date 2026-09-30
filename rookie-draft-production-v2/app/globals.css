@@ -429,3 +429,13 @@
 @media(max-width:900px){.wr-workspace .qb-context-grid.six{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.wr-production-model-grid{grid-template-columns:1fr}.wr-grade-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.wr-workspace .qb-context-grid.six{grid-template-columns:1fr}}
+
+
+/* WR card refinements */
+.wr-analytics-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.wr-penalty-badge{display:inline-flex;align-items:center;border:1px solid rgba(255,82,82,.55);background:rgba(164,28,40,.28);color:#ff9da6;border-radius:999px;padding:7px 10px;font-size:10px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.mockdraftable-unavailable{margin-top:16px;border:1px dashed #31527f;background:#0b1a31;border-radius:16px;padding:26px 24px;text-align:center}
+.mockdraftable-unavailable .ey{display:block;margin-bottom:7px}
+.mockdraftable-unavailable strong{display:block;font-size:18px;color:#eef5ff}
+.mockdraftable-unavailable p{margin:7px auto 0;max-width:620px;color:#8fa7c8;line-height:1.5}
+.wr-draft-flow{margin-top:22px}
