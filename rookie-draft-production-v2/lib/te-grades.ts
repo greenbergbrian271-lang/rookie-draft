@@ -42,7 +42,8 @@ const pct=(values:number[],value:number|null|undefined)=>{
   return r==null?0:r*100;
 };
 function maxYprBonus(value:number|null|undefined,glossary?:GlossaryRows){
-  const x=value==null||!Number.isFinite(value)?0:value;
+  if(value==null||!Number.isFinite(value))return 0;
+  const x=value;
   let bonus=0;
   for(let row=231;row<=236;row++)if(x>=glossaryColumnA(row,glossary))bonus=glossaryNumber(row,glossary);
   return bonus;
