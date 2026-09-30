@@ -8,12 +8,14 @@ type AdpLeague={league:string,slug:string,top75:AdpPlayer[]};
 type LeagueMeta={slug:string,name:string,rounds:number,teams:number};
 
 const posClass=(p?:string|null)=>p?"pos-"+p.toLowerCase():"";
+const normName=(value:any)=>String(value||"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 
 export default function DraftDayPage(){
   const [leagues,setLeagues]=useState<LeagueMeta[]>([]);
   const [results,setResults]=useState<LeagueResult[]>([]);
   const [adpLists,setAdpLists]=useState<AdpLeague[]>([]);
   const [updatedAt,setUpdatedAt]=useState<string|null>(null);
+  const [archivedNames,setArchivedNames]=useState<Set<string>>(new Set());
   const [slug,setSlug]=useState("");
   const [query,setQuery]=useState("");
   const [loading,setLoading]=useState(true);
@@ -38,7 +40,7 @@ export default function DraftDayPage(){
     }catch(e:any){setError(e?.message||"Could not load draft status")}
     finally{setLoading(false)}
   }
-  useEffect(()=>{loadMeta();loadStatus()},[]);
+  useEffect(()=>{loadMeta();loadStatus();const loadArchived=()=>fetch("/api/players/archive",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setArchivedNames(new Set(x.map((p:any)=>normName(p.player_name))))}).catch(()=>{});loadArchived();window.addEventListener("rookie-draft:archives-changed",loadArchived);return()=>window.removeEventListener("rookie-draft:archives-changed",loadArchived)},[]);
 
   async function sync(kind:"picks"|"adp"){
     setSyncing(kind);setError("");
@@ -64,12 +66,12 @@ export default function DraftDayPage(){
   const bestAvailable=useMemo(()=>{
     if(!activeAdp)return{} as Record<string,AdpPlayer[]>;
     const drafted=new Set((active?.picks||[]).map(p=>p.playerId).filter(Boolean));
-    const remaining=activeAdp.top75.filter(p=>!drafted.has(p.playerId));
+    const remaining=activeAdp.top75.filter(p=>!drafted.has(p.playerId)&&!archivedNames.has(normName(p.name)));
     const grouped:Record<string,AdpPlayer[]>={};
     for(const p of remaining){(grouped[p.position]||(grouped[p.position]=[])).push(p)}
     for(const k of Object.keys(grouped))grouped[k]=grouped[k].slice(0,5);
     return grouped;
-  },[activeAdp,active]);
+  },[activeAdp,active,archivedNames]);
 
   const byTeam=useMemo(()=>{
     if(!active)return[] as {team:string,picks:Pick[]}[];
