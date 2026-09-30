@@ -1,0 +1,22 @@
+name: Scouting Release Build
+on:
+  push:
+    branches:
+      - release/scouting-unification-20260929
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rookie-draft-production-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
