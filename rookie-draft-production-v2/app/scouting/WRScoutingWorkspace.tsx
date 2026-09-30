@@ -185,10 +185,10 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   }),[imports]);
   function productionContextFor(p:Player){
     const r=importedFor(p),college=collegeFor(p),receptions=num(r.Receptions),targets=num(r.Targets),yards=num(r.Yards),tds=num(r.Touchdowns),attempts=num(college?.passAttempts),teamYards=num(college?.passYards),teamTds=num(college?.passTDs);
-    const yardsPerReception=receptions&&yards!=null?yards/receptions:num(sourceValue(r,"Yards/Rec"));
-    const yardsPerTarget=targets&&yards!=null?yards/targets:num(sourceValue(r,"Yards/Tgt"));
+    const yardsPerReception=num(sourceValue(r,"Yards/Rec"))??(receptions&&yards!=null?yards/receptions:null);
+    const yardsPerTarget=num(sourceValue(r,"Yards/Tgt"))??(targets&&yards!=null?yards/targets:null);
+    const catchPct=num(sourceValue(r,"Catch %"),true)??(receptions!=null&&targets?receptions/targets:null);
     const targetShare=targets!=null&&attempts?targets/attempts:num(sourceValue(r,"Target %"),true);
-    const catchPct=receptions!=null&&targets?receptions/targets:num(sourceValue(r,"Catch %"),true);
     const yptpa=yards!=null&&attempts?yards/attempts:num(sourceValue(r,"YPTPA"));
     const weightedDom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)*.8)+((tds/teamTds)*.2):num(sourceValue(r,"Weighted Dom Rtg"),true);
     const dom=yards!=null&&teamYards&&tds!=null&&teamTds?((yards/teamYards)+(tds/teamTds))/2:num(sourceValue(r,"Dom Rtg"),true);
