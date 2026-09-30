@@ -7,7 +7,7 @@ import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,workbookScoutingGra
 import {rbAnalyticalGrade} from "@/lib/analytical-grades";
 import {rbProductionGrade} from "@/lib/rb-grades";
 import {usePlayerProfile} from "@/components/PlayerProfile";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,MockDraftablePanel,MultiSelectField,PercentileMetricCard,earlyDeclareStatus,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,MultiSelectField,PercentileMetricCard,earlyDeclareStatus,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
 
 type Player={id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;scouting_status:string;watch_order?:number;headshot_url?:string;jersey_number?:string};
 type Session={id:string|number;opponent?:string|null;raw_notes?:string|null;game_date?:string|null;overall_writeup?:string|null;legacy?:boolean};
@@ -117,7 +117,7 @@ export default function RBScoutingWorkspace({players,vals,setVals,imports,glossa
 
       {tab==="Analytics"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">PFF + Calculated</span><h2>Analytical Profile</h2></div><GradePill value={analytical}/></div><div className="qb-analytics-grid">{metrics.map(m=><div className="qb-metric" key={m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>Higher is better</small></div><b>{show(r[m.label],m.pct,m.pct?1:2)}</b></div><div className="qb-percentile heat"><i style={{left:((m.percentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{m.percentile==null?"—":Math.round(m.percentile*100)}</strong></div></div>)}</div></div>}
 
-      {tab==="Combine"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Combine / Pro Day</span><h2>Testing Profile</h2></div><GradePill value={combine}/></div><div className="qb-combine-grid"><ReadOnly label="Height" value={r.Height}/><ReadOnly label="Weight" value={r.Weight}/><ReadOnly label="BMI" value={show(r.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={show(r["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={show(r["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={r["Broad Jump"]}/></div><MockDraftablePanel playerName={p.name} position="RB" data={r}/></div>}
+      {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="RB" data={r} grade={combine}><div className="qb-combine-grid"><ReadOnly label="Height" value={r.Height}/><ReadOnly label="Weight" value={r.Weight}/><ReadOnly label="BMI" value={show(r.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={show(r["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={show(r["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={r["Broad Jump"]}/></div></CombineTestingSection>}
 
       {tab==="Draft"&&<DraftAdjustmentPanel preDraft={pre} finalGrade={final} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCap} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true} updatedAt={draftUpdatedAt}/>}
     </article>
