@@ -22,6 +22,7 @@ export function ensureSchema() {
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_source text`;
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_updated_at timestamptz`;
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS espn_athlete_id text`;
+    await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS espn_source text`;
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS headshot_url text`;
     await q`ALTER TABLE players ADD COLUMN IF NOT EXISTS headshot_source text`;
     await q`UPDATE players SET watch_order=id WHERE watch_order IS NULL`;
