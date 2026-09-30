@@ -7,7 +7,7 @@ import {wrAnalyticalGrade} from "@/lib/analytical-grades";
 import {wrProductionGrade} from "@/lib/wr-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,MockDraftablePanel,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
 
 type Player={
   id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;
@@ -247,17 +247,6 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       {label:"FR / SO Peak",raw:null,pct:false,percentile:peakPercentile,detail:"Freshman / sophomore peak",displayValue:peakY==null&&peakTd==null?"—":(peakY==null?"—":Math.round(peakY)+" yds")+" · "+(peakTd==null?"—":Math.round(peakTd)+" TD")}
     ];
   }
-  function rasDataFor(p:Player){
-    const r=importedFor(p),score=num(r.RAS)??num(r["Raw Athletic Score"])??num(r["Relative Athletic Score"]),url=String(r["RAS URL"]||"");
-    const specs=[
-      ["Height",r.Height,r["Height RAS"]??r["Height Score"]],["Weight",r.Weight,r["Weight RAS"]??r["Weight Score"]],
-      ["40 Yard Dash",sourceValue(r,"40 Yard Dash"),r["40 RAS"]??r["40 Yard Dash RAS"]??r["40 Score"]],
-      ["20 Yard Split",r["20 Yard Split"],r["20 Yard Split RAS"]??r["20 Split Score"]],["10 Yard Split",r["10 Yard Split"],r["10 Yard Split RAS"]??r["10 Split Score"]],
-      ["Bench Press",r["Bench Press"],r["Bench RAS"]??r["Bench Score"]],["Vertical",sourceValue(r,"Vertical"),r["Vertical RAS"]??r["Vertical Score"]],["Broad Jump",r["Broad Jump"],r["Broad Jump RAS"]??r["Broad Score"]]
-    ] as const;
-    const metrics=specs.map(([label,value,rawScore])=>({label,value:value==null||value===""?"—":String(value),score:num(rawScore)})).filter(m=>m.score!=null);
-    return {score,url,metrics};
-  }
   function metricDataFor(p:Player){
     const imp=importedFor(p);
     return ANALYTICS.map(metric=>{
@@ -327,7 +316,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
 
 
   function renderPlayerSection(p:Player){
-    const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),ras=rasDataFor(p),draftCtx=draftContextFor(p),early=earlyDeclareFor(p);
+    const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),draftCtx=draftContextFor(p),early=earlyDeclareFor(p);
     const teamScore=draftCtx.teamScore,draftCapital=draftCtx.draftCapitalScore,g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     const teamAdj=preDraft==null?(null):(teamScore-5)*2*glossaryNumber(29,g),capitalAdj=preDraft==null?(null):(draftCapital-5)*2*glossaryNumber(30,g);
     const finalGrade=preDraft==null?null:draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g);
@@ -392,11 +381,8 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         <div className="qb-analytics-grid">{metrics.map(m=><div className="qb-metric" key={m.key}><div className="qb-metric-top"><div><span>{m.label}</span><small>{m.inverse?"Lower raw is better":"Higher raw is better"}</small></div><b>{display(m.raw,m.pct,m.pct?1:2)}</b></div><div className="qb-percentile heat"><i style={{left:((m.percentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{m.percentile==null?"—":Math.round(m.percentile*100)}</strong></div></div>)}</div>
       </div>}
 
-      {tab==="Combine"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Combine / Pro Day</span><h2>Testing Profile</h2><p>RAS first when available, followed by MockDraftable data when available.</p></div><GradePill value={combine}/></div>
-        {ras.score!=null&&<><div className="qb-section-head compact"><div><span className="ey">Relative Athletic Score</span><h2>RAS Breakdown</h2><p>Overall RAS plus any position-relative component scores available in Player Data.</p></div>{ras.url&&<a className="ghost" href={ras.url} target="_blank" rel="noreferrer">Open RAS profile ↗</a>}</div><div className="qb-analytics-grid"><div className="qb-metric"><div className="qb-metric-top"><div><span>RAS Score</span><small>Overall Relative Athletic Score</small></div><b>{ras.score.toFixed(2)}</b></div><div className="qb-percentile heat"><i style={{left:(ras.score*10)+"%",background:heatColor(ras.score/10)}}/></div><div className="qb-metric-foot"><span>Overall WR score</span><strong>{ras.score.toFixed(2)} / 10</strong></div></div>{ras.metrics.map(m=><div className="qb-metric" key={"ras-"+m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>RAS component score</small></div><b>{m.value}</b></div><div className="qb-percentile heat"><i style={{left:((m.score??0)*10)+"%",background:heatColor((m.score??0)/10)}}/></div><div className="qb-metric-foot"><span>WR score</span><strong>{m.score?.toFixed(2)} / 10</strong></div></div>)}</div></>}
-        <MockDraftablePanel playerName={p.name} position="WR" data={imp}/>
-      </div>}
-
+      {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="WR" data={imp} grade={combine}/>}
+      
       {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true} updatedAt={draftUpdatedAt}/>}
     </article>
   }
