@@ -23,8 +23,8 @@ export async function POST(){
     if(parsed.errors?.length&&!(parsed.data as any[])?.length)throw new Error(parsed.errors[0]?.message||"Could not parse combine data");
     const combine=(parsed.data as any[]).filter(r=>Number(r.season??r.draft_year)===2027&&["QB","RB","WR","TE"].includes(String(r.pos||"").toUpperCase()));
     if(!combine.length)return Response.json({updated:0,unmatched:[],message:"No 2027 combine data is available yet.",source:SOURCE});
-    const players=rows(await q.execute("select id,name,position,college from players where draft_class=2027"));
-    const playerMap=new Map(players.map(p=>[norm(p.name),p]));
+    const players:any[]=rows(await q.execute("select id,name,position,college from players where draft_class=2027"));
+    const playerMap=new Map<string,any>(players.map((p:any)=>[norm(p.name),p]));
     const now=new Date().toISOString(),unmatched:string[]=[];let updated=0;
     for(const r of combine){
       const p=playerMap.get(norm(r.player_name));
