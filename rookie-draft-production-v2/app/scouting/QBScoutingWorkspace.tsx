@@ -6,7 +6,7 @@ import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,workbookScoutingGra
 import {qbAnalyticalGrade} from "@/lib/analytical-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,PercentileMetricCard,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
 
 type Player={
   id:string|number;
@@ -295,18 +295,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     const combine=Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,g):null;
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     return <article className="qb-evaluate-player" id={"qb-eval-"+p.id} data-player-id={p.id} key={p.id}>
-      <header className={"qb-player-hero "+(!demoMode?"profile-clickable":"")} style={style} onClick={!demoMode?()=>openPlayer(p.id):undefined} role={!demoMode?"button":undefined} tabIndex={!demoMode?0:undefined} onKeyDown={!demoMode?e=>{if(e.key==="Enter"||e.key===" ")openPlayer(p.id)}:undefined}>
-        <div className="qb-player-photo">{p.headshot_url?<img src={p.headshot_url} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{p.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>}</div>
-        <div className="qb-player-title">
-          <div className="qb-kicker">QB {rank} · {p.college||"College TBD"}{p.jersey_number?" · #"+p.jersey_number:""}</div>
-          <h1>{p.name}</h1>
-          <div className="qb-hero-meta">
-            <span>{imp?.Age?"Age "+imp.Age:"Age —"}</span><span>{imp?.Class||"Class —"}</span><span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span>
-            <span className="qb-draft-result-badge" title={draftCtx.automated?"Auto-filled from the NFL Draft feed":"Draft team will populate here after the NFL Draft"}><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png" alt="NFL"/><b>{draftCtx.automated?draftCtx.team:"TBD"}</b></span>
-          </div>
-        </div>
-        <div className={"qb-save-state "+saveState}>{demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
-      </header>
+      <ScoutingPlayerHero player={p} position="QB" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip">
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>
