@@ -267,7 +267,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     return wrAnalyticalGrade(manualScoutingFor(p),record,penaltyFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
   function scoutingFor(p:Player){
-    const watched=num(evalFor(p,"Games watched")??evalFor(p,"Games Watched"))||0;
+    const watched=gameCountFor(p);
     if(watched>=1)return manualScoutingFor(p);
     const fallback=[productionFor(p),analyticalFor(p)].filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
     return fallback.length?fallback.reduce((s,v)=>s+v,0)/fallback.length:null;
