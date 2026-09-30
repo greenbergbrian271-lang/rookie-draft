@@ -91,6 +91,10 @@ function gradeTone(value:number|null){
   if(value>=55)return "fringe";
   return "concern";
 }
+function heatColor(ratio:number){
+  const r=Math.max(0,Math.min(1,ratio));
+  return `hsl(${Math.round(r*120)} 72% 48%)`;
+}
 
 export default function Page(){
   const [grades,setGrades]=useState<GradeRow[]>([]);
@@ -101,6 +105,7 @@ export default function Page(){
   const [position,setPosition]=useState<"ALL"|Pos>("ALL");
   const [search,setSearch]=useState("");
   const [showGradeDetails,setShowGradeDetails]=useState(false);
+  const [compactTiers,setCompactTiers]=useState(false);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
 
@@ -249,10 +254,16 @@ export default function Page(){
           onClick={()=>setPosition(pos)}
         >{pos}</button>)}
       </div>
-      <label className="board-detail-toggle" title="Show the Pre-Draft or Final Draft grade feeding the board calculation">
-        <input type="checkbox" checked={showGradeDetails} onChange={e=>setShowGradeDetails(e.target.checked)}/>
-        <span>Show grade details</span>
-      </label>
+      <div className="board-toolbar-options">
+        <label className={"board-detail-toggle "+(compactTiers?"active":"")} title="Keep the tier dividers but collapse them to a small tier marker and thin line">
+          <input type="checkbox" checked={compactTiers} onChange={e=>setCompactTiers(e.target.checked)}/>
+          <span>Compact tiers</span>
+        </label>
+        <label className={"board-detail-toggle "+(showGradeDetails?"active":"")} title="Show the Pre-Draft or Final Draft grade feeding the board calculation">
+          <input type="checkbox" checked={showGradeDetails} onChange={e=>setShowGradeDetails(e.target.checked)}/>
+          <span>Show grade details</span>
+        </label>
+      </div>
       <button type="button" className="ghost board-export" onClick={exportBoard}>Export CSV</button>
     </div>
 
@@ -285,10 +296,13 @@ export default function Page(){
               const tone=gradeTone(row.boardGrade),previous=visible[index-1];
               const startsTier=row.tier!=null&&(index===0||previous?.tier!==row.tier);
               return <Fragment key={row.id}>
-                {startsTier&&<tr className="board-tier-row"><td colSpan={showGradeDetails?6:5}>
-                  <div className="board-tier-break">
-                    <strong>Tier {row.tier}</strong>
-                    <span>{row.tier===1?"Top grade cluster":row.tierGapBefore!=null?fmt(row.tierGapBefore,2)+" point drop from the previous prospect":"Automatic grade tier"}</span>
+                {startsTier&&<tr className={"board-tier-row "+(compactTiers?"compact":"")}><td colSpan={showGradeDetails?6:5}>
+                  <div
+                    className={"board-tier-break "+(compactTiers?"compact":"")}
+                    title={row.tier===1?"Tier 1 · Top grade cluster":"Tier "+row.tier+(row.tierGapBefore!=null?" · "+fmt(row.tierGapBefore,2)+" point drop from the previous prospect":"")}
+                  >
+                    <strong>{compactTiers?"T"+row.tier:"Tier "+row.tier}</strong>
+                    {compactTiers?<i/>:<span>{row.tier===1?"Top grade cluster":row.tierGapBefore!=null?fmt(row.tierGapBefore,2)+" point drop from the previous prospect":"Automatic grade tier"}</span>}
                   </div>
                 </td></tr>}
                 <tr>
@@ -313,7 +327,18 @@ export default function Page(){
                   <td>
                     {row.boardGrade==null?<span className="board-incomplete">—</span>:<div className={"board-grade "+tone}>
                       <strong>{fmt(row.boardGrade)}</strong>
-                      <div className="board-grade-track"><i style={{width:Math.max(0,Math.min(100,row.boardGrade))+"%"}}/></div>
+                      <input
+                        className="qb-grade-slider heat board-grade-slider"
+                        style={{"--heat":heatColor(row.boardGrade/100)} as any}
+                        type="range"
+                        min="0"
+                        max="100"
+                        step=".25"
+                        value={Math.max(0,Math.min(100,row.boardGrade))}
+                        readOnly
+                        tabIndex={-1}
+                        aria-label={row.name+" board grade "+fmt(row.boardGrade)}
+                      />
                     </div>}
                   </td>
                 </tr>
@@ -343,9 +368,10 @@ export default function Page(){
       .board-position-filter button{min-width:43px;height:38px;padding:0 10px;background:#10213a;border:1px solid #29476e;color:#9eb2ce}
       .board-position-filter button.active{outline:2px solid #dfeaff;outline-offset:-2px;color:#fff}
       .board-position-filter .board-pos{min-width:43px;border-radius:8px}
+      .board-toolbar-options{display:flex;gap:6px;align-items:center}
       .board-detail-toggle{display:flex;align-items:center;gap:7px;height:40px;padding:0 11px;border:1px solid #29476e;border-radius:8px;background:#0c1d35;color:#a8bad2;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer}
       .board-detail-toggle input{width:14px;height:14px;margin:0;padding:0;accent-color:#20e2dd}
-      .board-detail-toggle:hover{background:#132a49;color:#fff}
+      .board-detail-toggle:hover,.board-detail-toggle.active{background:#132a49;color:#fff;border-color:#3f668f}
       .board-export{height:40px;white-space:nowrap}
       .board-card{overflow:hidden;border:1px solid #20395f;border-radius:14px;background:#081426;box-shadow:0 16px 40px rgba(0,0,0,.16)}
       .board-card-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 17px;background:linear-gradient(180deg,#10223d,#0b1a30);border-bottom:1px solid #20395f}
@@ -366,6 +392,10 @@ export default function Page(){
       .board-tier-break{display:flex;align-items:center;gap:10px;padding:8px 12px;background:linear-gradient(90deg,rgba(88,167,255,.16),rgba(32,226,221,.04) 45%,transparent);border-left:3px solid #58a7ff}
       .board-tier-break strong{color:#eaf3ff;font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
       .board-tier-break span{color:#7794ba;font-size:9px;font-weight:800}
+      .board-tier-row.compact td{border-bottom:0!important;background:#081426!important}
+      .board-tier-break.compact{gap:7px;min-height:12px;padding:2px 11px;background:transparent;border-left:0}
+      .board-tier-break.compact strong{display:inline-grid;place-items:center;min-width:24px;height:14px;padding:0 4px;border:1px solid #416b98;border-radius:999px;background:#102743;color:#9ccaff;font-size:7px;letter-spacing:.04em}
+      .board-tier-break.compact i{display:block;flex:1;height:1px;background:linear-gradient(90deg,#4d82b9,rgba(32,226,221,.32),rgba(49,82,127,.2));border-radius:999px}
       .overall-rank{font-size:20px;font-weight:950;color:#eef5ff!important}
       .board-pos{display:inline-flex;align-items:center;justify-content:center;min-width:52px;padding:5px 8px;border-radius:6px;color:#06101e;font-size:11px;font-weight:950}
       .board-pos-qb{background:#fc2b6d;color:#fff!important}
@@ -384,15 +414,14 @@ export default function Page(){
       .grade-source.final{color:#ffe39a;border-color:#876923;background:rgba(255,209,102,.09)}
       .formula-cell{color:#a8bad2;font-weight:900;white-space:nowrap}
       .formula-cell.boost{color:#62e889}
-      .board-grade{display:grid;grid-template-columns:52px minmax(78px,1fr);gap:9px;align-items:center;min-width:155px}
+      .board-grade{display:grid;grid-template-columns:52px minmax(110px,1fr);gap:11px;align-items:center;min-width:185px}
       .board-grade strong{font-size:16px;text-align:right}
-      .board-grade-track{height:6px;background:#162b47;border-radius:999px;overflow:hidden}
-      .board-grade-track i{display:block;height:100%;background:#20e2dd;border-radius:999px}
-      .board-grade.elite strong{color:#62e889}.board-grade.elite i{background:#62e889}
-      .board-grade.plus strong{color:#8ee8b1}.board-grade.plus i{background:#62e889}
-      .board-grade.solid strong{color:#dce8f6}.board-grade.solid i{background:#20e2dd}
-      .board-grade.fringe strong{color:#ffd166}.board-grade.fringe i{background:#ffd166}
-      .board-grade.concern strong{color:#ff8e9d}.board-grade.concern i{background:#ff7184}
+      .board-grade-slider{width:100%!important;margin:0!important;pointer-events:none}
+      .board-grade.elite strong{color:#62e889}
+      .board-grade.plus strong{color:#8ee8b1}
+      .board-grade.solid strong{color:#dce8f6}
+      .board-grade.fringe strong{color:#ffd166}
+      .board-grade.concern strong{color:#ff8e9d}
       .board-incomplete{color:#667f9f;font-size:11px;font-weight:800}
       .board-loading,.board-empty{padding:34px;text-align:center;color:#8fa7c8}
       .board-error{margin:0 0 12px;padding:10px 12px;border:1px solid #7a3341;border-radius:9px;background:#351a23;color:#ffc0c8;font-weight:800}
@@ -406,6 +435,7 @@ export default function Page(){
         .final-board-head .status{margin-top:10px}
         .board-toolbar{grid-template-columns:1fr}
         .board-position-filter{grid-column:auto}
+        .board-toolbar-options{display:grid;width:100%}
         .board-detail-toggle,.board-export{width:100%}
         .board-detail-toggle{justify-content:center}
         .board-card-head{display:block}
