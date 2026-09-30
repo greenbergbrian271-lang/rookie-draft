@@ -111,9 +111,9 @@ export default function Page(){
           fetch("/api/dynasty-rosters",{cache:"no-store"}),
           fetch("/api/integrations",{cache:"no-store"})
         ]);
-        const [gradeData,glossaryData,rosterData,integrationData]=await Promise.all([
-          gradeRes.json(),glossaryRes.json(),rosterRes.json(),integrationRes.json()
-        ]);
+        const safeJson=async(res:Response)=>{if(!res.ok)return {};try{return await res.json()}catch{return {}}};
+        const gradeData=await gradeRes.json();
+        const [glossaryData,rosterData,integrationData]=await Promise.all([safeJson(glossaryRes),safeJson(rosterRes),safeJson(integrationRes)]);
         if(!gradeRes.ok)throw new Error(gradeData?.error||"Could not load scouting grades");
         if(!live)return;
         setGrades(Array.isArray(gradeData)?gradeData:[]);
