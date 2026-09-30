@@ -1,6 +1,7 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {qbReference} from "@/lib/qb-reference";
 import {rbReference,rbReferenceGeneratedAt} from "@/lib/rb-reference";
+import {wrReference} from "@/lib/wr-reference";
 import {workbookSecondary} from "@/lib/workbook-secondary";
 
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -122,10 +123,31 @@ function enrichTE(row:any){
 function tePlayerDataRows(){
   return playerDataRows(workbookSecondary.teData as readonly (readonly any[])[]).map(enrichTE);
 }
+function enrichWR(row:any){
+  const q:any={...row};
+  q.Class??=q["Draft Class"];
+  q["Yards/Tgt"]??=q["Yards/target"];
+  q["1st Downs / Tgt"]??=q["1st/target"];
+  q["Targets/Route"]??=q["Targets/Route Run"];
+  q["1st Downs/Route"]??=q["1st Downs/Route Run"];
+  q["Contested Target %"]??=q["contested_targets %"];
+  q["Screen %"]??=q["Screen target %"];
+  q["40 Yard Dash"]??=q["40-YD"];
+  q["Vertical"]??=q["Vertical Jump"];
+  q["Weighted Dom Rtg"]??=q["Weightd Dom Rtg"];
+  const h=heightInches(q.Height),w=number(q.Weight),forty=number(q["40 Yard Dash"]);
+  if(q.BMI==null&&h&&w)q.BMI=w*703/(h*h);
+  if(q["Speed Score"]==null&&w&&forty)q["Speed Score"]=w*200/Math.pow(forty,4);
+  return q;
+}
+function wrPlayerDataRows(){
+  return (wrReference as readonly any[]).map(row=>enrichWR({...row}));
+}
 export async function GET(req:Request){
   try{
     const pos=new URL(req.url).searchParams.get("position");
     if(pos==="TE")return Response.json({position:"TE",rows:tePlayerDataRows(),below:[],importedAt:null,referenceSource:"Player Data · TE Data"});
+    if(pos==="WR")return Response.json({position:"WR",rows:wrPlayerDataRows(),below:[],importedAt:null,referenceSource:"Player Data · WR Data"});
     const c=await ensureTursoSchema(),r=rows(await c.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
     if(!r.length){
       if(pos==="QB")return Response.json({position:"QB",rows:mergeQB([]),below:[],importedAt:null,referenceSource:"QB Data"});
