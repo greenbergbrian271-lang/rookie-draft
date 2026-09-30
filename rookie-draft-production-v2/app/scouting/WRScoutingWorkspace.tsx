@@ -17,7 +17,7 @@ type Props={
   players:Player[];vals:Record<string,any>;setVals:React.Dispatch<React.SetStateAction<Record<string,any>>>;
   imports:any[];glossary:any[][];onSave:(player:Player,category:string,value:any)=>Promise<any>;onAdd:()=>void;demoMode?:boolean;
 };
-type Tab="Film"|"Analytics"|"Stats"|"Combine"|"Draft";
+type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft";
 type Mode="Evaluate"|"Compare";
 
 const FILM=["Catching","Route Running","Elusiveness","Game Speed","Competitiveness","Size","Blocking"] as const;
@@ -91,6 +91,7 @@ function heightInches(v:any){
   const s=String(v??"").trim(),m=s.match(/(\d+)\s*['′]\s*(\d+)?/);return m?Number(m[1])*12+Number(m[2]||0):null;
 }
 function heatColor(ratio:number){const r=Math.max(0,Math.min(1,ratio));return "hsl("+Math.round(r*120)+" 72% 48%)"}
+function conditionalStyle(value:any,values:number[]){const n=typeof value==="number"?value:null;if(n==null||!Number.isFinite(n)||!values.length)return undefined;const min=Math.min(...values),max=Math.max(...values),ratio=max===min?.5:(n-min)/(max-min),h=Math.round(ratio*120);return {background:"hsl("+h+" 72% 42% / .18)",boxShadow:"inset 0 -2px 0 hsl("+h+" 72% 48% / .75)"}}
 function fmt(v:number|null){return v==null?"—":v.toFixed(2)}
 
 export default function WRScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false}:Props){
@@ -145,12 +146,13 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     broadJump:[],benchReps:[]
   }),[imports]);
 
+  function gameCountFor(p:Player){return (sessions[String(p.id)]||[]).length}
   function fieldsFor(p:Player){
     const out:Record<string,any>={...importedFor(p)};
     for(const cat of [...FILM,"Games watched","Games Watched","Expected Role","Draft Projection","Early Declare?","Special Teams","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){
       const v=evalFor(p,cat);if(v!==undefined&&v!==null&&v!=="")out[cat]=v;
     }
-    if(out["Games watched"]==null&&out["Games Watched"]!=null)out["Games watched"]=out["Games Watched"];
+    out["Games watched"]=gameCountFor(p);
     if(out["Special Teams"]==null&&out["Special Teams?"]!=null)out["Special Teams"]=out["Special Teams?"];
     return out;
   }
