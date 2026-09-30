@@ -21,12 +21,11 @@ const warRoom=workbookReference.warRoom as readonly (readonly any[])[];
 const capitalIndex:Record<Pos,number>={QB:9,RB:10,WR:11,TE:12};
 const teamIndex:Record<Pos,number>={QB:14,RB:22,WR:28,TE:32};
 function capitalScore(pos:Pos,overall:number){
-  const row=warRoom.slice(2).find((r:any[])=>String(r?.[8]??"").trim()&&Number.isFinite(overall)&&overall===warRoom.slice(2).indexOf(r)+1);
   const direct=warRoom[overall+1]?.[capitalIndex[pos]];
   const n=Number(direct);return Number.isFinite(n)?n:5;
 }
 function teamScore(pos:Pos,team:string){
-  const row=warRoom.slice(2).find((r:any[])=>norm(r?.[13])===norm(team));
+  const row=warRoom.slice(2).find((r:readonly any[])=>norm(r?.[13])===norm(team));
   const n=Number(row?.[teamIndex[pos]]);return Number.isFinite(n)?n:5;
 }
 function extract(root:any){
