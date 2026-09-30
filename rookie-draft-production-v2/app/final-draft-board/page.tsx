@@ -202,7 +202,7 @@ export default function Page(){
       <div>
         <div className="ey">2027 Rookie Class</div>
         <h1>Final Draft Board</h1>
-        <p className="muted">Grade-driven board built only from prospects currently on the web Scouting tabs. Pre-Draft Grade remains authoritative until a true Final Draft Grade exists.</p>
+        <p className="muted">Grade-driven board built only from prospects currently on the web Scouting tabs. Pre-Draft Grade drives the board until a true Final Draft Grade exists.</p>
       </div>
       <span className="status cloud">● Scouting source of truth</span>
     </div>
