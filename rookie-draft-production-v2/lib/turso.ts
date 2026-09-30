@@ -17,7 +17,8 @@ export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaRead
 `create table if not exists nfl_draft_picks(year integer not null,selection text not null,round integer,overall_pick integer,position text,player text not null,college text,team text,imported_at text default current_timestamp,primary key(year,selection))`,
 `create table if not exists pff_imports(id integer primary key autoincrement,imported_at text default current_timestamp,thresholds text not null,result text not null)`,
 `create table if not exists college_stats(team text primary key,subdivision text not null default 'FBS',rank real,players_to_scout real,players text,games real,completions real,pass_attempts real,pass_yards real,pass_yards_per_attempt real,pass_yards_per_completion real,pass_tds real,pass_interceptions real,rushes real,rush_yards real,yards_per_rush real,rush_tds real,total_plays real,yac real,air_yards real,updated_at text default current_timestamp)`,
-`create table if not exists college_stat_overrides(team text not null,subdivision text not null,column_index integer not null,value text,updated_at text default current_timestamp,primary key(team,subdivision,column_index))`
+`create table if not exists college_stat_overrides(team text not null,subdivision text not null,column_index integer not null,value text,updated_at text default current_timestamp,primary key(team,subdivision,column_index))`,
+`create table if not exists combine_results(player_id integer primary key references players(id) on delete cascade,season integer,player_name text not null,position text,school text,height text,weight real,forty real,bench real,vertical real,broad_jump real,cone real,shuttle real,source text,refreshed_at text default current_timestamp)`
 ])await c.execute(sql);
 for(const sql of [
   `alter table college_stats add column pass_yards_per_attempt real`,
