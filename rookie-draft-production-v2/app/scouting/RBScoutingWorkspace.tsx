@@ -62,7 +62,7 @@ export default function RBScoutingWorkspace({players,vals,setVals,imports,glossa
   const importMap=useMemo(()=>{const m=new Map<string,any>();for(const row of imports||[]){if(row?.Player)m.set(norm(row.Player),row)}return m},[imports]);
   const collegeMap=useMemo(()=>new Map<string,any>(colleges.map(x=>[norm(x.team),x] as [string,any])),[colleges]);
   const importedFor=(p:Player)=>importMap.get(norm(p.name))||{};
-  const collegeFor=(p:Player)=>collegeMap.get(norm(p.college))||{};
+  const collegeFor=(p:Player)=>importedFor(p)?.["Team Context"]||collegeMap.get(norm(p.college))||{};
   const evalFor=(p:Player,cat:string)=>vals[p.id+"|"+cat];
 
   function earlyDeclareFor(p:Player){return earlyDeclareStatus(importedFor(p).Class||importedFor(p)["Draft Class"],evalFor(p,"Early Declare"))}
