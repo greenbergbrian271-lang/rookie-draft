@@ -5,3 +5,4 @@ CREATE TABLE IF NOT EXISTS historical_rankings (draft_class int not null, overal
 CREATE TABLE IF NOT EXISTS planned_games (id bigserial primary key, espn_event_id text unique not null, kickoff timestamptz not null, home_team text, away_team text, status text default 'PLANNED');
 CREATE TABLE IF NOT EXISTS settings (key text primary key, value jsonb not null, updated_at timestamptz default now());
 CREATE TABLE IF NOT EXISTS pff_imports (id bigserial primary key, imported_at timestamptz default now(), thresholds jsonb not null, result jsonb not null);
+CREATE TABLE IF NOT EXISTS archived_players (original_player_id bigint primary key, player_name text not null, draft_class int not null, position text, college text, reason text, snapshot jsonb not null, archived_at timestamptz default now());

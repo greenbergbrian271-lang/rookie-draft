@@ -1,6 +1,36 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
-import {draftAdjustedFinalGrade,preDraftGrade,workbookScoutingGrade} from "@/lib/scouting-formulas";
 import {loadScoutingGlossary} from "@/lib/scouting-glossary-store";
-type Pos="QB"|"RB"|"WR"|"TE";
-const film:Record<Pos,string[]>={QB:["Arm Strength","Arm Velocity","Accuracy","Decision Making","Poise + OOS","Mechanics","Mobility","Leadership","Size"],RB:["Ball Carrier Vision","Carrying","Elusiveness","Big Play Speed","Patience","Contact Balance","Effort","Receiving Skills","Pass Blocking"],WR:["Catching","Route Running","Elusiveness","Game Speed","Competitiveness","Size","Blocking"],TE:["Catching","Route Running","Blocking","Athleticism","Competitiveness","Size","Versatility"]};
-export async function GET(req:Request){try{const draftClass=Number(new URL(req.url).searchParams.get("draftClass")||2027),q=await ensureTursoSchema(),glossary=await loadScoutingGlossary(q);const players=rows(await q.execute({sql:"select id,name,position,college,scouting_status from players where draft_class=? and scouting_status in ('WATCHED','FINISHED') order by watch_order,name",args:[draftClass]}));const out=[];for(const p of players){const es=rows(await q.execute({sql:"select category,value,commentary from evaluations where player_id=?",args:[p.id]}));const vals:Record<string,any>={};for(const e of es)vals[e.category]=e.value??e.commentary;const grades=film[p.position as Pos].map(k=>Number(vals[k]));const scouting=workbookScoutingGrade(p.position as Pos,grades,vals,glossary);const early=vals["Early Declare"]??false;const preDraft=scouting==null?null:preDraftGrade(p.position as Pos,scouting,null,null,early,glossary);const teamScore=Number(vals["Team Score (10)"]),draftCapital=Number(vals["Draft Capital Score (10)"]);const finalGrade=preDraft==null||!Number.isFinite(teamScore)||!Number.isFinite(draftCapital)?null:draftAdjustedFinalGrade(p.position as Pos,preDraft,teamScore,draftCapital,glossary);out.push({...p,scoutingGrade:scouting,preDraftGrade:preDraft,finalGrade})}return Response.json(out)}catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not calculate grades"},{status:500})}}
+import {buildBoardGradeRows,type BoardPlayer} from "@/lib/scouting-board-grades";
+
+export async function GET(req:Request){
+  try{
+    const draftClass=Number(new URL(req.url).searchParams.get("draftClass")||2027);
+    const db=await ensureTursoSchema();
+    const [glossary,playersRaw,evaluationsRaw,sessionsRaw]=await Promise.all([
+      loadScoutingGlossary(db),
+      db.execute({
+        sql:"select id,name,position,college,draft_class,scouting_status,watch_order,headshot_url from players where draft_class=? and scouting_status='WATCHED' and position in ('QB','RB','WR','TE') order by position,watch_order,name",
+        args:[draftClass]
+      }),
+      db.execute({
+        sql:"select e.player_id,e.category,e.value,e.commentary from evaluations e join players p on p.id=e.player_id where p.draft_class=? and p.scouting_status='WATCHED' and p.position in ('QB','RB','WR','TE')",
+        args:[draftClass]
+      }),
+      db.execute({
+        sql:"select s.player_id,count(*) as game_count from scouting_sessions s join players p on p.id=s.player_id where p.draft_class=? and p.scouting_status='WATCHED' and p.position in ('QB','RB','WR','TE') group by s.player_id",
+        args:[draftClass]
+      })
+    ]);
+    const players=rows(playersRaw) as BoardPlayer[];
+    return Response.json(await buildBoardGradeRows({
+      db,
+      draftClass,
+      players,
+      evaluations:rows(evaluationsRaw),
+      sessions:rows(sessionsRaw),
+      glossary
+    }));
+  }catch(e:unknown){
+    return Response.json({error:e instanceof Error?e.message:"Could not calculate grades"},{status:500});
+  }
+}
