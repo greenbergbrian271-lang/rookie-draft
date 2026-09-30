@@ -3,6 +3,7 @@ import {qbReference} from "@/lib/qb-reference";
 import {rbReference,rbReferenceGeneratedAt} from "@/lib/rb-reference";
 import {wrReference} from "@/lib/wr-reference";
 import {workbookSecondary} from "@/lib/workbook-secondary";
+import {currentCollegeStatsReference} from "@/lib/current-college-stats-reference";
 
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 const number=(v:any)=>{
@@ -162,26 +163,33 @@ function applyCombine(base:any[],combine:any[],position:string){
     return enrich(next);
   });
 }
+async function canonicalPlayerData(db:any,position:string){
+  const combine=rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=2027 and p.position=?",args:[position]}));
+  const storedCollegeRows=rows(await db.execute("select team,subdivision,games,completions,pass_attempts as passAttempts,pass_yards as passYards,pass_tds as passTDs,rushes,rush_yards as rushYards,rush_tds as rushTDs,total_plays as totalPlays,updated_at as updatedAt from college_stats"));
+  const collegeRows=storedCollegeRows.length?storedCollegeRows:(currentCollegeStatsReference as unknown as any[]);
+  const collegeMap=new Map(collegeRows.map((r:any)=>[norm(r.team),r]));
+  const withContext=(rs:any[])=>applyCombine(rs,combine,position).map((row:any)=>({...row,"Team Context":collegeMap.get(norm(row.College))||null}));
+  const combineRefreshedAt=combine.reduce((m:any,r:any)=>!m||String(r.refreshed_at||"")>String(m)?r.refreshed_at:m,null);
+  if(position==="TE")return {rows:withContext(tePlayerDataRows()),below:[],importedAt:null,referenceSource:"Player Data · TE Data",combineRefreshedAt};
+  if(position==="WR")return {rows:withContext(wrPlayerDataRows()),below:[],importedAt:null,referenceSource:"Player Data · WR Data",combineRefreshedAt};
+  const imported=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
+  let result:any={};if(imported.length){try{result=JSON.parse(String(imported[0].result||"{}"))}catch{}}
+  const block=result[position]||{},above=block.above?.primary||[],below=block.below?.primary||[];
+  if(position==="QB")return {rows:withContext(mergeQB(imported.length?[...below,...above]:[])),below,importedAt:imported[0]?.imported_at??null,referenceSource:imported.length?"Player Data · QB Data + latest PFF import":"Player Data · QB Data",combineRefreshedAt};
+  if(position==="RB"){const importedAt=String(imported[0]?.imported_at||""),useImport=Boolean(imported.length)&&importedAt>rbReferenceGeneratedAt;return {rows:withContext(mergeRB(useImport?[...below,...above]:[])),below,importedAt:imported[0]?.imported_at??null,referenceSource:useImport?"Player Data · RB Data + newer PFF import":"Player Data · RB Data",combineRefreshedAt}}
+  return {rows:[],below:[],importedAt:imported[0]?.imported_at??null,referenceSource:"Player Data",combineRefreshedAt};
+}
 export async function GET(req:Request){
   try{
     const pos=new URL(req.url).searchParams.get("position");
     const db=await ensureTursoSchema();
-    const combine=pos&&["QB","RB","WR","TE"].includes(pos)?rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=2027 and p.position=?",args:[pos]})):[];
-    if(pos==="TE")return Response.json({position:"TE",rows:applyCombine(tePlayerDataRows(),combine,"TE"),below:[],importedAt:null,referenceSource:"Player Data · TE Data + refreshed combine data"});
-    if(pos==="WR")return Response.json({position:"WR",rows:applyCombine(wrPlayerDataRows(),combine,"WR"),below:[],importedAt:null,referenceSource:"Player Data · WR Data + refreshed combine data"});
-    const r=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
-    if(!r.length){
-      if(pos==="QB")return Response.json({position:"QB",rows:applyCombine(mergeQB([]),combine,"QB"),below:[],importedAt:null,referenceSource:"QB Data + refreshed combine data"});
-      if(pos==="RB")return Response.json({position:"RB",rows:applyCombine(mergeRB([]),combine,"RB"),below:[],importedAt:null,referenceSource:"RB Data + refreshed combine data"});
-      return Response.json({position:pos,rows:[],importedAt:null});
-    }
-    let result:any={};try{result=JSON.parse(String(r[0].result||"{}"))}catch{}
     if(pos&&["QB","RB","WR","TE"].includes(pos)){
-      const block=result[pos]||{},above=block.above?.primary||[],below=block.below?.primary||[];
-      if(pos==="QB")return Response.json({position:pos,rows:applyCombine(mergeQB([...below,...above]),combine,"QB"),below,importedAt:r[0].imported_at,referenceSource:"QB Data + latest PFF import + refreshed combine data"});
-      if(pos==="RB"){const importedAt=String(r[0].imported_at||"");const useImport=importedAt>rbReferenceGeneratedAt;return Response.json({position:pos,rows:applyCombine(mergeRB(useImport?[...below,...above]:[]),combine,"RB"),below,importedAt:r[0].imported_at,referenceSource:(useImport?"RB Data + newer PFF import":"RB Data")+" + refreshed combine data"});}
-      return Response.json({position:pos,rows:above,below,importedAt:r[0].imported_at});
+      const payload=await canonicalPlayerData(db,pos);
+      return Response.json({position:pos,...payload});
     }
+    const r=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
+    if(!r.length)return Response.json({result:{},importedAt:null});
+    let result:any={};try{result=JSON.parse(String(r[0].result||"{}"))}catch{}
     return Response.json({result,importedAt:r[0].imported_at});
   }catch(e:any){return Response.json({error:e?.message||"Could not load player data"},{status:500})}
 }

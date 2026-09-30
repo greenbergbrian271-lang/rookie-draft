@@ -450,3 +450,14 @@
 @media(max-width:900px){.wr-workspace .qb-context-grid.six,.qb-context-risk-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.wr-production-model-grid{grid-template-columns:1fr}.wr-grade-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.wr-workspace .qb-context-grid.six,.qb-context-data-row,.qb-context-risk-row{grid-template-columns:1fr}}
+
+
+/* Scouting consistency pass */
+.scouting-adjustments-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px}
+.scouting-production-model-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:1100px;margin-left:auto;margin-right:auto}
+.scouting-model-note{margin:0 0 14px;padding:11px 13px;border:1px solid #29476e;border-radius:10px;background:#0a1a30;color:#98aecb;font-size:11px;line-height:1.5}
+.scouting-model-note b{color:#e7f0fc}
+.scouting-freshness{display:inline-flex;align-items:center;padding:5px 8px;border:1px solid #2c4b72;border-radius:999px;background:#0b1c32;color:#86a2c7;font-size:9px;font-weight:850;letter-spacing:.035em;white-space:nowrap}
+.mockdraftable-unavailable .scouting-freshness{margin-top:12px}
+@media(max-width:900px){.scouting-adjustments-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:650px){.scouting-adjustments-grid,.scouting-production-model-grid{grid-template-columns:1fr!important}}

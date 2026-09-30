@@ -7,7 +7,7 @@ import {wrAnalyticalGrade} from "@/lib/analytical-grades";
 import {wrProductionGrade} from "@/lib/wr-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,MultiSelectField} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,ScoutingPlayerHero,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
 
 type Player={
   id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;
@@ -109,15 +109,11 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
   const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
   const [colleges,setColleges]=useState<any[]>([]);
-  const [draftPicks,setDraftPicks]=useState<DraftPick[]>([]);
+  const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed();
 
   useEffect(()=>{window.scrollTo({top:0,left:0,behavior:"auto"})},[]);
   useEffect(()=>{fetch("/api/college-stats",{cache:"no-store"}).then(r=>r.json()).then(j=>Array.isArray(j)&&setColleges(j)).catch(()=>{})},[]);
-  useEffect(()=>{
-    let live=true;
-    const load=()=>fetch("/api/nfl-draft-results",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(live&&Array.isArray(j?.picks))setDraftPicks(j.picks)}).catch(()=>{});
-    load();const timer=setInterval(load,60000);return()=>{live=false;clearInterval(timer)};
-  },[]);
+
   useEffect(()=>{
     if(!players.length){setSelectedId("");return}
     if(!players.some(p=>String(p.id)===selectedId))setSelectedId(String(players[0].id));
@@ -131,7 +127,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   },[imports]);
   const collegeMap=useMemo(()=>new Map<string,any>(colleges.map(x=>[norm(x.team),x] as [string,any])),[colleges]);
   const importedFor=(p:Player)=>importMap.get(norm(p.name))||{};
-  const collegeFor=(p:Player)=>collegeMap.get(norm(p.college))||{};
+  const collegeFor=(p:Player)=>importedFor(p)?.["Team Context"]||collegeMap.get(norm(p.college))||{};
   const evalFor=(p:Player,cat:string)=>vals[p.id+"|"+cat];
   const selected=players.find(p=>String(p.id)===selectedId)||players[0];
 
@@ -251,17 +247,6 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       {label:"FR / SO Peak",raw:null,pct:false,percentile:peakPercentile,detail:"Freshman / sophomore peak",displayValue:peakY==null&&peakTd==null?"—":(peakY==null?"—":Math.round(peakY)+" yds")+" · "+(peakTd==null?"—":Math.round(peakTd)+" TD")}
     ];
   }
-  function rasDataFor(p:Player){
-    const r=importedFor(p),score=num(r.RAS)??num(r["Raw Athletic Score"])??num(r["Relative Athletic Score"]),url=String(r["RAS URL"]||"");
-    const specs=[
-      ["Height",r.Height,r["Height RAS"]??r["Height Score"]],["Weight",r.Weight,r["Weight RAS"]??r["Weight Score"]],
-      ["40 Yard Dash",sourceValue(r,"40 Yard Dash"),r["40 RAS"]??r["40 Yard Dash RAS"]??r["40 Score"]],
-      ["20 Yard Split",r["20 Yard Split"],r["20 Yard Split RAS"]??r["20 Split Score"]],["10 Yard Split",r["10 Yard Split"],r["10 Yard Split RAS"]??r["10 Split Score"]],
-      ["Bench Press",r["Bench Press"],r["Bench RAS"]??r["Bench Score"]],["Vertical",sourceValue(r,"Vertical"),r["Vertical RAS"]??r["Vertical Score"]],["Broad Jump",r["Broad Jump"],r["Broad Jump RAS"]??r["Broad Score"]]
-    ] as const;
-    const metrics=specs.map(([label,value,rawScore])=>({label,value:value==null||value===""?"—":String(value),score:num(rawScore)})).filter(m=>m.score!=null);
-    return {score,url,metrics};
-  }
   function metricDataFor(p:Player){
     const imp=importedFor(p);
     return ANALYTICS.map(metric=>{
@@ -280,6 +265,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const metrics=metricDataFor(p),record=Object.fromEntries(metrics.map(x=>[x.key,x.percentile])) as Record<string,number|null>;
     return wrAnalyticalGrade(manualScoutingFor(p),record,penaltyFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
+  function earlyDeclareFor(p:Player){const r=importedFor(p);return earlyDeclareStatus(r.Class||r["Draft Class"],evalFor(p,"Early Declare?"))}
   function scoutingFor(p:Player){
     const watched=gameCountFor(p);
     if(watched>=1)return manualScoutingFor(p);
@@ -288,7 +274,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   }
   function preDraftFor(p:Player){
     const scout=scoutingFor(p);if(scout==null)return null;
-    const early=evalFor(p,"Early Declare?")??importedFor(p)?.["Early Declare?"]??false;
+    const early=earlyDeclareFor(p).yes;
     return preDraftGrade("WR",scout,productionFor(p),analyticalFor(p),early,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
   function rankingGradeFor(p:Player){return preDraftFor(p)??analyticalFor(p)??productionFor(p)??scoutingFor(p)}
@@ -325,20 +311,12 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   },[mode,rankedPlayers]);
   function jumpToPlayer(p:Player){setMode("Evaluate");setSelectedId(String(p.id));requestAnimationFrame(()=>document.getElementById("wr-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}))}
 
-  function draftContextFor(p:Player){
-    const live=draftPicks.find(x=>x.pos==="WR"&&norm(x.name)===norm(p.name));
-    const stored=String(evalFor(p,"Draft Result")||"").trim();
-    return {
-      result:live?("Pick "+live.overall+", "+live.team):(stored||"Pending"),
-      team:live?.team||"",
-      teamScore:live?.teamScore??num(evalFor(p,"Team Score (10)"))??5,
-      draftCapitalScore:live?.draftCapitalScore??num(evalFor(p,"Draft Capital Score (10)"))??5,
-      automated:Boolean(live)
-    };
-  }
+  function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("WR",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
+  function finalGradeFor(p:Player){const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return draftAdjustedFinalGrade("WR",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined)}
+
 
   function renderPlayerSection(p:Player){
-    const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),ras=rasDataFor(p),draftCtx=draftContextFor(p);
+    const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),draftCtx=draftContextFor(p),early=earlyDeclareFor(p);
     const teamScore=draftCtx.teamScore,draftCapital=draftCtx.draftCapitalScore,g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     const teamAdj=preDraft==null?(null):(teamScore-5)*2*glossaryNumber(29,g),capitalAdj=preDraft==null?(null):(draftCapital-5)*2*glossaryNumber(30,g);
     const finalGrade=preDraft==null?null:draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g);
@@ -347,15 +325,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const mockMeasurements=[imp.Wingspan,imp["Arm Length"],imp["Hand Size"]].filter(v=>v!==null&&v!==undefined&&v!=="");
     const hasMockDraftable=Boolean(imp["MockDraftable URL"]||imp.MockDraftable||mockMeasurements.length);
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
-      <header className="qb-player-hero" style={style}>
-        <div className="qb-player-photo">{p.headshot_url?<img src={p.headshot_url} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{p.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>}</div>
-        <div className="qb-player-title"><div className="qb-kicker">WR {rank} · {p.college||"College TBD"}{p.jersey_number?" · #"+p.jersey_number:""}</div><h1>{p.name}</h1>
-          <div className="qb-hero-meta"><span>{imp?.Age?"Age "+imp.Age:"Age —"}</span><span>{imp?.Class||imp?.["Draft Class"]||"Class —"}</span><span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span>
-            <span className="qb-draft-result-badge" title={draftCtx.automated?"Auto-filled from the NFL Draft feed":"Draft team will populate here after the NFL Draft"}><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png" alt="NFL"/><b>{draftCtx.automated?draftCtx.team:"TBD"}</b></span>{!demoMode&&<button onClick={()=>openPlayer(p.id)}>Open player profile ↗</button>}
-          </div>
-        </div>
-        <div className={"qb-save-state "+saveState}>{demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
-      </header>
+      <ScoutingPlayerHero player={p} position="WR" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class||imp?.["Draft Class"]} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/7 traits graded"}/>
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>
@@ -373,13 +343,13 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         </div>
         <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
           <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
-          <input className="qb-grade-slider heat" type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(p,trait,Number(e.target.value))} onMouseUp={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))}/>
+          <input className="qb-grade-slider heat" type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(p,trait,Number(e.target.value))} onPointerUp={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))}/>
           <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
           <input className="qb-grade-number" type="number" min="0" max="100" step=".01" value={inputValue(evalFor(p,trait))} onChange={e=>local(p,trait,e.target.value)} onBlur={e=>persist(p,trait,e.target.value===""?"":Math.round(Number(e.target.value)*100)/100)} placeholder="—"/>
         </div>})}</div>
         <div className="qb-section-head compact"><div><span className="ey">Context Adjustments</span><h2>Role, Risk & Extras</h2></div></div>
-        <div className="qb-context-grid six">
-          <Field label="Early Declare?" source="Scout"><select value={inputValue(evalFor(p,"Early Declare?")||"No")} onChange={e=>persist(p,"Early Declare?",e.target.value)}><option>No</option><option>Yes</option></select></Field>
+        <div className="qb-context-grid scouting-adjustments-grid">
+          <EarlyDeclareField classLabel={imp.Class||imp["Draft Class"]} value={evalFor(p,"Early Declare?")} onCommit={v=>persist(p,"Early Declare?",v)}/>
           {ADJUSTMENTS.map(([label,options])=><Field key={label} label={label} source="Scout"><select value={inputValue(evalFor(p,label)||evalFor(p,label+"?")||options[0])} onChange={e=>persist(p,label,e.target.value)}>{options.map(x=><option key={x}>{x}</option>)}</select></Field>)}
         </div>
         <div className="qb-game-log">
@@ -400,21 +370,12 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
 
       {tab==="Analytics"&&<div className="qb-tab-content">
         <div className="qb-section-head"><div><span className="ey">PFF + Calculated</span><h2>Analytical Profile</h2><p>WR Player Data percentiles mirror the workbook, including inverse treatment for drops, contested-target rate and screens.</p></div><div className="wr-analytics-head-actions">{showPenaltyBadge&&<span className="wr-penalty-badge" title="ADOT ≤ 13 and contested targets ≥ 23%">Low ADOT / High Contested Target</span>}<GradePill value={analytical}/></div></div>
-        <div className="qb-analytics-grid">{metrics.map(m=><div className="qb-metric" key={m.key}><div className="qb-metric-top"><div><span>{m.label}</span><small>{m.inverse?"Lower raw is better":"Higher raw is better"}</small></div><b>{display(m.raw,m.pct,m.pct?1:2)}</b></div><div className={"qb-percentile heat "+(m.inverse?"inverse":"")}><i style={{left:((m.rawPercentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{m.percentile==null?"—":Math.round(m.percentile*100)}</strong></div></div>)}</div>
+        <div className="qb-analytics-grid">{metrics.map(m=><div className="qb-metric" key={m.key}><div className="qb-metric-top"><div><span>{m.label}</span><small>{m.inverse?"Lower raw is better":"Higher raw is better"}</small></div><b>{display(m.raw,m.pct,m.pct?1:2)}</b></div><div className="qb-percentile heat"><i style={{left:((m.percentile??0)*100)+"%",background:heatColor(m.percentile??0)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{m.percentile==null?"—":Math.round(m.percentile*100)}</strong></div></div>)}</div>
       </div>}
 
-      {tab==="Combine"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Combine / Pro Day</span><h2>Testing Profile</h2><p>RAS first when available, followed by MockDraftable-specific measurements and the full-width spider.</p></div><GradePill value={combine}/></div>
-        {ras.score!=null&&<><div className="qb-section-head compact"><div><span className="ey">Relative Athletic Score</span><h2>RAS Breakdown</h2><p>Overall RAS plus any position-relative component scores available in Player Data.</p></div>{ras.url&&<a className="ghost" href={ras.url} target="_blank" rel="noreferrer">Open RAS profile ↗</a>}</div><div className="qb-analytics-grid"><div className="qb-metric"><div className="qb-metric-top"><div><span>RAS Score</span><small>Overall Relative Athletic Score</small></div><b>{ras.score.toFixed(2)}</b></div><div className="qb-percentile heat"><i style={{left:(ras.score*10)+"%",background:heatColor(ras.score/10)}}/></div><div className="qb-metric-foot"><span>Overall WR score</span><strong>{ras.score.toFixed(2)} / 10</strong></div></div>{ras.metrics.map(m=><div className="qb-metric" key={"ras-"+m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>RAS component score</small></div><b>{m.value}</b></div><div className="qb-percentile heat"><i style={{left:((m.score??0)*10)+"%",background:heatColor((m.score??0)/10)}}/></div><div className="qb-metric-foot"><span>WR score</span><strong>{m.score?.toFixed(2)} / 10</strong></div></div>)}</div></>}
-        {hasMockDraftable?<><div className="qb-section-head compact"><div><span className="ey">MockDraftable</span><h2>Spider + Additional Measurements</h2><p>Only renders when MockDraftable measurement data is available for the player.</p></div></div>
-        <div className="qb-analytics-grid mockdraftable-metrics mockdraftable-unique-metrics">{[
-          {label:"Wingspan",value:imp.Wingspan||"—",percentile:percentileFor("Wingspan",p,false,false)},
-          {label:"Arm Length",value:imp["Arm Length"]||"—",percentile:percentileFor("Arm Length",p,false,false)},
-          {label:"Hand Size",value:imp["Hand Size"]||"—",percentile:percentileFor("Hand Size",p,false,false)}
-        ].map(m=><div className="qb-metric" key={m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>MockDraftable measurement</small></div><b>{m.value}</b></div>{m.percentile!=null&&<><div className="qb-percentile heat"><i style={{left:(m.percentile*100)+"%",background:heatColor(m.percentile)}}/></div><div className="qb-metric-foot"><span>Percentile</span><strong>{Math.round(m.percentile*100)}</strong></div></>}</div>)}</div>
-        <div className="mockdraftable-frame-card mockdraftable-frame-full"><div className="mockdraftable-frame-head"><div><span className="ey">MockDraftable</span><strong>{p.name} · WR</strong></div><a href={String(imp["MockDraftable URL"]||("https://www.mockdraftable.com/player/"+mockDraftableSlug(p.name)))} target="_blank" rel="noreferrer">Open profile ↗</a></div><iframe title={p.name+" MockDraftable spider chart"} src={"https://www.mockdraftable.com/embed/"+mockDraftableSlug(p.name)+"?position=WR&page=GRAPH"} loading="lazy"/></div></>:<div className="mockdraftable-unavailable"><span className="ey">MockDraftable</span><strong>MockDraftable data not available yet</strong><p>The spider chart and supplemental measurements will appear automatically once the player has MockDraftable data.</p></div>}
-      </div>}
-
-      {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true}/>}
+      {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="WR" data={imp} grade={combine}/>}
+      
+      {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true} updatedAt={draftUpdatedAt}/>}
     </article>
   }
 
@@ -427,16 +388,16 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">WR{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/7 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
       {demoMode&&<div className="qb-demo-note">Previewing Jeremiah Smith, Cam Coleman and Jordan Faison with their existing film evaluations and WR Player Data.</div>}
     </aside>
-    <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>{mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} productionFor={productionFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack"><nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</nav>{rankedPlayers.map(renderPlayerSection)}</div>}</section>
+    <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>{mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} productionFor={productionFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} finalGradeFor={finalGradeFor} draftContextFor={draftContextFor} gameCountFor={gameCountFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack"><nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</nav>{rankedPlayers.map(renderPlayerSection)}</div>}</section>
   </div>
 }
 
-function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedFor,scoutingFor,productionFor,analyticalFor,preDraftFor,metricDataFor}:{players:Player[],allPlayers:Player[],compareIds:string[],setCompareIds:React.Dispatch<React.SetStateAction<string[]>>,vals:Record<string,any>,importedFor:(p:Player)=>any,scoutingFor:(p:Player)=>number|null,productionFor:(p:Player)=>number|null,analyticalFor:(p:Player)=>number|null,preDraftFor:(p:Player)=>number|null,metricDataFor:(p:Player)=>any[]}){
+function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedFor,scoutingFor,productionFor,analyticalFor,preDraftFor,finalGradeFor,draftContextFor,gameCountFor,metricDataFor}:{players:Player[],allPlayers:Player[],compareIds:string[],setCompareIds:React.Dispatch<React.SetStateAction<string[]>>,vals:Record<string,any>,importedFor:(p:Player)=>any,scoutingFor:(p:Player)=>number|null,productionFor:(p:Player)=>number|null,analyticalFor:(p:Player)=>number|null,preDraftFor:(p:Player)=>number|null,finalGradeFor:(p:Player)=>number|null,draftContextFor:(p:Player)=>any,gameCountFor:(p:Player)=>number,metricDataFor:(p:Player)=>any[]}){
   type M={key:string;group:string;label:string;numeric?:boolean;get:(p:Player)=>any;format?:(v:any)=>string};
   const [open,setOpen]=useState(false),[sortKey,setSortKey]=useState("rank"),[sortDir,setSortDir]=useState<"asc"|"desc">("asc");
   const metrics:M[]=[
-    {key:"scouting",group:"Grades",label:"Scouting",numeric:true,get:scoutingFor,format:fmt},{key:"production",group:"Grades",label:"Production",numeric:true,get:productionFor,format:fmt},{key:"analytical",group:"Grades",label:"Analytical",numeric:true,get:analyticalFor,format:fmt},{key:"predraft",group:"Grades",label:"Pre-Draft",numeric:true,get:preDraftFor,format:fmt},
-    {key:"games",group:"Profile",label:"Games Watched",numeric:true,get:p=>num(vals[p.id+"|Games watched"]??vals[p.id+"|Games Watched"])},{key:"role",group:"Profile",label:"Role",get:p=>vals[p.id+"|Expected Role"]||"—"},{key:"proj",group:"Profile",label:"Draft Projection",get:p=>vals[p.id+"|Draft Projection"]||"—"},
+    {key:"scouting",group:"Grades",label:"Scouting",numeric:true,get:scoutingFor,format:fmt},{key:"production",group:"Grades",label:"Production",numeric:true,get:productionFor,format:fmt},{key:"analytical",group:"Grades",label:"Analytical",numeric:true,get:analyticalFor,format:fmt},{key:"predraft",group:"Grades",label:"Pre-Draft",numeric:true,get:preDraftFor,format:fmt},{key:"final",group:"Grades",label:"Final",numeric:true,get:finalGradeFor,format:fmt},
+    {key:"games",group:"Profile",label:"Games Watched",numeric:true,get:gameCountFor},{key:"role",group:"Profile",label:"Role",get:p=>vals[p.id+"|Expected Role"]||"—"},{key:"archetype",group:"Profile",label:"Archetype",get:p=>vals[p.id+"|Archetype"]||"—"},{key:"proj",group:"Profile",label:"Draft Projection",get:p=>vals[p.id+"|Draft Projection"]||"—"},{key:"draftResult",group:"Profile",label:"Draft Result",get:p=>draftContextFor(p).result||"—"},
     ...FILM.map(label=>({key:"film-"+label,group:"Film",label,numeric:true,get:(p:Player)=>num(vals[p.id+"|"+label]),format:(v:any)=>v==null?"—":Number(v).toFixed(2)})),
     ...STATS.map(([label,key,pct])=>({key:"stat-"+key,group:"Production",label,numeric:true,get:(p:Player)=>num(sourceValue(importedFor(p),key),pct),format:(v:any)=>v==null?"—":pct?(Number(v)*100).toFixed(1)+"%":Number(v).toFixed(label.includes("Yards")||label.includes("YPTPA")?2:0)})),
     ...ANALYTICS.map(a=>({key:"a-"+a.key,group:"Analytics",label:a.label+" %ile",numeric:true,get:(p:Player)=>{const m=metricDataFor(p).find((x:any)=>x.key===a.key);return m?.percentile==null?null:m.percentile*100},format:(v:any)=>v==null?"—":Math.round(Number(v)).toString()}))
