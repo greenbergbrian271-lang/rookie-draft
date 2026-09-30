@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - wr-scouting-card-v2-20260929
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 jobs:
   build:
