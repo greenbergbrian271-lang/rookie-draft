@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect,useMemo,useState} from "react";
+import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
 import {glossaryNumber,type GlossaryRows} from "@/lib/scouting-formulas";
 import PlayerName from "@/components/PlayerName";
@@ -33,11 +33,14 @@ type ScoredRow=GradeRow&{
   boardGrade:number|null;
   overallRank:number|null;
   positionRank:number|null;
+  tier:number|null;
+  tierGapBefore:number|null;
 };
 
 const POSITIONS:Pos[]=["QB","RB","WR","TE"];
 const POS_MULTIPLIER_ROW:Record<Pos,number>={QB:4,RB:5,WR:6,TE:7};
 const HANDCUFF_ROW:Record<Pos,number>={QB:15,RB:16,WR:17,TE:18};
+const TIER_GAP=2.5;
 const FALLBACK_LEAGUES:League[]=[
   {key:"one-league",name:"One League",tePremium:false,enabled:true},
   {key:"drew-ross",name:"D+R",tePremium:false,enabled:true},
@@ -97,6 +100,7 @@ export default function Page(){
   const [viewKey,setViewKey]=useState("base");
   const [position,setPosition]=useState<"ALL"|Pos>("ALL");
   const [search,setSearch]=useState("");
+  const [showGradeDetails,setShowGradeDetails]=useState(false);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
 
@@ -155,7 +159,7 @@ export default function Page(){
       const benchHit=!positionHit&&coverageHasTeam(activeRoster?.benchCoverage,undefined,rookieTeam);
       const handcuffAdjustment=positionHit?glossaryNumber(HANDCUFF_ROW[row.position],g):(benchHit?glossaryNumber(20,g):0);
       const boardGrade=sourceGrade==null?null:sourceGrade*multiplier+handcuffAdjustment;
-      return {...row,sourceGrade,multiplier,handcuffAdjustment,boardGrade,overallRank:null,positionRank:null};
+      return {...row,sourceGrade,multiplier,handcuffAdjustment,boardGrade,overallRank:null,positionRank:null,tier:null,tierGapBefore:null};
     });
 
     const positionRanks=new Map<string,number>();
@@ -171,10 +175,19 @@ export default function Page(){
       if(b.boardGrade==null)return -1;
       return b.boardGrade-a.boardGrade||a.position.localeCompare(b.position)||a.name.localeCompare(b.name);
     });
-    let rank=0;
+    let rank=0,tier=1,previousGrade:number|null=null;
     return sorted.map(row=>{
       const overallRank=row.boardGrade==null?null:++rank;
-      return {...row,overallRank,positionRank:positionRanks.get(String(row.id))??null};
+      let rowTier:number|null=null,tierGapBefore:number|null=null;
+      if(row.boardGrade!=null){
+        if(previousGrade!=null){
+          const gap=previousGrade-row.boardGrade;
+          if(gap>=TIER_GAP){tier++;tierGapBefore=gap}
+        }
+        rowTier=tier;
+        previousGrade=row.boardGrade;
+      }
+      return {...row,overallRank,positionRank:positionRanks.get(String(row.id))??null,tier:rowTier,tierGapBefore};
     });
   },[grades,activeView,activeRoster,g]);
 
@@ -184,10 +197,10 @@ export default function Page(){
   },[scored,position,search]);
 
   function exportBoard(){
-    const header=["Overall Rank","Position Rank","Position","Player","College","Grade Source","Source Grade","Multiplier","Handcuff Adjustment","Board Grade"];
+    const header=["Overall Rank","Tier","Position Rank","Position","Player","College","Grade Source","Source Grade","Handcuff Adjustment","Board Grade"];
     const csv=[header,...scored.map(row=>[
-      row.overallRank??"",row.positionRank?row.position+" "+row.positionRank:"",row.position,row.name,row.college||"",row.gradeSource,
-      row.sourceGrade==null?"":row.sourceGrade.toFixed(2),row.multiplier.toFixed(4),row.handcuffAdjustment.toFixed(2),row.boardGrade==null?"":row.boardGrade.toFixed(2)
+      row.overallRank??"",row.tier??"",row.positionRank?row.position+" "+row.positionRank:"",row.position,row.name,row.college||"",row.gradeSource,
+      row.sourceGrade==null?"":row.sourceGrade.toFixed(2),row.handcuffAdjustment.toFixed(2),row.boardGrade==null?"":row.boardGrade.toFixed(2)
     ])].map(cols=>cols.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
     const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a");
@@ -209,7 +222,7 @@ export default function Page(){
 
     <div className="board-rule-strip">
       <span><b>No manual ordering.</b> Overall and position ranks recalculate from the active board grade.</span>
-      <span><b>Formula:</b> current grade × positional multiplier + league handcuff adjustment.</span>
+      <span><b>Formula:</b> current grade × positional multiplier + league handcuff adjustment. Multipliers stay behind the scenes.</span>
     </div>
 
     <div className="board-view-tabs" role="tablist" aria-label="Draft board view">
@@ -236,6 +249,10 @@ export default function Page(){
           onClick={()=>setPosition(pos)}
         >{pos}</button>)}
       </div>
+      <label className="board-detail-toggle">
+        <input type="checkbox" checked={showGradeDetails} onChange={e=>setShowGradeDetails(e.target.checked)}/>
+        <span>Show grade details</span>
+      </label>
       <button type="button" className="ghost board-export" onClick={exportBoard}>Export CSV</button>
     </div>
 
@@ -247,7 +264,10 @@ export default function Page(){
           <span className="ey">{activeView.label}</span>
           <h2>2027 Big Board</h2>
         </div>
-        <span className="board-auto-note">Automatically sorted by board grade</span>
+        <div className="board-auto-stack">
+          <span className="board-auto-note">Automatically sorted by board grade</span>
+          <span className="board-tier-note">Auto tiers · new tier at a {TIER_GAP.toFixed(1)}+ point drop</span>
+        </div>
       </div>
 
       {loading?<div className="board-loading">Building grade-driven board…</div>:<div className="board-table-wrap">
@@ -256,41 +276,48 @@ export default function Page(){
             <th className="rank-col">#</th>
             <th>Pos Rank</th>
             <th>Prospect</th>
-            <th>Grade Used</th>
-            <th>Multiplier</th>
+            {showGradeDetails&&<th>Grade Used</th>}
             <th>Handcuff</th>
             <th className="board-grade-col">Board Grade</th>
           </tr></thead>
           <tbody>
-            {visible.map(row=>{
-              const tone=gradeTone(row.boardGrade);
-              return <tr key={row.id}>
-                <td className="overall-rank">{row.overallRank??"—"}</td>
-                <td><span className={posClass(row.position)}>{row.position}{row.positionRank??"—"}</span></td>
-                <td>
-                  <div className="board-player">
-                    <div className="board-player-main">
-                      <PlayerName id={row.id} className="board-player-name">{row.name}</PlayerName>
-                      <span className="board-college" style={schoolStyle(row.college)}>{row.college||"—"}</span>
-                    </div>
-                    {row.draftResult&&row.gradeSource==="Final"&&<small>{row.draftResult}</small>}
+            {visible.map((row,index)=>{
+              const tone=gradeTone(row.boardGrade),previous=visible[index-1];
+              const startsTier=row.tier!=null&&(index===0||previous?.tier!==row.tier);
+              return <Fragment key={row.id}>
+                {startsTier&&<tr className="board-tier-row"><td colSpan={showGradeDetails?6:5}>
+                  <div className="board-tier-break">
+                    <strong>Tier {row.tier}</strong>
+                    <span>{row.tier===1?"Top grade cluster":row.tierGapBefore!=null?fmt(row.tierGapBefore,2)+" point drop from the previous prospect":"Automatic grade tier"}</span>
                   </div>
-                </td>
-                <td>
-                  {row.sourceGrade==null?<span className="board-incomplete">Incomplete scouting</span>:<div className="grade-used">
-                    <span className={"grade-source "+(row.gradeSource==="Final"?"final":"pre")}>{row.gradeSource==="Final"?"Final Draft":"Pre-Draft"}</span>
-                    <strong>{fmt(row.sourceGrade)}</strong>
-                  </div>}
-                </td>
-                <td className="formula-cell">× {row.multiplier.toFixed(4).replace(/0+$/,"").replace(/\.$/,"")}</td>
-                <td className={"formula-cell "+(row.handcuffAdjustment?"boost":"")}>{row.handcuffAdjustment?("+"+fmt(row.handcuffAdjustment)):"—"}</td>
-                <td>
-                  {row.boardGrade==null?<span className="board-incomplete">—</span>:<div className={"board-grade "+tone}>
-                    <strong>{fmt(row.boardGrade)}</strong>
-                    <div className="board-grade-track"><i style={{width:Math.max(0,Math.min(100,row.boardGrade))+"%"}}/></div>
-                  </div>}
-                </td>
-              </tr>
+                </td></tr>}
+                <tr>
+                  <td className="overall-rank">{row.overallRank??"—"}</td>
+                  <td><span className={posClass(row.position)}>{row.position}{row.positionRank??"—"}</span></td>
+                  <td>
+                    <div className="board-player">
+                      <div className="board-player-main">
+                        <PlayerName id={row.id} className="board-player-name">{row.name}</PlayerName>
+                        <span className="board-college" style={schoolStyle(row.college)}>{row.college||"—"}</span>
+                      </div>
+                      {row.draftResult&&row.gradeSource==="Final"&&<small>{row.draftResult}</small>}
+                    </div>
+                  </td>
+                  {showGradeDetails&&<td>
+                    {row.sourceGrade==null?<span className="board-incomplete">Incomplete scouting</span>:<div className="grade-used">
+                      <span className={"grade-source "+(row.gradeSource==="Final"?"final":"pre")}>{row.gradeSource==="Final"?"Final Draft":"Pre-Draft"}</span>
+                      <strong>{fmt(row.sourceGrade)}</strong>
+                    </div>}
+                  </td>}
+                  <td className={"formula-cell "+(row.handcuffAdjustment?"boost":"")}>{row.handcuffAdjustment?("+"+fmt(row.handcuffAdjustment)):"—"}</td>
+                  <td>
+                    {row.boardGrade==null?<span className="board-incomplete">—</span>:<div className={"board-grade "+tone}>
+                      <strong>{fmt(row.boardGrade)}</strong>
+                      <div className="board-grade-track"><i style={{width:Math.max(0,Math.min(100,row.boardGrade))+"%"}}/></div>
+                    </div>}
+                  </td>
+                </tr>
+              </Fragment>
             })}
           </tbody>
         </table>
@@ -308,7 +335,7 @@ export default function Page(){
       .board-view-tabs button{flex:0 0 auto;background:#0c1d35;border:1px solid #29476e;color:#9eb2ce;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:900}
       .board-view-tabs button:hover{background:#132a49;color:#fff}
       .board-view-tabs button.active{background:#173e67;border-color:#20e2dd;color:#fff;box-shadow:inset 0 -2px 0 #20e2dd}
-      .board-toolbar{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:10px;align-items:center;margin-bottom:12px}
+      .board-toolbar{display:grid;grid-template-columns:minmax(260px,1fr) auto auto auto;gap:10px;align-items:center;margin-bottom:12px}
       .board-search-wrap{position:relative}
       .board-search-wrap>span{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#6884a9;font-size:18px;pointer-events:none}
       .board-search-wrap input{height:40px;padding-left:36px;background:#08172a}
@@ -316,20 +343,29 @@ export default function Page(){
       .board-position-filter button{min-width:43px;height:38px;padding:0 10px;background:#10213a;border:1px solid #29476e;color:#9eb2ce}
       .board-position-filter button.active{outline:2px solid #dfeaff;outline-offset:-2px;color:#fff}
       .board-position-filter .board-pos{min-width:43px;border-radius:8px}
+      .board-detail-toggle{display:flex;align-items:center;gap:7px;height:40px;padding:0 11px;border:1px solid #29476e;border-radius:8px;background:#0c1d35;color:#a8bad2;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer}
+      .board-detail-toggle input{width:14px;height:14px;margin:0;padding:0;accent-color:#20e2dd}
+      .board-detail-toggle:hover{background:#132a49;color:#fff}
       .board-export{height:40px;white-space:nowrap}
       .board-card{overflow:hidden;border:1px solid #20395f;border-radius:14px;background:#081426;box-shadow:0 16px 40px rgba(0,0,0,.16)}
       .board-card-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 17px;background:linear-gradient(180deg,#10223d,#0b1a30);border-bottom:1px solid #20395f}
       .board-card-head h2{margin:2px 0 0;font-size:20px}
+      .board-auto-stack{display:grid;justify-items:end;gap:4px}
       .board-auto-note{color:#7f98ba;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.065em}
+      .board-tier-note{color:#58a7ff;font-size:9px;font-weight:850}
       .board-table-wrap{overflow:auto;max-height:calc(100vh - 305px)}
       .final-board-table{width:100%;min-width:930px;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
       .final-board-table th{position:sticky;top:0;z-index:8;background:#10223d;color:#8fa7c8;padding:10px 12px;border-bottom:1px solid #31527f;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.075em}
       .final-board-table th.rank-col,.final-board-table td.overall-rank{text-align:center;width:62px}
       .final-board-table th.board-grade-col{min-width:175px}
       .final-board-table td{padding:10px 12px;border-bottom:1px solid #172d4d;background:#09172a;color:#dce7f6;vertical-align:middle}
-      .final-board-table tbody tr:nth-child(even) td{background:#0b1b31}
-      .final-board-table tbody tr:hover td{background:#102642}
+      .final-board-table tbody tr:not(.board-tier-row):nth-child(even) td{background:#0b1b31}
+      .final-board-table tbody tr:not(.board-tier-row):hover td{background:#102642}
       .final-board-table tbody tr:last-child td{border-bottom:0}
+      .board-tier-row td{padding:0!important;border-bottom:1px solid #31527f!important;background:#071426!important}
+      .board-tier-break{display:flex;align-items:center;gap:10px;padding:8px 12px;background:linear-gradient(90deg,rgba(88,167,255,.16),rgba(32,226,221,.04) 45%,transparent);border-left:3px solid #58a7ff}
+      .board-tier-break strong{color:#eaf3ff;font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
+      .board-tier-break span{color:#7794ba;font-size:9px;font-weight:800}
       .overall-rank{font-size:20px;font-weight:950;color:#eef5ff!important}
       .board-pos{display:inline-flex;align-items:center;justify-content:center;min-width:52px;padding:5px 8px;border-radius:6px;color:#06101e;font-size:11px;font-weight:950}
       .board-pos-qb{background:#fc2b6d;color:#fff!important}
@@ -361,7 +397,7 @@ export default function Page(){
       .board-loading,.board-empty{padding:34px;text-align:center;color:#8fa7c8}
       .board-error{margin:0 0 12px;padding:10px 12px;border:1px solid #7a3341;border-radius:9px;background:#351a23;color:#ffc0c8;font-weight:800}
       @media(max-width:980px){
-        .board-toolbar{grid-template-columns:1fr auto}
+        .board-toolbar{grid-template-columns:1fr auto auto}
         .board-position-filter{grid-column:1/-1;overflow:auto}
         .board-table-wrap{max-height:none}
       }
@@ -370,9 +406,11 @@ export default function Page(){
         .final-board-head .status{margin-top:10px}
         .board-toolbar{grid-template-columns:1fr}
         .board-position-filter{grid-column:auto}
-        .board-export{width:100%}
+        .board-detail-toggle,.board-export{width:100%}
+        .board-detail-toggle{justify-content:center}
         .board-card-head{display:block}
-        .board-auto-note{display:block;margin-top:7px}
+        .board-auto-stack{justify-items:start;margin-top:8px}
+        .board-auto-note{display:block}
       }
     `}</style>
   </div>;
