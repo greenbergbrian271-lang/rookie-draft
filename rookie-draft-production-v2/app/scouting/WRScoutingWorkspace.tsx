@@ -301,11 +301,11 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   function jumpToPlayer(p:Player){setMode("Evaluate");setSelectedId(String(p.id));requestAnimationFrame(()=>document.getElementById("wr-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}))}
 
   function renderPlayerSection(p:Player){
-    const id=String(p.id),imp=importedFor(p),metrics=metricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p);
+    const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p);
     const teamScore=num(fields["Team Score (10)"]),draftCapital=num(fields["Draft Capital Score (10)"]),g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     const teamAdj=preDraft==null||teamScore==null?null:(teamScore-5)*2*glossaryNumber(29,g),capitalAdj=preDraft==null||draftCapital==null?null:(draftCapital-5)*2*glossaryNumber(30,g);
     const finalGrade=preDraft==null||teamScore==null||draftCapital==null?null:draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g);
-    const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=num(evalFor(p,"Games watched")??evalFor(p,"Games Watched"))||0,rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
+    const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     const penalty=penaltyFor(p),penaltyValue=glossaryNumber(205,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <header className="qb-player-hero" style={style}>
@@ -317,7 +317,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         </div>
         <div className={"qb-save-state "+saveState}>{demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
       </header>
-      <div className="qb-grade-strip" style={{gridTemplateColumns:"repeat(5,1fr)"}}>
+      <div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/7 traits graded"}/>
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint={penalty?"ADOT / contested penalty applied":"Workbook percentile model"}/>
@@ -328,13 +328,13 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       {tab==="Film"&&<div className="qb-tab-content">
         <div className="qb-section-head"><div><span className="ey">Scout Inputs</span><h2>Film Evaluation</h2><p>Seven WR traits retain the workbook weights while using the same focused interaction model as QB scouting.</p></div><div className="qb-completion">{filmComplete}/7 complete</div></div>
         <div className="qb-context-grid">
-          <Field label="Games watched" source="Scout"><input type="number" min="0" step="1" value={inputValue(evalFor(p,"Games watched")??evalFor(p,"Games Watched"))} onChange={e=>local(p,"Games watched",e.target.value)} onBlur={e=>persist(p,"Games watched",e.target.value===""?"":Number(e.target.value))}/></Field>
           <ConstrainedField label="Expected role" value={inputValue(evalFor(p,"Expected Role"))} options={[...ROLE_OPTIONS]} onLocal={v=>local(p,"Expected Role",v)} onCommit={v=>persist(p,"Expected Role",v)}/>
           <ConstrainedField label="Draft projection" value={inputValue(evalFor(p,"Draft Projection"))} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
+          <ReadOnly label="Games watched" value={gamesWatched}/>
         </div>
-        <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait}>
+        <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
           <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
-          <input className="qb-grade-slider heat" style={{color:heatColor((n??50)/100)}} type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(p,trait,Number(e.target.value))} onMouseUp={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))}/>
+          <input className="qb-grade-slider heat" type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(p,trait,Number(e.target.value))} onMouseUp={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))} onTouchEnd={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))}/>
           <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
           <input className="qb-grade-number" type="number" min="0" max="100" step=".01" value={inputValue(evalFor(p,trait))} onChange={e=>local(p,trait,e.target.value)} onBlur={e=>persist(p,trait,e.target.value===""?"":Math.round(Number(e.target.value)*100)/100)} placeholder="—"/>
         </div>})}</div>
