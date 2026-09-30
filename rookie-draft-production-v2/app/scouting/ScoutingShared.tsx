@@ -70,8 +70,8 @@ export function MockDraftablePanel({playerName,position,data}:{playerName:string
   ].filter(([,v])=>v!==null&&v!==undefined&&v!=="");
   const url=String(data?.["MockDraftable URL"]||data?.MockDraftable||"").trim();
   const available=Boolean(url||measurements.length);
-  if(!available)return <div className="mockdraftable-unavailable"><span className="ey">MockDraftable</span><strong>MockDraftable data not available yet</strong><p>The spider chart and supplemental measurements will appear automatically once the player has MockDraftable data.</p></div>;
-  return <><div className="qb-section-head compact"><div><span className="ey">MockDraftable</span><h2>Spider + Additional Measurements</h2><p>Supplemental measurements and the position-relative spider chart.</p></div></div>
+  if(!available)return <div className="mockdraftable-unavailable"><span className="ey">MockDraftable</span><strong>MockDraftable data not available yet</strong><p>The spider chart and supplemental measurements will appear automatically once the player has MockDraftable data.</p><DataFreshness label="Combine data" value={data?.["Combine Refreshed At"]}/></div>;
+  return <><div className="qb-section-head compact"><div><span className="ey">MockDraftable</span><h2>Spider + Additional Measurements</h2><p>Supplemental measurements and the position-relative spider chart.</p></div><DataFreshness label="Combine data" value={data?.["Combine Refreshed At"]}/></div>
     {measurements.length>0&&<div className="qb-analytics-grid mockdraftable-metrics mockdraftable-unique-metrics">{measurements.map(([label,value])=><div className="qb-metric" key={String(label)}><div className="qb-metric-top"><div><span>{label}</span><small>MockDraftable measurement</small></div><b>{String(value)}</b></div></div>)}</div>}
     <div className="mockdraftable-frame-card mockdraftable-frame-full"><div className="mockdraftable-frame-head"><div><span className="ey">MockDraftable</span><strong>{playerName} · {position}</strong></div><a href={url||("https://www.mockdraftable.com/player/"+mockSlug(playerName))} target="_blank" rel="noreferrer">Open profile ↗</a></div><iframe title={playerName+" MockDraftable spider chart"} src={"https://www.mockdraftable.com/embed/"+mockSlug(playerName)+"?position="+position+"&page=GRAPH"} loading="lazy"/></div>
   </>;
@@ -99,6 +99,29 @@ export function DataFreshness({label,value}:{label:string,value:any}){
 export function PercentileMetricCard({label,detail,value,percentile,inverse=false}:{label:string,detail?:string,value:any,percentile:number|null,inverse?:boolean}){
   const p=percentile==null?null:Math.max(0,Math.min(1,percentile));
   return <div className="qb-metric"><div className="qb-metric-top"><div><span>{label}</span><small>{detail||(inverse?"Lower raw is better":"Higher raw is better")}</small></div><b>{value??"—"}</b></div><div className="qb-percentile heat"><i style={{left:((p??0)*100)+"%",background:`hsl(${Math.round((p??0)*120)} 72% 48%)`}}/></div><div className="qb-metric-foot"><span>Quality percentile</span><strong>{p==null?"—":Math.round(p*100)}</strong></div></div>
+}
+
+function sharedNum(v:any){if(v==null||v==="")return null;const n=Number(String(v).replace(/[%,$]/g,"").replace(/,/g,""));return Number.isFinite(n)?n:null}
+function rasFromData(data:any){
+  const score=sharedNum(data?.RAS)??sharedNum(data?.["Raw Athletic Score"])??sharedNum(data?.["Relative Athletic Score"]);
+  const url=String(data?.["RAS URL"]||"");
+  const specs=[
+    ["Height",data?.Height,data?.["Height RAS"]??data?.["Height Score"]],["Weight",data?.Weight,data?.["Weight RAS"]??data?.["Weight Score"]],
+    ["40 Yard Dash",data?.["40 Yard Dash"],data?.["40 RAS"]??data?.["40 Yard Dash RAS"]??data?.["40 Score"]],
+    ["20 Yard Split",data?.["20 Yard Split"],data?.["20 Yard Split RAS"]??data?.["20 Split Score"]],["10 Yard Split",data?.["10 Yard Split"],data?.["10 Yard Split RAS"]??data?.["10 Split Score"]],
+    ["Bench Press",data?.["Bench Reps"]??data?.["Bench Press"],data?.["Bench RAS"]??data?.["Bench Score"]],["Vertical",data?.Vertical??data?.["Vertical Jump"],data?.["Vertical RAS"]??data?.["Vertical Score"]],["Broad Jump",data?.["Broad Jump"],data?.["Broad Jump RAS"]??data?.["Broad Score"]]
+  ] as const;
+  const metrics=specs.map(([label,value,s])=>({label,value:value==null||value===""?"—":String(value),score:sharedNum(s)})).filter(x=>x.score!=null);
+  return {score,url,metrics};
+}
+export function CombineTestingSection({playerName,position,data,grade,children}:{playerName:string,position:"QB"|"RB"|"WR"|"TE",data:any,grade:number|null,children?:React.ReactNode}){
+  const ras=rasFromData(data);
+  return <div className="qb-tab-content">
+    <div className="qb-section-head"><div><span className="ey">Combine / Pro Day</span><h2>Testing Profile</h2><p>RAS first when available, followed by position testing and MockDraftable data.</p></div><div className="qb-grade-pill"><span>Grade</span><b>{grade==null?"—":grade.toFixed(2)}</b></div></div>
+    {ras.score!=null&&<><div className="qb-section-head compact"><div><span className="ey">Relative Athletic Score</span><h2>RAS Breakdown</h2><p>Overall RAS plus position-relative 0–10 component scores available in Player Data.</p></div>{ras.url&&<a className="ghost" href={ras.url} target="_blank" rel="noreferrer">Open RAS profile ↗</a>}</div><div className="qb-analytics-grid"><div className="qb-metric"><div className="qb-metric-top"><div><span>RAS Score</span><small>Overall Relative Athletic Score</small></div><b>{ras.score.toFixed(2)}</b></div><div className="qb-percentile heat"><i style={{left:(ras.score*10)+"%",background:`hsl(${Math.round((ras.score/10)*120)} 72% 48%)`}}/></div><div className="qb-metric-foot"><span>Overall {position} score</span><strong>{ras.score.toFixed(2)} / 10</strong></div></div>{ras.metrics.map(m=><div className="qb-metric" key={"ras-"+m.label}><div className="qb-metric-top"><div><span>{m.label}</span><small>RAS component score</small></div><b>{m.value}</b></div><div className="qb-percentile heat"><i style={{left:((m.score??0)*10)+"%",background:`hsl(${Math.round(((m.score??0)/10)*120)} 72% 48%)`}}/></div><div className="qb-metric-foot"><span>{position} score</span><strong>{m.score?.toFixed(2)} / 10</strong></div></div>)}</div></>}
+    {children}
+    <MockDraftablePanel playerName={playerName} position={position} data={data}/>
+  </div>
 }
 
 function ReadOnly({label,value}:{label:string,value:any}){return <div className="qb-readonly"><span>{label}<em>Data</em></span><strong>{value==null||value===""?"—":String(value)}</strong></div>}
