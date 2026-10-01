@@ -504,7 +504,7 @@
 
 
 /* Returning-player retrospective + card containment */
-.qb-evaluate-player{min-width:0;max-width:100%;overflow:hidden}
+.qb-evaluate-player{min-width:0;max-width:calc(100% - 6px);width:calc(100% - 6px);margin-left:3px;margin-right:3px;overflow:hidden}
 .qb-player-hero{width:100%;max-width:100%;min-width:0}
 .qb-player-title{min-width:0;overflow:hidden}
 .qb-player-title h1{max-width:100%;overflow-wrap:anywhere}

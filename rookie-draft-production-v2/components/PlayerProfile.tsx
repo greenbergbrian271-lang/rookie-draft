@@ -37,9 +37,9 @@ export function PlayerProfileProvider({children}:{children:React.ReactNode}){
     const norm=(v:string)=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
     const onClick=(e:MouseEvent)=>{
       const target=e.target as HTMLElement|null;if(!target)return;
+      if(target.closest("[data-player-profile-ignore],button,a,input,select,textarea,option,[role=button]"))return;
       const explicit=target.closest<HTMLElement>("[data-player-id]");
-      if(explicit?.dataset.playerId&&!target.closest("input,select,textarea,option")){openPlayer(explicit.dataset.playerId);return}
-      if(target.closest("button,a,input,select,textarea,option,[role=button]"))return;
+      if(explicit?.dataset.playerId){openPlayer(explicit.dataset.playerId);return}
       let el:HTMLElement|null=target;
       for(let depth=0;el&&depth<5&&!el.matches("main,body");depth++,el=el.parentElement){
         const t=norm(el.innerText||el.textContent||"");if(!t||t.length>260)continue;

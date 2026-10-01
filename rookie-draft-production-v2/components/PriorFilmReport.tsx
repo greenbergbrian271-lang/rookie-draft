@@ -27,6 +27,7 @@ export default function PriorFilmReport({report}:{report?:any}){
 
   return <section
     className="prior-year-lookback"
+    data-player-profile-ignore="true"
     onClick={e=>e.stopPropagation()}
     onMouseDown={e=>e.stopPropagation()}
     aria-label={report.fromDraftClass+" prior year scouting lookback"}
