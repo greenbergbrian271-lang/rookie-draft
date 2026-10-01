@@ -4,6 +4,7 @@ import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
 import {glossaryNumber,type GlossaryRows} from "@/lib/scouting-formulas";
 import PlayerName from "@/components/PlayerName";
+import {useDraftClass} from "@/lib/use-draft-class";
 
 type Pos="QB"|"RB"|"WR"|"TE";
 type GradeRow={
@@ -97,6 +98,7 @@ function heatColor(ratio:number){
 }
 
 export default function Page(){
+  const draftClass=useDraftClass();
   const [grades,setGrades]=useState<GradeRow[]>([]);
   const [glossary,setGlossary]=useState<any[][]>([]);
   const [rosters,setRosters]=useState<RosterView[]>([]);
@@ -115,7 +117,7 @@ export default function Page(){
       setLoading(true);setError("");
       try{
         const [gradeRes,glossaryRes,rosterRes,integrationRes]=await Promise.all([
-          fetch("/api/grades?draftClass=2027",{cache:"no-store"}),
+          fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}),
           fetch("/api/scouting-glossary",{cache:"no-store"}),
           fetch("/api/dynasty-rosters",{cache:"no-store"}),
           fetch("/api/integrations",{cache:"no-store"})
@@ -135,13 +137,13 @@ export default function Page(){
       }finally{if(live)setLoading(false)}
     })();
     return()=>{live=false};
-  },[]);
+  },[draftClass]);
 
   useEffect(()=>{
-    const refresh=()=>{fetch("/api/grades?draftClass=2027",{cache:"no-store"}).then(r=>r.json()).then(data=>{if(Array.isArray(data))setGrades(data)}).catch(()=>{})};
+    const refresh=()=>{fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(data=>{if(Array.isArray(data))setGrades(data)}).catch(()=>{})};
     window.addEventListener("rookie-draft:players-changed",refresh);
     return()=>window.removeEventListener("rookie-draft:players-changed",refresh);
-  },[]);
+  },[draftClass]);
 
   const views=useMemo<BoardView[]>(()=>{
     const leagueViews=leagues.filter(x=>x.enabled!==false).map(x=>({
@@ -216,7 +218,7 @@ export default function Page(){
     const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
-    a.download="rookie-draft-2027-final-board-"+activeView.key.replace(/[^a-z0-9]+/gi,"-")+".csv";
+    a.download="rookie-draft-"+draftClass+"-final-board-"+activeView.key.replace(/[^a-z0-9]+/gi,"-")+".csv";
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -224,7 +226,7 @@ export default function Page(){
   return <div className="final-board-page">
     <div className="page-head final-board-head">
       <div>
-        <div className="ey">2027 Rookie Class</div>
+        <div className="ey">{draftClass} Rookie Class</div>
         <h1>Final Draft Board</h1>
         <p className="muted">Grade-driven board built only from prospects currently on the web Scouting tabs. Pre-Draft Grade drives the board until a true Final Draft Grade exists.</p>
       </div>

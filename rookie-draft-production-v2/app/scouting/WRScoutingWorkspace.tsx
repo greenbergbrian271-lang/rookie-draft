@@ -7,6 +7,7 @@ import {wrAnalyticalGrade} from "@/lib/analytical-grades";
 import {wrProductionGrade} from "@/lib/wr-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
+import PriorFilmReport from "@/components/PriorFilmReport";
 import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,ScoutingPlayerHero,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
 
 type Player={
@@ -17,7 +18,7 @@ type Session={id:string|number;player_id?:string|number;game_date?:string|null;o
 type DraftPick={overall:number;pos:"QB"|"RB"|"WR"|"TE";name:string;team:string;college?:string;teamScore:number;draftCapitalScore:number};
 type Props={
   players:Player[];vals:Record<string,any>;setVals:React.Dispatch<React.SetStateAction<Record<string,any>>>;
-  imports:any[];glossary:any[][];onSave:(player:Player,category:string,value:any)=>Promise<any>;onAdd:()=>void;demoMode?:boolean;
+  imports:any[];glossary:any[][];onSave:(player:Player,category:string,value:any)=>Promise<any>;onAdd:()=>void;demoMode?:boolean;draftClass?:number;priorReports?:Record<string,any>;
 };
 type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft";
 type Mode="Evaluate"|"Compare";
@@ -97,7 +98,7 @@ function heatColor(ratio:number){const r=Math.max(0,Math.min(1,ratio));return "h
 function conditionalStyle(value:any,values:number[]){const n=typeof value==="number"?value:null;if(n==null||!Number.isFinite(n)||!values.length)return undefined;const min=Math.min(...values),max=Math.max(...values),ratio=max===min?.5:(n-min)/(max-min),h=Math.round(ratio*120);return {background:"hsl("+h+" 72% 42% / .18)",boxShadow:"inset 0 -2px 0 hsl("+h+" 72% 48% / .75)"}}
 function fmt(v:number|null){return v==null?"—":v.toFixed(2)}
 
-export default function WRScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false}:Props){
+export default function WRScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false,draftClass=2027,priorReports={}}:Props){
   const {openPlayer}=usePlayerProfile();
   const [selectedId,setSelectedId]=useState("");
   const [search,setSearch]=useState("");
@@ -326,7 +327,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const hasMockDraftable=Boolean(imp["MockDraftable URL"]||imp.MockDraftable||mockMeasurements.length);
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <ScoutingPlayerHero player={p} position="WR" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class||imp?.["Draft Class"]} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
-      <div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
+      <PriorFilmReport report={priorReports?.[id]}/><div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/7 traits graded"}/>
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint={penalty?"ADOT / contested penalty applied":"Workbook percentile model"}/>
@@ -382,7 +383,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   if(!players.length)return <div className="qb-workspace-empty"><h2>No watched WRs yet</h2><p>Add a wide receiver to the watched pool to start a scouting report.</p><button className="success" onClick={onAdd}>+ New Player Watched</button></div>;
   const comparePlayers=rankedPlayers.filter(p=>compareIds.includes(String(p.id)));
   return <div className="qb-workspace wr-workspace">
-    <aside className="qb-prospect-rail"><div className="qb-rail-head"><div><span className="ey">2027 Wide Receivers</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
+    <aside className="qb-prospect-rail"><div className="qb-rail-head"><div><span className="ey">{draftClass} Wide Receivers</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
       <div className="qb-mode-toggle">{(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}</div>
       <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search wide receivers…"/>
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">WR{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/7 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
