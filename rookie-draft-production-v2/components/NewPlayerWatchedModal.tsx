@@ -5,7 +5,7 @@ import {schoolStyle} from "@/lib/school-colors";
 type Player={id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;scouting_status:string};
 const norm=(s:any)=>String(s??"").trim().toLowerCase();
 
-export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolean;onClose:()=>void;onDone?:()=>void}){
+export default function NewPlayerWatchedModal({open,onClose,onDone,draftClass=2027}:{open:boolean;onClose:()=>void;onDone?:()=>void;draftClass?:number}){
   const [players,setPlayers]=useState<Player[]>([]),[position,setPosition]=useState("ALL"),[college,setCollege]=useState(""),[search,setSearch]=useState("");
   const [selected,setSelected]=useState<string[]>([]),[queue,setQueue]=useState<string[]>([]),[busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[complete,setComplete]=useState(false),[sheetIds,setSheetIds]=useState<string[]>([]);
 
@@ -14,7 +14,7 @@ export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolea
     fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(Array.isArray(j))setPlayers(j)}).catch(()=>setMsg("Could not load players.")).finally(()=>setBusy(false));
   },[open]);
 
-  const classPlayers=useMemo(()=>players.filter(p=>p.draft_class===2027),[players]);
+  const classPlayers=useMemo(()=>players.filter(p=>p.draft_class===draftClass),[players,draftClass]);
   const candidates=useMemo(()=>classPlayers.filter(p=>!["WATCHED","FINISHED","MAYBE"].includes(p.scouting_status)&&!sheetIds.includes(String(p.id))),[classPlayers,sheetIds]);
   const excluded=classPlayers.length-candidates.length;
   const colleges=useMemo(()=>Array.from(new Set(candidates.map(p=>p.college).filter(Boolean) as string[])).sort((a,b)=>a.localeCompare(b)),[candidates]);
@@ -31,10 +31,10 @@ export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolea
         const r=await fetch("/api/players",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:p.id,status:"WATCHED"})});
         if(!r.ok)throw new Error("Could not add "+p.name+" to scouting.");
         const defaults=p.position==="QB"
-          ?{"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"}
+          ?{"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"}
           :p.position==="TE"
-            ?{"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"}
-            :{"Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"};
+            ?{"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"}
+            :{"Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"};
         await Promise.all(Object.entries(defaults).map(([category,commentary])=>fetch("/api/evaluations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,category,value:null,commentary})})));
       }
       setMsg(`${picked.length} player${picked.length===1?"":"s"} added to the appropriate scouting page${picked.length===1?"":"s"}.`);setComplete(true);setQueue([]);setSelected([]);window.dispatchEvent(new Event("rookie-draft:players-changed"));onDone?.();
@@ -43,7 +43,7 @@ export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolea
   if(!open)return null;
   return <div className="watched-modal-backdrop" role="dialog" aria-modal="true" aria-label="New Players Watched" onMouseDown={e=>e.target===e.currentTarget&&!busy&&onClose()}>
     <div className="watched-modal" onMouseDown={e=>e.stopPropagation()}>
-      <div className="watched-modal-head"><div><span className="ey">Scouting Tools</span><h2>New Players Watched</h2><p>Add existing Players to Scout to their position scouting pages.</p></div><button className="small ghost" disabled={busy} onClick={onClose}>Close</button></div>
+      <div className="watched-modal-head"><div><span className="ey">{draftClass} · Scouting Tools</span><h2>New Players Watched</h2><p>Add existing {draftClass} Players to Scout to their position scouting pages.</p></div><button className="small ghost" disabled={busy} onClick={onClose}>Close</button></div>
       <div className="watched-exclusion">📘 Excluding {excluded} player{excluded===1?"":"s"} already on scouting sheets</div>
       <div className="watched-filter-grid">
         <label>Position<select value={position} onChange={e=>{setPosition(e.target.value);setSelected([])}}><option value="ALL">All Positions</option>{["QB","RB","WR","TE"].map(x=><option key={x}>{x}</option>)}</select></label>

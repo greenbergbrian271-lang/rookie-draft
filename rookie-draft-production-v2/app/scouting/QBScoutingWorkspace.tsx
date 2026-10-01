@@ -6,6 +6,7 @@ import {draftAdjustedFinalGrade,glossaryNumber,preDraftGrade,workbookScoutingGra
 import {qbAnalyticalGrade} from "@/lib/analytical-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
+import PriorFilmReport from "@/components/PriorFilmReport";
 import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
 
 type Player={
@@ -37,7 +38,7 @@ type Props={
   glossary:any[][];
   onSave:(player:Player,category:string,value:any)=>Promise<any>;
   onAdd:()=>void;
-  demoMode?:boolean;
+  demoMode?:boolean;draftClass?:number;priorReports?:Record<string,any>;
 };
 type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft";
 type Mode="Evaluate"|"Compare";
@@ -114,7 +115,7 @@ function scoreLabel(n:number|null){
   return "Concern";
 }
 
-export default function QBScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false}:Props){
+export default function QBScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false,draftClass=2027,priorReports={}}:Props){
   const {openPlayer}=usePlayerProfile();
   const [selectedId,setSelectedId]=useState<string>("");
   const [search,setSearch]=useState("");
@@ -343,6 +344,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="QB" data={imp} grade={combine}><div className="qb-combine-grid"><ReadOnly label="Height" value={imp?.Height}/><ReadOnly label="Weight" value={imp?.Weight}/><ReadOnly label="BMI" value={display(imp?.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={display(imp?.["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={display(imp?.["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={imp?.["Broad Jump"]}/></div></CombineTestingSection>}
 
       {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={false} updatedAt={draftUpdatedAt}/>}
+      <PriorFilmReport report={priorReports?.[id]}/>
     </article>
   }
 
@@ -352,7 +354,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
 
   return <div className="qb-workspace">
     <aside className="qb-prospect-rail">
-      <div className="qb-rail-head"><div><span className="ey">2027 Quarterbacks</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
+      <div className="qb-rail-head"><div><span className="ey">{draftClass} Quarterbacks</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
       <div className="qb-mode-toggle">{(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}</div>
       <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search quarterbacks…"/>
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">QB{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/9 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>

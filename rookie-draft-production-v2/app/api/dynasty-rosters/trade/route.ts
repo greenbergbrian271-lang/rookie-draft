@@ -129,6 +129,8 @@ export async function GET(req:Request){
     const url=new URL(req.url);
     const leagueKey=String(url.searchParams.get("leagueKey")||"");
     const partnerRosterIdRaw=url.searchParams.get("partnerRosterId");
+    const mineAssetsOnly=url.searchParams.get("mineAssets")==="1";
+    const allAssets=url.searchParams.get("allAssets")==="1";
 
     const integrations=await getIntegrations();
     const league=integrations.sleeper.leagues.find(l=>l.key===leagueKey&&l.enabled!==false);
@@ -149,7 +151,7 @@ export async function GET(req:Request){
       .map(r=>({rosterId:Number(r.roster_id),name:teamName(r,users)}))
       .sort((a,b)=>a.name.localeCompare(b.name));
 
-    if(!partnerRosterIdRaw){
+    if(!partnerRosterIdRaw&&!mineAssetsOnly&&!allAssets){
       return Response.json({
         league:{key:league.key,name:String(leagueData?.name||league.name),leagueId:league.leagueId},
         myTeam:{rosterId:myRosterId,name:teamName(mine,users)},
@@ -157,9 +159,9 @@ export async function GET(req:Request){
       });
     }
 
-    const partnerRosterId=Number(partnerRosterIdRaw);
-    const partner=rosters.find(r=>Number(r.roster_id)===partnerRosterId);
-    if(!partner||partnerRosterId===myRosterId)return Response.json({error:"Trade partner not found"},{status:404});
+    const partnerRosterId=partnerRosterIdRaw?Number(partnerRosterIdRaw):0;
+    const partner=partnerRosterId?rosters.find(r=>Number(r.roster_id)===partnerRosterId):null;
+    if(partnerRosterId&&(!partner||partnerRosterId===myRosterId))return Response.json({error:"Trade partner not found"},{status:404});
 
     const [playerDb,tradedPicks,dataset]=await Promise.all([
       sleeperJson("https://api.sleeper.app/v1/players/nfl",true),
@@ -179,18 +181,44 @@ export async function GET(req:Request){
       players:buildPlayers(mine,playerDb,matcher,league),
       picks:buildPicks({rosters,tradedPicks,years,rounds,ownerRosterId:myRosterId,dataset,users}),
     };
+    const base={
+      league:{key:league.key,name:String(leagueData?.name||league.name),leagueId:league.leagueId},
+      myTeam:{rosterId:myRosterId,name:teamName(mine,users),assets:myAssets},
+      teams,
+      ktcUpdatedAt:dataset.fetchedAt,
+      pickValueNote:"Future picks use KTC's Mid-round value until an actual draft slot is known.",
+    };
+
+    if(mineAssetsOnly&&!allAssets&&!partnerRosterId){
+      return Response.json(base);
+    }
+
+    if(allAssets){
+      const leagueTeams=rosters
+        .filter(r=>Number(r.roster_id)!==myRosterId)
+        .map(r=>{
+          const rosterId=Number(r.roster_id);
+          return {
+            rosterId,
+            name:teamName(r,users),
+            assets:{
+              players:buildPlayers(r,playerDb,matcher,league),
+              picks:buildPicks({rosters,tradedPicks,years,rounds,ownerRosterId:rosterId,dataset,users}),
+            },
+          };
+        })
+        .sort((a,b)=>a.name.localeCompare(b.name));
+      return Response.json({...base,leagueTeams});
+    }
+
     const partnerAssets={
       players:buildPlayers(partner,playerDb,matcher,league),
       picks:buildPicks({rosters,tradedPicks,years,rounds,ownerRosterId:partnerRosterId,dataset,users}),
     };
 
     return Response.json({
-      league:{key:league.key,name:String(leagueData?.name||league.name),leagueId:league.leagueId},
-      myTeam:{rosterId:myRosterId,name:teamName(mine,users),assets:myAssets},
+      ...base,
       partnerTeam:{rosterId:partnerRosterId,name:teamName(partner,users),assets:partnerAssets},
-      teams,
-      ktcUpdatedAt:dataset.fetchedAt,
-      pickValueNote:"Future picks use KTC's Mid-round value until an actual draft slot is known.",
     });
   }catch(e:any){
     return Response.json({error:"Could not load trade calculator assets",detail:e?.message},{status:500});

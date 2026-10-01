@@ -2,8 +2,8 @@
 
 import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
-import {glossaryNumber,type GlossaryRows} from "@/lib/scouting-formulas";
 import PlayerName from "@/components/PlayerName";
+import {useDraftClass} from "@/lib/use-draft-class";
 
 type Pos="QB"|"RB"|"WR"|"TE";
 type GradeRow={
@@ -97,9 +97,8 @@ function heatColor(ratio:number){
 }
 
 export default function Page(){
-  const [grades,setGrades]=useState<GradeRow[]>([]);
-  const [glossary,setGlossary]=useState<any[][]>([]);
-  const [rosters,setRosters]=useState<RosterView[]>([]);
+  const draftClass=useDraftClass();
+  const [scored,setScored]=useState<ScoredRow[]>([]);
   const [leagues,setLeagues]=useState<League[]>(FALLBACK_LEAGUES);
   const [viewKey,setViewKey]=useState("base");
   const [position,setPosition]=useState<"ALL"|Pos>("ALL");
@@ -112,36 +111,35 @@ export default function Page(){
   useEffect(()=>{
     let live=true;
     (async()=>{
-      setLoading(true);setError("");
       try{
-        const [gradeRes,glossaryRes,rosterRes,integrationRes]=await Promise.all([
-          fetch("/api/grades?draftClass=2027",{cache:"no-store"}),
-          fetch("/api/scouting-glossary",{cache:"no-store"}),
-          fetch("/api/dynasty-rosters",{cache:"no-store"}),
-          fetch("/api/integrations",{cache:"no-store"})
-        ]);
-        const safeJson=async(res:Response)=>{if(!res.ok)return {};try{return await res.json()}catch{return {}}};
-        const gradeData=await gradeRes.json();
-        const [glossaryData,rosterData,integrationData]=await Promise.all([safeJson(glossaryRes),safeJson(rosterRes),safeJson(integrationRes)]);
-        if(!gradeRes.ok)throw new Error(gradeData?.error||"Could not load scouting grades");
-        if(!live)return;
-        setGrades(Array.isArray(gradeData)?gradeData:[]);
-        setGlossary(Array.isArray(glossaryData?.rows)?glossaryData.rows:[]);
-        setRosters(Array.isArray(rosterData?.rosters)?rosterData.rosters:[]);
-        const liveLeagues=integrationData?.sleeper?.leagues;
-        if(Array.isArray(liveLeagues)&&liveLeagues.length)setLeagues(liveLeagues);
-      }catch(e:any){
-        if(live)setError(e?.message||"Could not load Final Draft Board");
-      }finally{if(live)setLoading(false)}
+        const r=await fetch("/api/integrations",{cache:"no-store"});
+        const data=r.ok?await r.json():{};
+        const liveLeagues=data?.sleeper?.leagues;
+        if(live&&Array.isArray(liveLeagues)&&liveLeagues.length)setLeagues(liveLeagues);
+      }catch{}
     })();
     return()=>{live=false};
   },[]);
 
   useEffect(()=>{
-    const refresh=()=>{fetch("/api/grades?draftClass=2027",{cache:"no-store"}).then(r=>r.json()).then(data=>{if(Array.isArray(data))setGrades(data)}).catch(()=>{})};
+    let live=true;
+    const load=async()=>{
+      setLoading(true);setError("");
+      try{
+        const r=await fetch("/api/final-board/live?view="+encodeURIComponent(viewKey)+"&draftClass="+draftClass,{cache:"no-store"});
+        const data=await r.json();
+        if(!r.ok)throw new Error(data?.error||"Could not load Final Draft Board");
+        if(live)setScored(Array.isArray(data?.rows)?data.rows:[]);
+      }catch(e:any){
+        if(live)setError(e?.message||"Could not load Final Draft Board");
+      }finally{if(live)setLoading(false)}
+    };
+    load();
+    const refresh=()=>load();
     window.addEventListener("rookie-draft:players-changed",refresh);
-    return()=>window.removeEventListener("rookie-draft:players-changed",refresh);
-  },[]);
+    window.addEventListener("rookie-draft:archives-changed",refresh);
+    return()=>{live=false;window.removeEventListener("rookie-draft:players-changed",refresh);window.removeEventListener("rookie-draft:archives-changed",refresh)};
+  },[viewKey,draftClass]);
 
   const views=useMemo<BoardView[]>(()=>{
     const leagueViews=leagues.filter(x=>x.enabled!==false).map(x=>({
@@ -157,51 +155,6 @@ export default function Page(){
     ];
   },[leagues]);
   const activeView:BoardView=views.find(x=>x.key===viewKey)||{key:"base",label:"Base",tePremium:false};
-  const activeRoster=activeView?.rosterKey?rosters.find(x=>x.key===activeView.rosterKey):undefined;
-  const g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
-
-  const scored=useMemo<ScoredRow[]>(()=>{
-    const provisional=grades.map(row=>{
-      const sourceGrade=row.finalGrade??row.preDraftGrade??null;
-      const multiplierRow=row.position==="TE"&&activeView?.tePremium?8:POS_MULTIPLIER_ROW[row.position];
-      const multiplier=glossaryNumber(multiplierRow,g);
-      const rookieTeam=teamKey(row.draftTeam||row.draftResult||"");
-      const positionHit=coverageHasTeam(activeRoster?.startingCoverage,row.position,rookieTeam);
-      const benchHit=!positionHit&&coverageHasTeam(activeRoster?.benchCoverage,undefined,rookieTeam);
-      const handcuffAdjustment=positionHit?glossaryNumber(HANDCUFF_ROW[row.position],g):(benchHit?glossaryNumber(20,g):0);
-      const boardGrade=sourceGrade==null?null:sourceGrade*multiplier+handcuffAdjustment;
-      return {...row,sourceGrade,multiplier,handcuffAdjustment,boardGrade,overallRank:null,positionRank:null,tier:null,tierGapBefore:null};
-    });
-
-    const positionRanks=new Map<string,number>();
-    for(const pos of POSITIONS){
-      provisional
-        .filter(x=>x.position===pos&&x.boardGrade!=null)
-        .sort((a,b)=>(b.boardGrade??-Infinity)-(a.boardGrade??-Infinity)||a.name.localeCompare(b.name))
-        .forEach((row,index)=>positionRanks.set(String(row.id),index+1));
-    }
-    const sorted=[...provisional].sort((a,b)=>{
-      if(a.boardGrade==null&&b.boardGrade==null)return a.position.localeCompare(b.position)||a.name.localeCompare(b.name);
-      if(a.boardGrade==null)return 1;
-      if(b.boardGrade==null)return -1;
-      return b.boardGrade-a.boardGrade||a.position.localeCompare(b.position)||a.name.localeCompare(b.name);
-    });
-    let rank=0,tier=1,previousGrade:number|null=null;
-    return sorted.map(row=>{
-      const overallRank=row.boardGrade==null?null:++rank;
-      let rowTier:number|null=null,tierGapBefore:number|null=null;
-      if(row.boardGrade!=null){
-        if(previousGrade!=null){
-          const gap=previousGrade-row.boardGrade;
-          if(gap>=TIER_GAP){tier++;tierGapBefore=gap}
-        }
-        rowTier=tier;
-        previousGrade=row.boardGrade;
-      }
-      return {...row,overallRank,positionRank:positionRanks.get(String(row.id))??null,tier:rowTier,tierGapBefore};
-    });
-  },[grades,activeView,activeRoster,g]);
-
   const visible=useMemo(()=>{
     const q=norm(search);
     return scored.filter(row=>(position==="ALL"||row.position===position)&&(!q||norm(row.name+" "+(row.college||"")).includes(q)));
@@ -216,7 +169,7 @@ export default function Page(){
     const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
-    a.download="rookie-draft-2027-final-board-"+activeView.key.replace(/[^a-z0-9]+/gi,"-")+".csv";
+    a.download="rookie-draft-"+draftClass+"-final-board-"+activeView.key.replace(/[^a-z0-9]+/gi,"-")+".csv";
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -224,7 +177,7 @@ export default function Page(){
   return <div className="final-board-page">
     <div className="page-head final-board-head">
       <div>
-        <div className="ey">2027 Rookie Class</div>
+        <div className="ey">{draftClass} Rookie Class</div>
         <h1>Final Draft Board</h1>
         <p className="muted">Grade-driven board built only from prospects currently on the web Scouting tabs. Pre-Draft Grade drives the board until a true Final Draft Grade exists.</p>
       </div>
@@ -279,7 +232,7 @@ export default function Page(){
       <div className="board-card-head">
         <div>
           <span className="ey">{activeView.label}</span>
-          <h2>2027 Big Board</h2>
+          <h2>{draftClass} Big Board</h2>
         </div>
         <div className="board-auto-stack">
           <span className="board-auto-note">Automatically sorted by board grade</span>

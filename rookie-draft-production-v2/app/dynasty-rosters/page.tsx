@@ -2,8 +2,14 @@
 
 import {useEffect,useMemo,useState} from "react";
 import TradeCalculator from "./trade-calculator";
+import RosterTradeIdeas from "./trade-ideas-launcher";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
+type TradeAsset={
+  id:string;type:"player"|"pick";name:string;detail:string;value:number|null;
+  valueLabel?:string;position?:string;team?:string;status?:string;
+};
+type TradePreference="actively-shopping"|"open"|"neutral"|"reluctant"|"untouchable";
 type HandcuffItem={slot:string;name:string;team:string};
 type RosterView={
   key:string;label:string;league:string;leagueId:string;updated:string;source:string;
@@ -16,6 +22,16 @@ type SortKey="name"|"position"|"team"|"age"|"ktc";
 type SortState={key:SortKey;dir:"asc"|"desc"}|null;
 
 const POS_ORDER:Record<string,number>={QB:1,RB:2,WR:3,TE:4};
+const TRADE_PREF_OPTIONS:{value:TradePreference;label:string;short:string}[]=[
+  {value:"actively-shopping",label:"Actively Shopping",short:"Shopping"},
+  {value:"open",label:"Open to Trade",short:"Open"},
+  {value:"neutral",label:"Neutral",short:"Neutral"},
+  {value:"reluctant",label:"Reluctant",short:"Reluctant"},
+  {value:"untouchable",label:"Untouchable",short:"Untouchable"},
+];
+function tradePrefKey(name:string){
+  return String(name||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+}
 
 function posClass(pos:string){
   const key=pos.toLowerCase().replace(/\s+/g,"-");
@@ -79,8 +95,18 @@ export default function Page(){
   const [refreshingKtc,setRefreshingKtc]=useState(false);
   const [message,setMessage]=useState("");
   const [messageTone,setMessageTone]=useState<"ok"|"warn">("warn");
+  const [tradePreferences,setTradePreferences]=useState<Record<string,TradePreference>>({});
+  const [savingPreference,setSavingPreference]=useState("");
+  const [applyAllPreferences,setApplyAllPreferences]=useState<Record<string,boolean>>({});
+  const [tradeAssets,setTradeAssets]=useState<{players:TradeAsset[];picks:TradeAsset[]}>({players:[],picks:[]});
+  const [loadingTradeAssets,setLoadingTradeAssets]=useState(false);
 
   useEffect(()=>{void load()},[]);
+  useEffect(()=>{
+    if(!tab)return;
+    void loadTradePreferences(tab);
+    void loadTradeAssets(tab);
+  },[tab]);
 
   function applyRosters(next:RosterView[]){
     setRosters(next);
@@ -104,6 +130,66 @@ export default function Page(){
     }finally{setLoading(false)}
   }
 
+  async function loadTradePreferences(leagueKey:string){
+    try{
+      const res=await fetch("/api/dynasty-rosters/trade-preferences?leagueKey="+encodeURIComponent(leagueKey),{cache:"no-store"});
+      const data=await res.json();
+      if(res.ok)setTradePreferences(data?.preferences||{});
+    }catch{}
+  }
+
+  async function loadTradeAssets(leagueKey:string){
+    setLoadingTradeAssets(true);
+    try{
+      const res=await fetch("/api/dynasty-rosters/trade?leagueKey="+encodeURIComponent(leagueKey)+"&mineAssets=1",{cache:"no-store"});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data?.error||"Could not load trade assets");
+      setTradeAssets(data?.myTeam?.assets||{players:[],picks:[]});
+    }catch(e:any){
+      setTradeAssets({players:[],picks:[]});
+      setMessageTone("warn");
+      setMessage(e?.message||"Could not load draft picks");
+    }finally{
+      setLoadingTradeAssets(false);
+    }
+  }
+
+  async function saveTradePreference(playerName:string,preference:TradePreference,applyAllOverride?:boolean){
+    if(!tab)return;
+    const key=tradePrefKey(playerName);
+    const applyAllLeagues=applyAllOverride??Boolean(applyAllPreferences[key]);
+    const previous=tradePreferences[key]||"neutral";
+    setTradePreferences(current=>{
+      const next={...current};
+      if(preference==="neutral")delete next[key];else next[key]=preference;
+      return next;
+    });
+    setSavingPreference(key);
+    try{
+      const res=await fetch("/api/dynasty-rosters/trade-preferences",{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({leagueKey:tab,playerName,preference,applyAllLeagues}),
+      });
+      const data=await res.json();
+      if(!res.ok)throw new Error(data?.error||"Could not save trade preference");
+      setTradePreferences(data?.preferences||{});
+      if((data?.appliedLeagueKeys||[]).length>1){
+        setMessageTone("ok");
+        setMessage("Trade preference applied across "+data.appliedLeagueKeys.length+" leagues.");
+      }
+    }catch(e:any){
+      setTradePreferences(current=>{
+        const next={...current};
+        if(previous==="neutral")delete next[key];else next[key]=previous;
+        return next;
+      });
+      setMessageTone("warn");
+      setMessage(e?.message||"Could not save trade preference");
+    }finally{
+      setSavingPreference(current=>current===key?"":current);
+    }
+  }
+
   async function refresh(){
     setRefreshing(true);setMessage("");
     try{
@@ -111,6 +197,7 @@ export default function Page(){
       const data=await res.json();
       if(!res.ok&&!(data?.rosters?.length))throw new Error(data?.error||data?.detail||"Could not refresh rosters");
       applyRosters((data?.rosters||[]) as RosterView[]);
+      if(tab)void loadTradeAssets(tab);
       setMessageTone(data?.errors?.length?"warn":"ok");
       setMessage(data?.errors?.length?"Roster refresh completed with warnings: "+data.errors.join(" • "):"All Sleeper rosters refreshed.");
     }catch(e:any){
@@ -126,6 +213,7 @@ export default function Page(){
       const data=await res.json();
       if(!res.ok)throw new Error(data?.error||data?.detail||"Could not refresh KTC values");
       applyRosters((data?.rosters||[]) as RosterView[]);
+      if(tab)void loadTradeAssets(tab);
       const summary=data?.ktcMatchSummary;
       if(summary?.unmatched){
         setMessageTone("warn");
@@ -145,6 +233,20 @@ export default function Page(){
   }
 
   const roster=rosters.find(r=>r.key===tab)||rosters[0];
+  const playerLeagueCounts=useMemo(()=>{
+    const counts:Record<string,number>={};
+    for(const item of rosters){
+      const seen=new Set<string>();
+      for(const player of item.players||[]){
+        const key=tradePrefKey(player.name);
+        if(seen.has(key))continue;
+        seen.add(key);
+        counts[key]=(counts[key]||0)+1;
+      }
+    }
+    return counts;
+  },[rosters]);
+  const totalPickValue=useMemo(()=>tradeAssets.picks.reduce((sum,p)=>sum+(Number(p.value)||0),0),[tradeAssets.picks]);
   const sortedPlayers=useMemo(()=>{
     if(!roster)return [];
     if(!sort)return roster.players;
@@ -184,6 +286,12 @@ export default function Page(){
         <button className="refresh-rosters" type="button" onClick={refresh} disabled={refreshing||refreshingKtc}>
           {refreshing?"Refreshing all leagues…":"↻ Refresh Rosters"}
         </button>
+        <RosterTradeIdeas
+          leagueKey={roster?.key||tab}
+          assets={tradeAssets}
+          preferences={tradePreferences}
+          loading={loadingTradeAssets}
+        />
         <button className="refresh-ktc" type="button" onClick={refreshKtc} disabled={refreshing||refreshingKtc}>
           {refreshingKtc?"Refreshing KTC…":"↻ Refresh KTC Values"}
         </button>
@@ -215,10 +323,14 @@ export default function Page(){
         </div>
 
         <div className="dynasty-layout">
+          <div className="dynasty-main-stack">
           <section className="dynasty-panel dynasty-roster-panel">
             <div className="dynasty-panel-title">
-              Roster
-              <span>{roster.players.length} players · click any column to sort</span>
+              <div className="dynasty-panel-title-main">
+                <span className="dynasty-panel-name">Roster</span>
+                <span className="trade-pref-legend">⇄ = sync this preference to every league where you own that player</span>
+              </div>
+              <span>{roster.players.length} players · click any column to sort · preferences feed Trade Ideas</span>
             </div>
             <div className="dynasty-table-wrap">
               <table className="dynasty-roster-table">
@@ -228,6 +340,7 @@ export default function Page(){
                   <SortHeader label="Team" col="team"/>
                   <SortHeader label="Age" col="age" center/>
                   <SortHeader label="KTC Value" col="ktc" center/>
+                  <th className="center trade-pref-head">Trade Preference</th>
                 </tr></thead>
                 <tbody>
                   {sortedPlayers.map((p,i)=>{
@@ -240,12 +353,62 @@ export default function Page(){
                       <td className="ktc">
                         {hasKtc?fmtKtc(p.ktc):<span className="ktc-missing" title="No KTC match found after the latest KTC refresh. The player name was checked using normalized names, aliases, and first/last-name matching.">N/A <span className="ktc-help">?</span></span>}
                       </td>
+                      <td className="trade-pref-cell">
+                        <div className="trade-pref-stack">
+                          <select
+                            className={"trade-pref-select pref-"+(tradePreferences[tradePrefKey(p.name)]||"neutral")}
+                            value={tradePreferences[tradePrefKey(p.name)]||"neutral"}
+                            disabled={savingPreference===tradePrefKey(p.name)}
+                            onChange={e=>void saveTradePreference(p.name,e.target.value as TradePreference)}
+                            aria-label={"Trade preference for "+p.name}
+                          >
+                            {TRADE_PREF_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
+                          </select>
+                          {(playerLeagueCounts[tradePrefKey(p.name)]||0)>1&&<button
+                            type="button"
+                            className={"trade-pref-sync "+(applyAllPreferences[tradePrefKey(p.name)]?"active":"")}
+                            aria-pressed={Boolean(applyAllPreferences[tradePrefKey(p.name)])}
+                            aria-label={"Apply "+p.name+"'s trade preference to all leagues"}
+                            title={"Apply to all "+playerLeagueCounts[tradePrefKey(p.name)]+" leagues"}
+                            onClick={()=>{
+                              const key=tradePrefKey(p.name);
+                              const next=!applyAllPreferences[key];
+                              setApplyAllPreferences(current=>({...current,[key]:next}));
+                              if(next)void saveTradePreference(p.name,tradePreferences[key]||"neutral",true);
+                            }}
+                          >⇄</button>}
+                        </div>
+                      </td>
                     </tr>;
                   })}
                 </tbody>
               </table>
             </div>
           </section>
+
+          <section className="dynasty-panel dynasty-picks-panel">
+            <div className="dynasty-panel-title">
+              Draft Picks
+              <span>{tradeAssets.picks.length} picks · {new Intl.NumberFormat("en-US").format(totalPickValue)} total KTC value</span>
+            </div>
+            <div className="dynasty-table-wrap dynasty-picks-wrap">
+              <table className="dynasty-roster-table dynasty-picks-table">
+                <thead><tr>
+                  <th>Pick</th>
+                  <th>Ownership</th>
+                  <th className="center">KTC Value</th>
+                </tr></thead>
+                <tbody>
+                  {loadingTradeAssets?<tr><td colSpan={3} className="dynasty-picks-empty">Loading picks…</td></tr>:tradeAssets.picks.length?tradeAssets.picks.map(p=><tr key={p.id}>
+                    <td><strong>{p.name}</strong></td>
+                    <td>{p.detail||"Own pick"}</td>
+                    <td className="ktc">{p.value==null?"N/A":fmtKtc(String(p.value))}</td>
+                  </tr>):<tr><td colSpan={3} className="dynasty-picks-empty">No valued future picks found.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          </div>
 
           <aside className="dynasty-side">
             <HandcuffList title="Starters to Handcuff" items={roster.starters}/>
@@ -283,10 +446,11 @@ export default function Page(){
       .dynasty-meta strong{display:block;font-size:18px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
       .dynasty-meta.updated strong{font-size:13px;color:#dce8f6;white-space:nowrap}
       .dynasty-layout{display:grid;grid-template-columns:minmax(620px,1.55fr) minmax(320px,.8fr);gap:14px;align-items:start}
+      .dynasty-main-stack{display:grid;gap:14px;min-width:0}
       .dynasty-panel{overflow:hidden;background:#0c1930;border:1px solid #20395f;border-radius:12px}
       .dynasty-panel-title{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#4285f4;color:#fff;padding:10px 12px;font-size:13px;font-weight:950;letter-spacing:.02em}
       .dynasty-panel-title span{font-size:11px;font-weight:850;color:#e8f1ff}
-      .dynasty-roster-panel{position:sticky;top:58px}
+      .dynasty-roster-panel{position:relative}
       .dynasty-table-wrap{max-height:calc(100vh - 255px);overflow:auto}
       .dynasty-roster-table{width:100%;border-collapse:separate;border-spacing:0;font-family:Calibri,Arial,sans-serif;font-size:13px}
       .dynasty-roster-table th{position:sticky;top:0;z-index:2;background:#132844;color:#b9c9df;text-align:left;padding:0;border-bottom:1px solid #31527f;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
@@ -294,8 +458,8 @@ export default function Page(){
       .sort-header{width:100%;display:flex;align-items:center;justify-content:flex-start;gap:6px;background:transparent!important;border:0!important;border-radius:0!important;color:#b9c9df!important;padding:9px 11px;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
       .sort-header:hover,.sort-header.active{color:#fff!important;background:#193457!important}
       .sort-arrow{font-size:9px;opacity:.8}
-      .dynasty-roster-table th:nth-child(2),.dynasty-roster-table th:nth-child(4),.dynasty-roster-table th:nth-child(5),
-      .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5){text-align:center}
+      .dynasty-roster-table th:nth-child(2),.dynasty-roster-table th:nth-child(4),.dynasty-roster-table th:nth-child(5),.dynasty-roster-table th:nth-child(6),
+      .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5),.dynasty-roster-table td:nth-child(6){text-align:center}
       .dynasty-roster-table td{padding:8px 11px;border-bottom:1px solid #18304f;color:#e9f1fb}
       .dynasty-roster-table tbody tr:nth-child(odd) td{background:#0b1a30}
       .dynasty-roster-table tbody tr:nth-child(even) td{background:#0e2039}
@@ -303,6 +467,26 @@ export default function Page(){
       .dynasty-roster-table tbody tr:last-child td{border-bottom:0}
       .dynasty-roster-table td:first-child strong{font-size:13px}
       .dynasty-roster-table .ktc{font-weight:950;font-variant-numeric:tabular-nums;color:#fff}
+      .trade-pref-head{padding:9px 11px!important;white-space:nowrap}
+      .trade-pref-cell{min-width:160px}
+      .trade-pref-stack{display:flex;align-items:center;justify-content:center;gap:6px}
+      .trade-pref-select{width:142px;height:30px;border-radius:7px;border:1px solid #345477;background:#11223d;color:#dce8f6;padding:0 8px;font-size:10px;font-weight:900;outline:none}
+      .trade-pref-select:disabled{opacity:.6}
+      .trade-pref-select.pref-actively-shopping{border-color:#2c946d;background:#103b30;color:#98f0c8}
+      .trade-pref-select.pref-open{border-color:#2d7190;background:#102d40;color:#94dcff}
+      .trade-pref-select.pref-neutral{border-color:#345477;background:#11223d;color:#dce8f6}
+      .trade-pref-select.pref-reluctant{border-color:#8a6c25;background:#352d18;color:#ffd978}
+      .trade-pref-select.pref-untouchable{border-color:#854355;background:#3b1d29;color:#ffb4c1}
+      .trade-pref-sync{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid #345477;border-radius:7px;background:#11223d;color:#91a8c6;font-size:15px;font-weight:950;line-height:1}
+      .trade-pref-sync:hover{border-color:#5b7fa9;color:#fff;background:#172c49}
+      .trade-pref-sync.active{border-color:#20e2dd;background:#103a42;color:#7ff5ef;box-shadow:0 0 0 1px rgba(32,226,221,.12) inset}
+      .dynasty-panel-title-main{display:flex;align-items:center;gap:10px;min-width:0}
+      .dynasty-panel-name{font-size:13px!important;color:#fff!important}
+      .trade-pref-legend{font-size:9px!important;color:#d7e7ff!important;font-weight:800!important;letter-spacing:0!important;text-transform:none!important;white-space:normal}
+      .dynasty-picks-wrap{max-height:none}
+      .dynasty-picks-table th{padding:9px 11px}
+      .dynasty-picks-table th:nth-child(3),.dynasty-picks-table td:nth-child(3){text-align:center}
+      .dynasty-picks-empty{text-align:center!important;color:#8fa7c8!important;padding:18px!important}
       .ktc-missing{display:inline-flex;align-items:center;gap:5px;color:#b9c9df;cursor:help}
       .ktc-help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border:1px solid #557297;border-radius:50%;font-size:9px;color:#8fa7c8}
       .dynasty-side{display:grid;gap:12px}
@@ -347,7 +531,7 @@ export default function Page(){
         .dynasty-meta.league,.dynasty-meta.updated{grid-column:1/-1}
         .dynasty-side{grid-template-columns:1fr}
         .dynasty-table-wrap{overflow-x:auto}
-        .dynasty-roster-table{min-width:620px}
+        .dynasty-roster-table{min-width:780px}
         .dynasty-handcuff-copy{display:block}
         .dynasty-handcuff-copy span{display:block;margin-top:2px}
       }
