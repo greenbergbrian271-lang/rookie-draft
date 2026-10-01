@@ -73,7 +73,7 @@ export default function RosterTradeIdeas({
   }
 
   function toggle(asset:Asset){
-    if(asset.type==="player"&&preferences[prefKey(asset.name)]==="untouchable")return;
+    if(asset.value==null||(asset.type==="player"&&preferences[prefKey(asset.name)]==="untouchable"))return;
     setSelected(current=>{
       const next=new Set(current);
       if(next.has(asset.id))next.delete(asset.id);
@@ -113,14 +113,17 @@ export default function RosterTradeIdeas({
     {items.map(asset=>{
       const preference=asset.type==="player"?(preferences[prefKey(asset.name)]||"neutral") as TradePreference:"neutral";
       const untouchable=preference==="untouchable";
+      const unavailable=asset.value==null;
+      const disabled=untouchable||unavailable;
       const checked=selected.has(asset.id);
-      return <label className={"shop-asset-row "+(checked?"selected ":"")+(untouchable?"disabled":"")} key={asset.id}>
-        <input type="checkbox" checked={checked} disabled={untouchable} onChange={()=>toggle(asset)}/>
+      return <label className={"shop-asset-row "+(checked?"selected ":"")+(disabled?"disabled":"")} key={asset.id}>
+        <input type="checkbox" checked={checked} disabled={disabled} onChange={()=>toggle(asset)}/>
         <span className="shop-asset-copy">
           <strong>{asset.name}</strong>
           <small>{asset.detail||asset.position||""}</small>
         </span>
         {asset.type==="player"&&preference!=="neutral"&&<em className={"shop-pref "+preference}>{prefLabel(preference)}</em>}
+        {unavailable&&<em className="shop-pref unavailable">No value</em>}
         <b>{asset.value==null?"N/A":fmt.format(asset.value)}</b>
       </label>;
     })}
