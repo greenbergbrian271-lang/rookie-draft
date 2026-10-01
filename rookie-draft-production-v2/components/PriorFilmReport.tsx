@@ -1,21 +1,55 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useMemo,useState} from "react";
 
 export default function PriorFilmReport({report}:{report?:any}){
   const [open,setOpen]=useState(false);
   useEffect(()=>setOpen(false),[report?.playerId,report?.fromDraftClass]);
+
   const grades=Array.isArray(report?.filmGrades)?report.filmGrades:[];
-  if(!report||!grades.length)return null;
-  return <div style={{margin:"0 0 14px",border:"1px solid #2c4b73",borderRadius:12,background:"linear-gradient(135deg,rgba(19,42,72,.92),rgba(8,23,42,.96))",overflow:"hidden"}}>
-    <button type="button" onClick={()=>setOpen(v=>!v)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,padding:"12px 14px",background:"transparent",border:0,color:"#dce8f8",textAlign:"left"}}>
-      <span style={{display:"grid",gap:2}}><small style={{color:"#67e8f9",fontWeight:950,letterSpacing:".09em"}}>PRIOR YEAR FILM</small><strong>{report.fromDraftClass} grades are hidden for a fresh evaluation</strong></span>
-      <span style={{whiteSpace:"nowrap",fontWeight:900,color:"#9fb9da"}}>{open?"Hide grades ↑":"Show grades ↓"}</span>
+  const notes=Array.isArray(report?.priorNotes)?report.priorNotes:[];
+  const legacy=String(report?.priorCommentary??"").trim();
+  const legacyLabel=String(report?.priorGameLabel??"").trim();
+
+  const noteBlocks=useMemo(()=>{
+    const blocks=notes.map((n:any)=>({
+      key:"session-"+String(n.id??Math.random()),
+      label:n.opponent||n.gameDate||"Scouting note",
+      note:String(n.rawNotes||"").trim(),
+      writeup:String(n.overallWriteup||"").trim()
+    })).filter((n:any)=>n.note||n.writeup);
+    if(legacy&&!blocks.some((n:any)=>n.note===legacy||n.writeup===legacy)){
+      blocks.push({key:"legacy",label:legacyLabel||"Prior scouting note",note:legacy,writeup:""});
+    }
+    return blocks;
+  },[notes,legacy,legacyLabel]);
+
+  if(!report||(!grades.length&&!noteBlocks.length))return null;
+
+  return <section
+    className="prior-year-lookback"
+    onClick={e=>e.stopPropagation()}
+    onMouseDown={e=>e.stopPropagation()}
+    aria-label={report.fromDraftClass+" prior year scouting lookback"}
+  >
+    <button
+      type="button"
+      className="prior-year-lookback-toggle"
+      aria-expanded={open}
+      onClick={e=>{e.preventDefault();e.stopPropagation();setOpen(v=>!v)}}
+    >
+      <span><small>PRIOR YEAR LOOKBACK</small><strong>{report.fromDraftClass} scouting report</strong><em>Kept out of view so the new evaluation starts clean.</em></span>
+      <b>{open?"Hide prior report ↑":"Show prior report ↓"}</b>
     </button>
-    {open&&<div style={{borderTop:"1px solid #28466d",padding:14}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))",gap:9}}>
-        {grades.map((g:any)=><div key={g.category} style={{padding:"10px 11px",borderRadius:9,background:"#0a1b31",border:"1px solid #203b61"}}><span style={{display:"block",fontSize:11,color:"#91a9c8",fontWeight:800,marginBottom:4}}>{g.category}</span><strong style={{fontSize:19,color:"#f4f8ff"}}>{g.value??"—"}</strong></div>)}
-      </div>
-      <p style={{margin:"10px 0 0",color:"#7892b4",fontSize:11,lineHeight:1.45}}>Read-only snapshot from the {report.fromDraftClass} scouting cycle. New grades entered above remain separate.</p>
+    {open&&<div className="prior-year-lookback-body">
+      {grades.length>0&&<div className="prior-year-lookback-section">
+        <div className="prior-year-lookback-head"><span>Film Grades</span><small>{grades.length} archived trait{grades.length===1?"":"s"}</small></div>
+        <div className="prior-year-lookback-grades">{grades.map((g:any)=><div key={g.category}><span>{g.category}</span><strong>{g.value??"—"}</strong></div>)}</div>
+      </div>}
+      {noteBlocks.length>0&&<div className="prior-year-lookback-section">
+        <div className="prior-year-lookback-head"><span>Scouting Notes</span><small>{noteBlocks.length} archived entr{noteBlocks.length===1?"y":"ies"}</small></div>
+        <div className="prior-year-lookback-notes">{noteBlocks.map((n:any)=><div key={n.key}><strong>{n.label}</strong>{n.note&&<p>{n.note}</p>}{n.writeup&&<p className="writeup">{n.writeup}</p>}</div>)}</div>
+      </div>}
+      <p className="prior-year-lookback-foot">Read-only {report.fromDraftClass} context. None of these grades or notes feed the active {report.toDraftClass} evaluation.</p>
     </div>}
-  </div>;
+  </section>;
 }

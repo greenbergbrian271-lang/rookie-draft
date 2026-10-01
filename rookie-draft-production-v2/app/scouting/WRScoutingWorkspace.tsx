@@ -327,7 +327,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const hasMockDraftable=Boolean(imp["MockDraftable URL"]||imp.MockDraftable||mockMeasurements.length);
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <ScoutingPlayerHero player={p} position="WR" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class||imp?.["Draft Class"]} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
-      <PriorFilmReport report={priorReports?.[id]}/><div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
+      <div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/7 traits graded"}/>
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint={penalty?"ADOT / contested penalty applied":"Workbook percentile model"}/>
@@ -377,6 +377,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="WR" data={imp} grade={combine}/>}
       
       {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true} updatedAt={draftUpdatedAt}/>}
+      <PriorFilmReport report={priorReports?.[id]}/>
     </article>
   }
 

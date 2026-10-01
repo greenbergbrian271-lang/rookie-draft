@@ -297,7 +297,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     return <article className="qb-evaluate-player" id={"qb-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <ScoutingPlayerHero player={p} position="QB" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
-      <PriorFilmReport report={priorReports?.[id]}/><div className="qb-grade-strip">
+      <div className="qb-grade-strip">
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>
         <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scouting + analytics"/>
@@ -344,6 +344,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="QB" data={imp} grade={combine}><div className="qb-combine-grid"><ReadOnly label="Height" value={imp?.Height}/><ReadOnly label="Weight" value={imp?.Weight}/><ReadOnly label="BMI" value={display(imp?.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={display(imp?.["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={display(imp?.["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={imp?.["Broad Jump"]}/></div></CombineTestingSection>}
 
       {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={false} updatedAt={draftUpdatedAt}/>}
+      <PriorFilmReport report={priorReports?.[id]}/>
     </article>
   }
 
