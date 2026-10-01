@@ -36,7 +36,7 @@ type LeagueMeta={slug:string;boardKey:string;name:string;rounds:number;teams:num
 type IntelRow=FinalBoardScoredRow&{adpRank:number|null;delta:number|null};
 type BoardPayload={view?:{key:string;label:string;tePremium:boolean;rosterKey?:string};rows?:FinalBoardScoredRow[]};
 type TradeAsset={name:string;position?:string;value:number;source?:string};
-type TradeIdea={kind:string;youSend:TradeAsset[];youGet:TradeAsset[];sendValue:number;receiveValue:number;differencePct:number};
+type TradeIdea={kind:string;youSend:TradeAsset[];youGet:TradeAsset[];sendValue:number;receiveValue:number;sendAdjusted:number;receiveAdjusted:number;differencePct:number};
 type TradeResponse={
   pick:{name:string;value:number;source?:string;ownerName:string;pickNo:number;round:number;slot:number};
   owner:{name:string;rosterId:number;valuedPlayers:number};
@@ -442,16 +442,16 @@ export default function DraftDayPage(){
           {tradeData.ideas.length?<div className="dd-trade-ideas">{tradeData.ideas.map((idea,index)=><article key={index}>
             <div className="dd-trade-card-head"><span>{idea.kind}</span><b>{idea.differencePct.toFixed(1)}% value gap</b></div>
             <div className="dd-trade-sides">
-              <div><small>YOU SEND</small>{idea.youSend.map((asset,i)=><p key={i}><strong>{asset.name}</strong><span>{Math.round(asset.value).toLocaleString()}</span></p>)}<em>Total {Math.round(idea.sendValue).toLocaleString()}</em></div>
+              <div><small>YOU SEND</small>{idea.youSend.map((asset,i)=><p key={i}><strong>{asset.name}</strong><span>{Math.round(asset.value).toLocaleString()}</span></p>)}<em>Raw KTC {Math.round(idea.sendValue).toLocaleString()} · Adjusted {Math.round(idea.sendAdjusted).toLocaleString()}</em></div>
               <div className="arrow">→</div>
-              <div><small>YOU RECEIVE</small>{idea.youGet.map((asset,i)=><p key={i}><strong>{asset.name}</strong><span>{Math.round(asset.value).toLocaleString()}</span></p>)}<em>Total {Math.round(idea.receiveValue).toLocaleString()}</em></div>
+              <div><small>YOU RECEIVE</small>{idea.youGet.map((asset,i)=><p key={i}><strong>{asset.name}</strong><span>{Math.round(asset.value).toLocaleString()}</span></p>)}<em>Raw KTC {Math.round(idea.receiveValue).toLocaleString()} · Adjusted {Math.round(idea.receiveAdjusted).toLocaleString()}</em></div>
             </div>
             <button type="button" className="ghost dd-copy-trade" onClick={()=>copyTrade(idea)}>Copy trade</button>
           </article>)}</div>:<div className="dd-empty">No close-value offers were found from the two current rosters. Try another pick.</div>}
 
           <div className="dd-trade-source">
             <strong>{tradeData.source.attribution}</strong>
-            <span>{tradeData.source.basis}. Values are a market reference, not a guarantee another manager will accept the offer.</span>
+            <span>{tradeData.source.basis} Package-adjusted totals apply a conservative consolidation discount to secondary pieces. Values are a market reference, not a guarantee another manager will accept the offer.</span>
             <a href={tradeData.source.url} target="_blank" rel="noreferrer">Open Tradyr ↗</a>
           </div>
         </div>:null}
