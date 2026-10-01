@@ -89,6 +89,11 @@ function buildIdeas(myAssets:Asset[],theirAssets:Asset[]){
   const seen=new Set<string>();
 
   const add=(kind:string,youSend:Asset[],youGet:Asset[])=>{
+    if(
+      youSend.length===1&&youGet.length===1&&
+      youSend[0].type==="pick"&&youGet[0].type==="pick"&&
+      youSend[0].name===youGet[0].name
+    )return;
     const key=packageKey(youSend)+"=>"+packageKey(youGet);
     if(seen.has(key))return;
     seen.add(key);
