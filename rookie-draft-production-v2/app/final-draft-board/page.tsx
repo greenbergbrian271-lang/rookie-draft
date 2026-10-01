@@ -2,8 +2,6 @@
 
 import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
-import {type GlossaryRows} from "@/lib/scouting-formulas";
-import {buildFinalBoardRows} from "@/lib/final-board";
 import PlayerName from "@/components/PlayerName";
 
 type Pos="QB"|"RB"|"WR"|"TE";
@@ -98,9 +96,7 @@ function heatColor(ratio:number){
 }
 
 export default function Page(){
-  const [grades,setGrades]=useState<GradeRow[]>([]);
-  const [glossary,setGlossary]=useState<any[][]>([]);
-  const [rosters,setRosters]=useState<RosterView[]>([]);
+  const [scored,setScored]=useState<ScoredRow[]>([]);
   const [leagues,setLeagues]=useState<League[]>(FALLBACK_LEAGUES);
   const [viewKey,setViewKey]=useState("base");
   const [position,setPosition]=useState<"ALL"|Pos>("ALL");
@@ -113,36 +109,35 @@ export default function Page(){
   useEffect(()=>{
     let live=true;
     (async()=>{
-      setLoading(true);setError("");
       try{
-        const [gradeRes,glossaryRes,rosterRes,integrationRes]=await Promise.all([
-          fetch("/api/grades?draftClass=2027",{cache:"no-store"}),
-          fetch("/api/scouting-glossary",{cache:"no-store"}),
-          fetch("/api/dynasty-rosters",{cache:"no-store"}),
-          fetch("/api/integrations",{cache:"no-store"})
-        ]);
-        const safeJson=async(res:Response)=>{if(!res.ok)return {};try{return await res.json()}catch{return {}}};
-        const gradeData=await gradeRes.json();
-        const [glossaryData,rosterData,integrationData]=await Promise.all([safeJson(glossaryRes),safeJson(rosterRes),safeJson(integrationRes)]);
-        if(!gradeRes.ok)throw new Error(gradeData?.error||"Could not load scouting grades");
-        if(!live)return;
-        setGrades(Array.isArray(gradeData)?gradeData:[]);
-        setGlossary(Array.isArray(glossaryData?.rows)?glossaryData.rows:[]);
-        setRosters(Array.isArray(rosterData?.rosters)?rosterData.rosters:[]);
-        const liveLeagues=integrationData?.sleeper?.leagues;
-        if(Array.isArray(liveLeagues)&&liveLeagues.length)setLeagues(liveLeagues);
-      }catch(e:any){
-        if(live)setError(e?.message||"Could not load Final Draft Board");
-      }finally{if(live)setLoading(false)}
+        const r=await fetch("/api/integrations",{cache:"no-store"});
+        const data=r.ok?await r.json():{};
+        const liveLeagues=data?.sleeper?.leagues;
+        if(live&&Array.isArray(liveLeagues)&&liveLeagues.length)setLeagues(liveLeagues);
+      }catch{}
     })();
     return()=>{live=false};
   },[]);
 
   useEffect(()=>{
-    const refresh=()=>{fetch("/api/grades?draftClass=2027",{cache:"no-store"}).then(r=>r.json()).then(data=>{if(Array.isArray(data))setGrades(data)}).catch(()=>{})};
+    let live=true;
+    const load=async()=>{
+      setLoading(true);setError("");
+      try{
+        const r=await fetch("/api/final-board/live?view="+encodeURIComponent(viewKey),{cache:"no-store"});
+        const data=await r.json();
+        if(!r.ok)throw new Error(data?.error||"Could not load Final Draft Board");
+        if(live)setScored(Array.isArray(data?.rows)?data.rows:[]);
+      }catch(e:any){
+        if(live)setError(e?.message||"Could not load Final Draft Board");
+      }finally{if(live)setLoading(false)}
+    };
+    load();
+    const refresh=()=>load();
     window.addEventListener("rookie-draft:players-changed",refresh);
-    return()=>window.removeEventListener("rookie-draft:players-changed",refresh);
-  },[]);
+    window.addEventListener("rookie-draft:archives-changed",refresh);
+    return()=>{live=false;window.removeEventListener("rookie-draft:players-changed",refresh);window.removeEventListener("rookie-draft:archives-changed",refresh)};
+  },[viewKey]);
 
   const views=useMemo<BoardView[]>(()=>{
     const leagueViews=leagues.filter(x=>x.enabled!==false).map(x=>({
@@ -158,11 +153,6 @@ export default function Page(){
     ];
   },[leagues]);
   const activeView:BoardView=views.find(x=>x.key===viewKey)||{key:"base",label:"Base",tePremium:false};
-  const activeRoster=activeView?.rosterKey?rosters.find(x=>x.key===activeView.rosterKey):undefined;
-  const g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
-
-  const scored=useMemo<ScoredRow[]>(()=>buildFinalBoardRows(grades,{tePremium:Boolean(activeView?.tePremium)},activeRoster,g),[grades,activeView,activeRoster,g]);
-
   const visible=useMemo(()=>{
     const q=norm(search);
     return scored.filter(row=>(position==="ALL"||row.position===position)&&(!q||norm(row.name+" "+(row.college||"")).includes(q)));
