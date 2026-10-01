@@ -57,8 +57,12 @@ async function leaguePeople(leagueId:string,teamIdentity:string){
   return {byRoster,mine,users,rosters};
 }
 
-function currentOwner(originalRosterId:number,round:number,traded:any[]){
-  const matches=traded.filter((p:any)=>Number(p.roster_id)===originalRosterId&&Number(p.round)===round);
+function currentOwner(originalRosterId:number,round:number,traded:any[],season?:number){
+  const matches=traded.filter((p:any)=>
+    Number(p.roster_id)===originalRosterId&&
+    Number(p.round)===round&&
+    (!season||!p.season||Number(p.season)===season)
+  );
   const latest=matches[matches.length-1];
   return Number(latest?.owner_id||originalRosterId);
 }
@@ -92,7 +96,7 @@ async function leaguePicks(l:any){
     const round=Math.floor(index/teams)+1;
     const slot=slotForPick(pickNo,teams,draft.type);
     const originalRosterId=Number(draft.slot_to_roster_id?.[slot]||slot);
-    const rosterId=currentOwner(originalRosterId,round,traded);
+    const rosterId=currentOwner(originalRosterId,round,traded,Number(draft.season||league?.season||0));
     const selected=selectedByNo.get(pickNo);
     return {
       round,
