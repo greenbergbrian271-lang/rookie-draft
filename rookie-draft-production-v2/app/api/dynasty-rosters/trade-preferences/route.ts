@@ -1,3 +1,4 @@
+import {ensureTursoSchema} from "@/lib/turso";
 import {
   readTradePreferences,
   tradePreferenceKey,
@@ -5,6 +6,20 @@ import {
   writeTradePreferences,
   type TradePreference,
 } from "@/lib/trade-preferences";
+
+async function leaguesOwningPlayer(playerName:string){
+  const c=await ensureTursoSchema();
+  const result=await c.execute({sql:"select value from settings where key=?",args:["dynasty_rosters_live"]});
+  if(!result.rows.length)return [];
+  try{
+    const parsed=JSON.parse(String(result.rows[0]?.value||"{}"));
+    const wanted=tradePreferenceKey(playerName);
+    return (parsed?.rosters||[])
+      .filter((roster:any)=>(roster?.players||[]).some((p:any)=>tradePreferenceKey(String(p?.name||""))===wanted))
+      .map((roster:any)=>String(roster?.key||""))
+      .filter(Boolean);
+  }catch{return []}
+}
 
 export async function GET(req:Request){
   try{
@@ -22,15 +37,31 @@ export async function PATCH(req:Request){
     const leagueKey=String(body?.leagueKey||"");
     const playerName=String(body?.playerName||"");
     const preference=String(body?.preference||"neutral") as TradePreference;
+    const applyAllLeagues=Boolean(body?.applyAllLeagues);
     if(!leagueKey||!playerName)return Response.json({error:"leagueKey and playerName are required"},{status:400});
     if(!TRADE_PREFERENCE_VALUES.has(preference))return Response.json({error:"Invalid trade preference"},{status:400});
 
-    const preferences=await readTradePreferences(leagueKey);
-    const key=tradePreferenceKey(playerName);
-    if(preference==="neutral")delete preferences[key];
-    else preferences[key]=preference;
-    await writeTradePreferences(leagueKey,preferences);
-    return Response.json({leagueKey,playerName,preference,preferences});
+    const playerKey=tradePreferenceKey(playerName);
+    let leagueKeys=[leagueKey];
+    if(applyAllLeagues){
+      const owned=await leaguesOwningPlayer(playerName);
+      leagueKeys=[...new Set([leagueKey,...owned])];
+    }
+
+    for(const key of leagueKeys){
+      const preferences=await readTradePreferences(key);
+      if(preference==="neutral")delete preferences[playerKey];
+      else preferences[playerKey]=preference;
+      await writeTradePreferences(key,preferences);
+    }
+
+    return Response.json({
+      leagueKey,
+      playerName,
+      preference,
+      appliedLeagueKeys:leagueKeys,
+      preferences:await readTradePreferences(leagueKey),
+    });
   }catch(e:any){
     return Response.json({error:"Could not save trade preference",detail:e?.message},{status:500});
   }
