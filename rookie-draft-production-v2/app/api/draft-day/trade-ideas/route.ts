@@ -1,4 +1,5 @@
 import {getIntegrations} from "@/lib/integrations";
+import {readTradePreferences,tradePreferenceKey,type TradePreference} from "@/lib/trade-preferences";
 
 export const dynamic="force-dynamic";
 
@@ -25,6 +26,7 @@ type Asset={
   value:number;
   source:string;
   side?:"mine"|"theirs";
+  preference?:TradePreference;
 };
 
 let ktcCache:{expires:number;rows:KtcRow[]}|null=null;
@@ -47,8 +49,12 @@ function norm(value:any){
   return String(value||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 }
 
-function currentOwner(originalRosterId:number,round:number,traded:any[]){
-  const matches=traded.filter((p:any)=>Number(p.roster_id)===originalRosterId&&Number(p.round)===round);
+function currentOwner(originalRosterId:number,round:number,traded:any[],season?:number){
+  const matches=traded.filter((p:any)=>
+    Number(p.roster_id)===originalRosterId&&
+    Number(p.round)===round&&
+    (!season||!p.season||Number(p.season)===season)
+  );
   return Number(matches[matches.length-1]?.owner_id||originalRosterId);
 }
 
@@ -107,22 +113,35 @@ function assetKey(items:Asset[]){
   return items.map(x=>x.name).sort().join("|");
 }
 
+function preferencePenalty(items:Asset[]){
+  const weight:Record<TradePreference,number>={
+    "actively-shopping":-10,
+    "open":-4,
+    "neutral":0,
+    "reluctant":12,
+    "untouchable":999,
+  };
+  return items.reduce((sum,item)=>sum+(item.position==="PICK"?0:weight[item.preference||"neutral"]),0);
+}
+
 function idea(kind:string,youSend:Asset[],youGet:Asset[]){
   const sendValue=Math.round(youSend.reduce((s,x)=>s+x.value,0));
   const receiveValue=Math.round(youGet.reduce((s,x)=>s+x.value,0));
   const sendAdjusted=Math.round(weightedPackageValue(youSend));
   const receiveAdjusted=Math.round(weightedPackageValue(youGet));
+  const differencePct=gapPct(sendAdjusted,receiveAdjusted);
   return {
-    kind,youSend,youGet,sendValue,receiveValue,sendAdjusted,receiveAdjusted,
-    differencePct:gapPct(sendAdjusted,receiveAdjusted)
+    kind,youSend,youGet,sendValue,receiveValue,sendAdjusted,receiveAdjusted,differencePct,
+    score:differencePct+preferencePenalty(youSend)+(youSend.some(x=>x.position==="PICK")?-1.5:0)
   };
 }
 
 function buildIdeas(target:Asset,mine:Asset[],theirs:Asset[]){
   const ideas:any[]=[];
   const seen=new Set<string>();
+  const eligibleMine=mine.filter(x=>x.preference!=="untouchable");
   const add=(kind:string,youSend:Asset[],youGet:Asset[])=>{
-    if(!youSend.length||!youGet.length)return;
+    if(!youSend.length||!youGet.length||preferencePenalty(youSend)>=900)return;
     const next=idea(kind,youSend,youGet);
     if(next.differencePct>18)return;
     const key=assetKey(youSend)+"=>"+assetKey(youGet);
@@ -131,26 +150,37 @@ function buildIdeas(target:Asset,mine:Asset[],theirs:Asset[]){
     ideas.push(next);
   };
 
-  const mineSorted=[...mine].sort((a,b)=>b.value-a.value);
+  const mineSorted=[...eligibleMine].sort((a,b)=>b.value-a.value);
   const theirsSorted=[...theirs].sort((a,b)=>b.value-a.value);
 
-  for(const p of mineSorted){
-    if(p.value>=target.value*.84&&p.value<=target.value*1.18)add("Straight up",[p],[target]);
+  for(const asset of mineSorted){
+    if(asset.value>=target.value*.78&&asset.value<=target.value*1.22)add(asset.position==="PICK"?"Pick swap":"Straight up",[asset],[target]);
   }
 
-  const pairPool=mineSorted.filter(p=>p.value<target.value*.9&&p.value>target.value*.15).slice(0,20);
+  const pairPool=mineSorted.filter(p=>p.value<target.value*.95&&p.value>target.value*.12).slice(0,24);
   for(let i=0;i<pairPool.length;i++)for(let k=i+1;k<pairPool.length;k++){
-    add("Two-for-one",[pairPool[i],pairPool[k]],[target]);
+    const includesPick=pairPool[i].position==="PICK"||pairPool[k].position==="PICK";
+    add(includesPick?"Pick + asset":"Two-for-one",[pairPool[i],pairPool[k]],[target]);
   }
 
-  for(const p of mineSorted.slice(0,22)){
-    if(p.value<=target.value*1.08)continue;
+  for(const asset of mineSorted.slice(0,26)){
+    if(asset.value<=target.value*1.05)continue;
     for(const addon of theirsSorted.slice(0,24)){
-      add("Pick + add-on",[p],[target,addon]);
+      add(asset.position==="PICK"?"Pick swap + add-on":"Pick + add-on",[asset],[target,addon]);
     }
   }
 
-  return ideas.sort((a,b)=>a.differencePct-b.differencePct||a.youSend.length-b.youSend.length).slice(0,6);
+  ideas.sort((a,b)=>a.score-b.score||a.differencePct-b.differencePct);
+  const chosen:any[]=[];
+  const signatures=new Set<string>();
+  const addChosen=(next:any)=>{
+    const key=assetKey(next.youSend)+"=>"+assetKey(next.youGet);
+    if(signatures.has(key))return;
+    signatures.add(key);chosen.push(next);
+  };
+  for(const next of ideas.filter(x=>x.youSend.some((a:Asset)=>a.position==="PICK")).slice(0,2))addChosen(next);
+  for(const next of ideas){if(chosen.length>=6)break;addChosen(next)}
+  return chosen.slice(0,6).map(({score,...rest})=>rest);
 }
 
 export async function POST(req:Request){
@@ -166,14 +196,15 @@ export async function POST(req:Request){
     if(!integration?.leagueId)return Response.json({error:"Sleeper league is not configured"},{status:400});
 
     const leagueId=integration.leagueId;
-    const [league,drafts,users,rosters,traded,players,market]=await Promise.all([
+    const [league,drafts,users,rosters,traded,players,market,preferences]=await Promise.all([
       j(`https://api.sleeper.app/v1/league/${leagueId}`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/drafts`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/users`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).catch(()=>[]),
       j("https://api.sleeper.app/v1/players/nfl"),
-      ktcRows()
+      ktcRows(),
+      readTradePreferences(boardKey)
     ]);
 
     const draft=[...drafts].sort((a:any,b:any)=>(b.start_time||0)-(a.start_time||0))[0];
@@ -183,7 +214,8 @@ export async function POST(req:Request){
     const round=Math.floor((pickNo-1)/teams)+1;
     const slot=slotForPick(pickNo,teams,draft.type);
     const originalRosterId=Number(draft.slot_to_roster_id?.[slot]||slot);
-    const ownerRosterId=currentOwner(originalRosterId,round,traded);
+    const draftYear=Math.max(2027,Number(draft.season||2027));
+    const ownerRosterId=currentOwner(originalRosterId,round,traded,draftYear);
 
     const identity=String(integration.teamIdentity||"").trim().toLowerCase();
     const byUser:Record<string,string>={};
@@ -221,14 +253,34 @@ export async function POST(req:Request){
         const row=bySleeper.get(String(id))||byName.get(norm(name));
         const value=valueOf(row,superflex);
         if(value==null)return null;
-        return {id:String(id),name,position,value,source:"KeepTradeCut via Dynasty Daddy",side};
+        const preference=side==="mine"?(preferences[tradePreferenceKey(name)]||"neutral"):undefined;
+        return {id:String(id),name,position,value,source:"KeepTradeCut via Dynasty Daddy",side,preference};
       }).filter(Boolean) as Asset[];
     };
 
-    const mine=rosterAssets(myRoster,"mine");
+    const minePlayers=rosterAssets(myRoster,"mine");
     const theirs=rosterAssets(ownerRoster,"theirs");
 
-    const draftYear=Math.max(2027,Number(draft.season||2027));
+    const myRosterId=Number(myRoster.roster_id);
+    const draftRounds=Math.max(1,Number(draft?.settings?.rounds||league?.settings?.draft_rounds||4));
+    const minePicks:Asset[]=[];
+    for(let r=1;r<=draftRounds;r++){
+      for(let s=1;s<=teams;s++){
+        const original=Number(draft.slot_to_roster_id?.[s]||s);
+        const owner=currentOwner(original,r,traded,draftYear);
+        if(owner!==myRosterId)continue;
+        const base=pickAsset(market,draftYear,r,s,teams,superflex);
+        if(!base)continue;
+        minePicks.push({
+          ...base,
+          id:`pick:${draftYear}:${r}:${original}`,
+          name:`${draftYear} ${r}.${String(s).padStart(2,"0")}`,
+          side:"mine",
+        });
+      }
+    }
+    const mine=[...minePlayers,...minePicks];
+
     const target=pickAsset(market,draftYear,round,slot,teams,superflex);
     if(!target)return Response.json({error:"Could not map this pick to a current KTC future-pick value"},{status:502});
 
@@ -236,11 +288,11 @@ export async function POST(req:Request){
     return Response.json({
       pick:{...target,pickNo,round,slot,ownerRosterId,ownerName,displayName:`${draftYear} ${round}.${String(slot).padStart(2,"0")}`},
       owner:{name:ownerName,rosterId:ownerRosterId,valuedPlayers:theirs.length},
-      me:{name:myName,rosterId:Number(myRoster.roster_id),valuedPlayers:mine.length},
+      me:{name:myName,rosterId:Number(myRoster.roster_id),valuedPlayers:minePlayers.length,valuedPicks:minePicks.length},
       ideas,
       source:{
         provider:"Dynasty Daddy",
-        basis:"Current KeepTradeCut superflex values. Future numbered picks map to the matching Early/Mid/Late KTC pick bucket.",
+        basis:"Current KeepTradeCut superflex values. Exact owned 2027 picks are eligible outgoing assets and map to the matching Early/Mid/Late KTC bucket. Roster trade preferences are applied.",
         attribution:"KeepTradeCut market values via Dynasty Daddy",
         url:"https://dynasty-daddy.com"
       },
