@@ -59,9 +59,9 @@ function slotForPick(pickNo:number,teams:number,type:string){
 }
 
 function pickBucket(slot:number,teams:number){
-  const third=teams/3;
-  if(slot<=Math.ceil(third))return "Early";
-  if(slot>Math.ceil(third*2))return "Late";
+  const edge=Math.max(1,Math.floor(teams/3));
+  if(slot<=edge)return "Early";
+  if(slot>teams-edge)return "Late";
   return "Mid";
 }
 
