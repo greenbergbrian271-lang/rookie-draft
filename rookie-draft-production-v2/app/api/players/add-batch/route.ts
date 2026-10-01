@@ -1,5 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {ALL_STAR_GAMES,basicPlayerError,normalizeName,resolveSchoolName,sanitizePlayerInput} from "@/lib/player-add";
+import {syncCombineStatusForPlayer} from "@/lib/combine-invites";
 
 async function setAllStar(q:any,playerId:number,game:string){
   if(!game||game==="None")return;
@@ -25,6 +26,7 @@ export async function POST(req:Request){
         const now=new Date().toISOString();
         await q.execute({sql:"update players set position=?,college=?,updated_at=? where id=?",args:[player.position,college,now,exact.id]});
         await setAllStar(q,Number(exact.id),String(player.allStarGame||"None"));
+        await syncCombineStatusForPlayer(q,{id:Number(exact.id),name:player.name,position:player.position,college,draft_class:2027});
         successful.push({name:player.name,id:Number(exact.id),action:"existing"});
         exact.position=player.position;exact.college=college;
         continue;
@@ -35,6 +37,7 @@ export async function POST(req:Request){
         const inserted=rows(await q.execute({sql:"select * from players where name=? and draft_class=2027 order by id desc limit 1",args:[player.name]}))[0] as any;
         if(!inserted)throw new Error("Player was inserted but could not be reloaded.");
         await setAllStar(q,Number(inserted.id),String(player.allStarGame||"None"));
+        await syncCombineStatusForPlayer(q,inserted);
         successful.push({name:player.name,id:Number(inserted.id),action:"added"});
         existing.push(inserted);
       }catch(e:unknown){
