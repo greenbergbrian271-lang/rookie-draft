@@ -3,6 +3,7 @@
 import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
 import PlayerName from "@/components/PlayerName";
+import {useDraftClass} from "@/lib/use-draft-class";
 
 type Pos="QB"|"RB"|"WR"|"TE";
 type GradeRow={
@@ -96,6 +97,7 @@ function heatColor(ratio:number){
 }
 
 export default function Page(){
+  const draftClass=useDraftClass();
   const [scored,setScored]=useState<ScoredRow[]>([]);
   const [leagues,setLeagues]=useState<League[]>(FALLBACK_LEAGUES);
   const [viewKey,setViewKey]=useState("base");
@@ -124,7 +126,7 @@ export default function Page(){
     const load=async()=>{
       setLoading(true);setError("");
       try{
-        const r=await fetch("/api/final-board/live?view="+encodeURIComponent(viewKey),{cache:"no-store"});
+        const r=await fetch("/api/final-board/live?view="+encodeURIComponent(viewKey)+"&draftClass="+draftClass,{cache:"no-store"});
         const data=await r.json();
         if(!r.ok)throw new Error(data?.error||"Could not load Final Draft Board");
         if(live)setScored(Array.isArray(data?.rows)?data.rows:[]);
@@ -137,7 +139,7 @@ export default function Page(){
     window.addEventListener("rookie-draft:players-changed",refresh);
     window.addEventListener("rookie-draft:archives-changed",refresh);
     return()=>{live=false;window.removeEventListener("rookie-draft:players-changed",refresh);window.removeEventListener("rookie-draft:archives-changed",refresh)};
-  },[viewKey]);
+  },[viewKey,draftClass]);
 
   const views=useMemo<BoardView[]>(()=>{
     const leagueViews=leagues.filter(x=>x.enabled!==false).map(x=>({
@@ -167,7 +169,7 @@ export default function Page(){
     const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
-    a.download="rookie-draft-2027-final-board-"+activeView.key.replace(/[^a-z0-9]+/gi,"-")+".csv";
+    a.download="rookie-draft-"+draftClass+"-final-board-"+activeView.key.replace(/[^a-z0-9]+/gi,"-")+".csv";
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -175,7 +177,7 @@ export default function Page(){
   return <div className="final-board-page">
     <div className="page-head final-board-head">
       <div>
-        <div className="ey">2027 Rookie Class</div>
+        <div className="ey">{draftClass} Rookie Class</div>
         <h1>Final Draft Board</h1>
         <p className="muted">Grade-driven board built only from prospects currently on the web Scouting tabs. Pre-Draft Grade drives the board until a true Final Draft Grade exists.</p>
       </div>
@@ -230,7 +232,7 @@ export default function Page(){
       <div className="board-card-head">
         <div>
           <span className="ey">{activeView.label}</span>
-          <h2>2027 Big Board</h2>
+          <h2>{draftClass} Big Board</h2>
         </div>
         <div className="board-auto-stack">
           <span className="board-auto-note">Automatically sorted by board grade</span>
