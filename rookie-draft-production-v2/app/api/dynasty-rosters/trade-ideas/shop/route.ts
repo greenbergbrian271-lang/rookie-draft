@@ -34,7 +34,7 @@ type ShopIdea={
 
 function weightedPackageValue(items:Asset[]){
   const values=items.map(x=>Number(x.value)||0).sort((a,b)=>b-a);
-  return values.reduce((sum,value,index)=>sum+value*(index===0?1:index===1?.82:index===2?.72:.65),0);
+  return values.reduce((sum,value,index)=>sum+value*(index===0?1:index===1?0.82:index===2?0.72:0.65),0);
 }
 
 function gapPct(a:number,b:number){
