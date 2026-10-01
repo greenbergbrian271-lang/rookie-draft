@@ -326,7 +326,10 @@ export default function Page(){
           <div className="dynasty-main-stack">
           <section className="dynasty-panel dynasty-roster-panel">
             <div className="dynasty-panel-title">
-              Roster
+              <div className="dynasty-panel-title-main">
+                <span className="dynasty-panel-name">Roster</span>
+                <span className="trade-pref-legend">⇄ = sync this preference to every league where you own that player</span>
+              </div>
               <span>{roster.players.length} players · click any column to sort · preferences feed Trade Ideas</span>
             </div>
             <div className="dynasty-table-wrap">
@@ -361,18 +364,19 @@ export default function Page(){
                           >
                             {TRADE_PREF_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
                           </select>
-                          {(playerLeagueCounts[tradePrefKey(p.name)]||0)>1&&<label className="trade-pref-all">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(applyAllPreferences[tradePrefKey(p.name)])}
-                              onChange={e=>{
-                                const checked=e.target.checked;
-                                setApplyAllPreferences(current=>({...current,[tradePrefKey(p.name)]:checked}));
-                                if(checked)void saveTradePreference(p.name,tradePreferences[tradePrefKey(p.name)]||"neutral",true);
-                              }}
-                            />
-                            <span>Apply to all {playerLeagueCounts[tradePrefKey(p.name)]} leagues</span>
-                          </label>}
+                          {(playerLeagueCounts[tradePrefKey(p.name)]||0)>1&&<button
+                            type="button"
+                            className={"trade-pref-sync "+(applyAllPreferences[tradePrefKey(p.name)]?"active":"")}
+                            aria-pressed={Boolean(applyAllPreferences[tradePrefKey(p.name)])}
+                            aria-label={"Apply "+p.name+"'s trade preference to all leagues"}
+                            title={"Apply to all "+playerLeagueCounts[tradePrefKey(p.name)]+" leagues"}
+                            onClick={()=>{
+                              const key=tradePrefKey(p.name);
+                              const next=!applyAllPreferences[key];
+                              setApplyAllPreferences(current=>({...current,[key]:next}));
+                              if(next)void saveTradePreference(p.name,tradePreferences[key]||"neutral",true);
+                            }}
+                          >⇄</button>}
                         </div>
                       </td>
                     </tr>;
@@ -465,7 +469,7 @@ export default function Page(){
       .dynasty-roster-table .ktc{font-weight:950;font-variant-numeric:tabular-nums;color:#fff}
       .trade-pref-head{padding:9px 11px!important;white-space:nowrap}
       .trade-pref-cell{min-width:160px}
-      .trade-pref-stack{display:grid;justify-items:center;gap:4px}
+      .trade-pref-stack{display:flex;align-items:center;justify-content:center;gap:6px}
       .trade-pref-select{width:142px;height:30px;border-radius:7px;border:1px solid #345477;background:#11223d;color:#dce8f6;padding:0 8px;font-size:10px;font-weight:900;outline:none}
       .trade-pref-select:disabled{opacity:.6}
       .trade-pref-select.pref-actively-shopping{border-color:#2c946d;background:#103b30;color:#98f0c8}
@@ -473,8 +477,12 @@ export default function Page(){
       .trade-pref-select.pref-neutral{border-color:#345477;background:#11223d;color:#dce8f6}
       .trade-pref-select.pref-reluctant{border-color:#8a6c25;background:#352d18;color:#ffd978}
       .trade-pref-select.pref-untouchable{border-color:#854355;background:#3b1d29;color:#ffb4c1}
-      .trade-pref-all{display:flex;align-items:center;justify-content:center;gap:5px;color:#7990ae;font-size:8px;font-weight:850;white-space:nowrap;cursor:pointer}
-      .trade-pref-all input{width:12px;height:12px;margin:0}
+      .trade-pref-sync{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid #345477;border-radius:7px;background:#11223d;color:#91a8c6;font-size:15px;font-weight:950;line-height:1}
+      .trade-pref-sync:hover{border-color:#5b7fa9;color:#fff;background:#172c49}
+      .trade-pref-sync.active{border-color:#20e2dd;background:#103a42;color:#7ff5ef;box-shadow:0 0 0 1px rgba(32,226,221,.12) inset}
+      .dynasty-panel-title-main{display:flex;align-items:center;gap:10px;min-width:0}
+      .dynasty-panel-name{font-size:13px!important;color:#fff!important}
+      .trade-pref-legend{font-size:9px!important;color:#d7e7ff!important;font-weight:800!important;letter-spacing:0!important;text-transform:none!important;white-space:normal}
       .dynasty-picks-wrap{max-height:none}
       .dynasty-picks-table th{padding:9px 11px}
       .dynasty-picks-table th:nth-child(3),.dynasty-picks-table td:nth-child(3){text-align:center}
