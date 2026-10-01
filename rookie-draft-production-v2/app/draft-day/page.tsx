@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import {useEffect,useMemo,useState} from "react";
 import PlayerName from "@/components/PlayerName";
@@ -12,7 +11,7 @@ type AdpLeague={league:string,slug:string,top75:AdpPlayer[]};
 type LeagueMeta={slug:string,boardKey:string,name:string,rounds:number,teams:number,tePremium?:boolean};
 type IntegrationLeague={key:string,name:string,tePremium?:boolean,enabled?:boolean};
 type RosterView=FinalBoardRoster&{key:string;label?:string};
-type IntelRow=any;
+type IntelRow=ReturnType<typeof buildFinalBoardRows>[number]&{adpRank:number|null;delta:number|null};
 
 const normName=(value:any)=>String(value||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 const pickLabel=(pickNo:number,teams:number)=>{if(!teams)return "—";const round=Math.floor((Math.max(1,pickNo)-1)/teams)+1,slot=((Math.max(1,pickNo)-1)%teams)+1;return round+"."+String(slot).padStart(2,"0")};
@@ -121,7 +120,7 @@ export default function DraftDayPage(){
 
   const bestAvailable=useMemo(()=>Object.fromEntries(FINAL_BOARD_POSITIONS.map(pos=>[
     pos,intelRows.find(p=>p.position===pos&&p.boardGrade!=null&&!draftedNames.has(normName(p.name)))||null
-  ])) as Record<string,IntelRow|null>,[intelRows,draftedNames]);
+  ])) as Record<(typeof FINAL_BOARD_POSITIONS)[number],IntelRow|null>,[intelRows,draftedNames]);
 
   const visibleFeed=useMemo(()=>(active?.picks||[]).filter(p=>{
     if(archivedNames.has(normName(p.player)))return false;
@@ -138,7 +137,7 @@ export default function DraftDayPage(){
     return !q||(`${p.name} ${p.college} ${p.position}`).toLowerCase().includes(q);
   }),[activeAdp,q,archivedNames]);
 
-  const boardByName=useMemo(()=>new Map(intelRows.map(p=>[normName(p.name),p])),[intelRows]);
+  const boardByName=useMemo(()=>new Map<string,IntelRow>(intelRows.map(p=>[normName(p.name),p] as [string,IntelRow])),[intelRows]);
   const byTeam=useMemo(()=>{
     if(!active)return[] as {team:string,picks:Pick[]}[];
     const map=new Map<string,Pick[]>();
