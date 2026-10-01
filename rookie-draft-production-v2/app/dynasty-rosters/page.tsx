@@ -154,10 +154,10 @@ export default function Page(){
     }
   }
 
-  async function saveTradePreference(playerName:string,preference:TradePreference){
+  async function saveTradePreference(playerName:string,preference:TradePreference,applyAllOverride?:boolean){
     if(!tab)return;
     const key=tradePrefKey(playerName);
-    const applyAllLeagues=Boolean(applyAllPreferences[key]);
+    const applyAllLeagues=applyAllOverride??Boolean(applyAllPreferences[key]);
     const previous=tradePreferences[key]||"neutral";
     setTradePreferences(current=>{
       const next={...current};
@@ -197,6 +197,7 @@ export default function Page(){
       const data=await res.json();
       if(!res.ok&&!(data?.rosters?.length))throw new Error(data?.error||data?.detail||"Could not refresh rosters");
       applyRosters((data?.rosters||[]) as RosterView[]);
+      if(tab)void loadTradeAssets(tab);
       setMessageTone(data?.errors?.length?"warn":"ok");
       setMessage(data?.errors?.length?"Roster refresh completed with warnings: "+data.errors.join(" • "):"All Sleeper rosters refreshed.");
     }catch(e:any){
@@ -212,6 +213,7 @@ export default function Page(){
       const data=await res.json();
       if(!res.ok)throw new Error(data?.error||data?.detail||"Could not refresh KTC values");
       applyRosters((data?.rosters||[]) as RosterView[]);
+      if(tab)void loadTradeAssets(tab);
       const summary=data?.ktcMatchSummary;
       if(summary?.unmatched){
         setMessageTone("warn");
@@ -363,7 +365,11 @@ export default function Page(){
                             <input
                               type="checkbox"
                               checked={Boolean(applyAllPreferences[tradePrefKey(p.name)])}
-                              onChange={e=>setApplyAllPreferences(current=>({...current,[tradePrefKey(p.name)]:e.target.checked}))}
+                              onChange={e=>{
+                                const checked=e.target.checked;
+                                setApplyAllPreferences(current=>({...current,[tradePrefKey(p.name)]:checked}));
+                                if(checked)void saveTradePreference(p.name,tradePreferences[tradePrefKey(p.name)]||"neutral",true);
+                              }}
                             />
                             <span>Apply to all {playerLeagueCounts[tradePrefKey(p.name)]} leagues</span>
                           </label>}
