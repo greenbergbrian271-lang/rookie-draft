@@ -9,7 +9,25 @@ const SLUG_TO_KEY:Record<string,string>={
   "dr":"drew-ross"
 };
 
-const cache=new Map<string,{expires:number,data:any}>();
+type KtcRow={
+  name_id:string;
+  sleeper_id?:string|null;
+  full_name:string;
+  position:string;
+  sf_trade_value?:number|null;
+  trade_value?:number|null;
+};
+
+type Asset={
+  id?:string;
+  name:string;
+  position?:string;
+  value:number;
+  source:string;
+  side?:"mine"|"theirs";
+};
+
+let ktcCache:{expires:number;rows:KtcRow[]}|null=null;
 
 async function j(url:string){
   const r=await fetch(url,{cache:"no-store",headers:{"user-agent":"RookieDraft/1.0"}});
@@ -17,147 +35,16 @@ async function j(url:string){
   return r.json();
 }
 
+async function ktcRows(){
+  if(ktcCache&&ktcCache.expires>Date.now())return ktcCache.rows;
+  const data=await j("https://dynasty-daddy.com/api/v1/player/all/today");
+  const rows=(Array.isArray(data)?data:[]) as KtcRow[];
+  ktcCache={rows,expires:Date.now()+60*60*1000};
+  return rows;
+}
+
 function norm(value:any){
   return String(value||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
-}
-
-function playerSlug(name:string,position:string){
-  return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .replace(/['’]/g,"").replace(/\./g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")+"-"+position.toLowerCase();
-}
-
-function numberFrom(value:any){
-  const n=Number(value);
-  return Number.isFinite(n)&&n>0?n:null;
-}
-
-function findKtc(node:any,depth=0):number|null{
-  if(node==null||depth>8)return null;
-  if(Array.isArray(node)){
-    for(const item of node){const hit=findKtc(item,depth+1);if(hit)return hit}
-    return null;
-  }
-  if(typeof node!=="object")return null;
-  const label=String(node.name||node.label||node.source||node.provider||"");
-  if(/keep\s*trade\s*cut|ktc/i.test(label)){
-    for(const key of ["rawValue","raw_value","raw","value","score"]){
-      const n=numberFrom(node[key]);
-      if(n)return n;
-    }
-  }
-  for(const [key,value] of Object.entries(node)){
-    if(/keep.?trade.?cut|\bktc\b/i.test(key)){
-      if(typeof value==="number"){const n=numberFrom(value);if(n)return n}
-      if(value&&typeof value==="object"){
-        for(const child of ["rawValue","raw_value","raw","value","score"]){
-          const n=numberFrom((value as any)[child]);
-          if(n)return n;
-        }
-      }
-    }
-  }
-  for(const value of Object.values(node)){
-    const hit=findKtc(value,depth+1);
-    if(hit)return hit;
-  }
-  return null;
-}
-
-function findComposite(node:any,depth=0):number|null{
-  if(node==null||depth>6)return null;
-  if(Array.isArray(node)){
-    for(const item of node){const hit=findComposite(item,depth+1);if(hit)return hit}
-    return null;
-  }
-  if(typeof node!=="object")return null;
-  for(const key of ["composite","tradyrValue","tradyr_value"]){
-    const n=numberFrom(node[key]);
-    if(n)return n;
-  }
-  for(const value of Object.values(node)){
-    const hit=findComposite(value,depth+1);
-    if(hit)return hit;
-  }
-  return null;
-}
-
-function marketValue(payload:any){
-  const root=payload?.data??payload;
-  const ktc=findKtc(root);
-  if(ktc)return{value:ktc,ktcRaw:ktc,composite:findComposite(root),source:"KTC via Tradyr"};
-  const composite=findComposite(root);
-  if(composite)return{value:Math.round(composite*10),ktcRaw:null,composite,source:"Tradyr composite"};
-  return null;
-}
-
-async function tradyrPlayer(name:string,position:string){
-  const slug=playerSlug(name,position);
-  const key="player:"+slug;
-  const saved=cache.get(key);
-  if(saved&&saved.expires>Date.now())return saved.data;
-  try{
-    const payload=await j("https://api.tradyr.app/v1/players/"+encodeURIComponent(slug));
-    const value=marketValue(payload);
-    const data=value?{name,position,slug,...value}:null;
-    cache.set(key,{expires:Date.now()+6*60*60*1000,data});
-    return data;
-  }catch{
-    cache.set(key,{expires:Date.now()+30*60*1000,data:null});
-    return null;
-  }
-}
-
-function collectObjects(node:any,out:any[]=[],depth=0){
-  if(node==null||depth>8)return out;
-  if(Array.isArray(node)){for(const item of node)collectObjects(item,out,depth+1);return out}
-  if(typeof node!=="object")return out;
-  out.push(node);
-  for(const value of Object.values(node))collectObjects(value,out,depth+1);
-  return out;
-}
-
-async function tradyrPick(year:number,round:number,slot:number,numTeams:number){
-  const key=`picks:${numTeams}`;
-  let payload:any;
-  const saved=cache.get(key);
-  if(saved&&saved.expires>Date.now())payload=saved.data;
-  else{
-    payload=await j(`https://api.tradyr.app/v1/picks?numQbs=2&numTeams=${numTeams}`);
-    cache.set(key,{expires:Date.now()+6*60*60*1000,data:payload});
-  }
-  const exactIds=[
-    `pick_${year}_${round}_${String(slot).padStart(2,"0")}`,
-    `${year}_${round}_${String(slot).padStart(2,"0")}`
-  ];
-  const objects=collectObjects(payload?.data??payload);
-  let match=objects.find(obj=>exactIds.includes(String(obj.id||obj.pickId||obj.pick_id||"").toLowerCase()));
-  if(!match){
-    match=objects.find(obj=>
-      Number(obj.year||obj.season)===year&&
-      Number(obj.round)===round&&
-      Number(obj.pick||obj.slot||obj.pickNumber||obj.pick_number)===slot
-    );
-  }
-  if(!match)return null;
-  const value=marketValue(match)||(()=>{
-    const direct=numberFrom(match.value||match.tradeValue||match.trade_value);
-    return direct?{value:direct,ktcRaw:null,composite:direct,source:"Tradyr pick value"}:null;
-  })();
-  return value?{name:`${year} ${round}.${String(slot).padStart(2,"0")}`,id:String(match.id||exactIds[0]),...value}:null;
-}
-
-async function mapLimit<T,R>(items:T[],limit:number,fn:(item:T)=>Promise<R>){
-  const out:R[]=new Array(items.length);
-  let next=0;
-  async function worker(){
-    while(true){
-      const i=next++;
-      if(i>=items.length)return;
-      out[i]=await fn(items[i]);
-    }
-  }
-  await Promise.all(Array.from({length:Math.min(limit,items.length)},()=>worker()));
-  return out;
 }
 
 function currentOwner(originalRosterId:number,round:number,traded:any[]){
@@ -171,47 +58,94 @@ function slotForPick(pickNo:number,teams:number,type:string){
   return String(type||"").toLowerCase()==="snake"&&round%2===0?teams-within+1:within;
 }
 
-function balance(send:number,get:number){
-  return Math.round(Math.abs(send-get)/Math.max(send,get,1)*1000)/10;
+function pickBucket(slot:number,teams:number){
+  const third=teams/3;
+  if(slot<=Math.ceil(third))return "Early";
+  if(slot>Math.ceil(third*2))return "Late";
+  return "Mid";
 }
 
-function assetKey(items:any[]){
+function valueOf(row:KtcRow|undefined,superflex:boolean){
+  if(!row)return null;
+  const n=Number(superflex?row.sf_trade_value:row.trade_value);
+  return Number.isFinite(n)&&n>0?n:null;
+}
+
+function pickAsset(rows:KtcRow[],year:number,round:number,slot:number,teams:number,superflex:boolean):Asset|null{
+  const bucket=pickBucket(slot,teams);
+  const wanted=norm(`${year} ${bucket} ${round===1?"1st":round===2?"2nd":round===3?"3rd":round+"th"}`);
+  let row=rows.find(x=>x.position==="PI"&&norm(x.full_name)===wanted);
+  if(!row){
+    const roundWord=round===1?"1st":round===2?"2nd":round===3?"3rd":round+"th";
+    row=rows.find(x=>x.position==="PI"&&norm(x.full_name)===norm(`${year} ${bucket} ${roundWord}`));
+  }
+  const value=valueOf(row,superflex);
+  if(!row||value==null)return null;
+  return {
+    id:row.name_id,
+    name:row.full_name,
+    position:"PICK",
+    value,
+    source:"KeepTradeCut via Dynasty Daddy"
+  };
+}
+
+function weightedPackageValue(items:Asset[]){
+  if(!items.length)return 0;
+  const sorted=[...items].sort((a,b)=>b.value-a.value);
+  return sorted.reduce((sum,item,index)=>{
+    const weight=index===0?1:index===1?.82:index===2?.72:.65;
+    return sum+item.value*weight;
+  },0);
+}
+
+function gapPct(a:number,b:number){
+  return Math.round(Math.abs(a-b)/Math.max(a,b,1)*1000)/10;
+}
+
+function assetKey(items:Asset[]){
   return items.map(x=>x.name).sort().join("|");
 }
 
-function buildIdeas(target:any,mine:any[],theirs:any[]){
+function idea(kind:string,youSend:Asset[],youGet:Asset[]){
+  const sendValue=Math.round(youSend.reduce((s,x)=>s+x.value,0));
+  const receiveValue=Math.round(youGet.reduce((s,x)=>s+x.value,0));
+  const sendAdjusted=Math.round(weightedPackageValue(youSend));
+  const receiveAdjusted=Math.round(weightedPackageValue(youGet));
+  return {
+    kind,youSend,youGet,sendValue,receiveValue,sendAdjusted,receiveAdjusted,
+    differencePct:gapPct(sendAdjusted,receiveAdjusted)
+  };
+}
+
+function buildIdeas(target:Asset,mine:Asset[],theirs:Asset[]){
   const ideas:any[]=[];
   const seen=new Set<string>();
-  const add=(kind:string,youSend:any[],youGet:any[])=>{
+  const add=(kind:string,youSend:Asset[],youGet:Asset[])=>{
     if(!youSend.length||!youGet.length)return;
-    const sendValue=Math.round(youSend.reduce((s,x)=>s+x.value,0));
-    const receiveValue=Math.round(youGet.reduce((s,x)=>s+x.value,0));
-    const diff=balance(sendValue,receiveValue);
-    if(diff>26)return;
+    const next=idea(kind,youSend,youGet);
+    if(next.differencePct>18)return;
     const key=assetKey(youSend)+"=>"+assetKey(youGet);
     if(seen.has(key))return;
     seen.add(key);
-    ideas.push({kind,youSend,youGet,sendValue,receiveValue,differencePct:diff});
+    ideas.push(next);
   };
 
   const mineSorted=[...mine].sort((a,b)=>b.value-a.value);
   const theirsSorted=[...theirs].sort((a,b)=>b.value-a.value);
 
   for(const p of mineSorted){
-    if(p.value>=target.value*.78&&p.value<=target.value*1.24)add("Straight up",[p],[target]);
+    if(p.value>=target.value*.84&&p.value<=target.value*1.18)add("Straight up",[p],[target]);
   }
 
-  const pairPool=mineSorted.filter(p=>p.value<target.value*.9&&p.value>target.value*.12).slice(0,18);
+  const pairPool=mineSorted.filter(p=>p.value<target.value*.9&&p.value>target.value*.15).slice(0,20);
   for(let i=0;i<pairPool.length;i++)for(let k=i+1;k<pairPool.length;k++){
-    const sum=pairPool[i].value+pairPool[k].value;
-    if(sum>=target.value*.82&&sum<=target.value*1.22)add("Two-for-one",[pairPool[i],pairPool[k]],[target]);
+    add("Two-for-one",[pairPool[i],pairPool[k]],[target]);
   }
 
-  for(const p of mineSorted.slice(0,18)){
-    if(p.value<=target.value*1.12)continue;
-    const need=p.value-target.value;
-    for(const addon of theirsSorted){
-      if(addon.value<need*.68||addon.value>need*1.35)continue;
+  for(const p of mineSorted.slice(0,22)){
+    if(p.value<=target.value*1.08)continue;
+    for(const addon of theirsSorted.slice(0,24)){
       add("Pick + add-on",[p],[target,addon]);
     }
   }
@@ -232,17 +166,19 @@ export async function POST(req:Request){
     if(!integration?.leagueId)return Response.json({error:"Sleeper league is not configured"},{status:400});
 
     const leagueId=integration.leagueId;
-    const [league,drafts,users,rosters,traded,players]=await Promise.all([
+    const [league,drafts,users,rosters,traded,players,market]=await Promise.all([
       j(`https://api.sleeper.app/v1/league/${leagueId}`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/drafts`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/users`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
       j(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).catch(()=>[]),
-      j("https://api.sleeper.app/v1/players/nfl")
+      j("https://api.sleeper.app/v1/players/nfl"),
+      ktcRows()
     ]);
 
     const draft=[...drafts].sort((a:any,b:any)=>(b.start_time||0)-(a.start_time||0))[0];
     if(!draft)return Response.json({error:"No Sleeper rookie draft found for this league"},{status:404});
+
     const teams=Number(league?.total_rosters||rosters.length||12);
     const round=Math.floor((pickNo-1)/teams)+1;
     const slot=slotForPick(pickNo,teams,draft.type);
@@ -261,6 +197,7 @@ export async function POST(req:Request){
     for(const r of rosters){
       if((identity&&String(r.roster_id)===identity)||matchedUsers.has(String(r.owner_id)))mineIds.add(Number(r.roster_id));
     }
+
     const myRoster=rosters.find((r:any)=>mineIds.has(Number(r.roster_id)));
     const ownerRoster=rosters.find((r:any)=>Number(r.roster_id)===ownerRosterId);
     if(!myRoster)return Response.json({error:"Could not identify your Sleeper roster from Integrations"},{status:400});
@@ -269,42 +206,43 @@ export async function POST(req:Request){
 
     const ownerName=byUser[ownerRoster.owner_id]||`Roster ${ownerRosterId}`;
     const myName=byUser[myRoster.owner_id]||"Your team";
+    const superflex=true;
 
-    const rosterAssets=(roster:any)=>{
+    const bySleeper=new Map(market.filter(x=>x.sleeper_id).map(x=>[String(x.sleeper_id),x]));
+    const byName=new Map(market.map(x=>[norm(x.full_name),x]));
+
+    const rosterAssets=(roster:any,side:"mine"|"theirs"):Asset[]=>{
       const ids=[...(roster.starters||[]),...(roster.players||[])].filter((id:any)=>id&&id!=="0");
-      const unique=[...new Set(ids)].slice(0,28);
-      return unique.map(id=>{
-        const p=players[id as any];
-        const position=String(p?.position||"");
+      return [...new Set(ids)].map(id=>{
+        const sleeper=players[id as any];
+        const position=String(sleeper?.position||"");
         if(!["QB","RB","WR","TE"].includes(position))return null;
-        return {id:String(id),name:`${p?.first_name||""} ${p?.last_name||""}`.trim(),position,team:p?.team||"FA"};
-      }).filter(Boolean);
+        const name=`${sleeper?.first_name||""} ${sleeper?.last_name||""}`.trim();
+        const row=bySleeper.get(String(id))||byName.get(norm(name));
+        const value=valueOf(row,superflex);
+        if(value==null)return null;
+        return {id:String(id),name,position,value,source:"KeepTradeCut via Dynasty Daddy",side};
+      }).filter(Boolean) as Asset[];
     };
 
-    const mineRaw=rosterAssets(myRoster) as any[];
-    const theirsRaw=rosterAssets(ownerRoster) as any[];
-    const valued=await mapLimit([...mineRaw.map(x=>({...x,side:"mine"})),...theirsRaw.map(x=>({...x,side:"theirs"}))],6,async asset=>{
-      const value=await tradyrPlayer(asset.name,asset.position);
-      return value?{...asset,...value}:null;
-    });
-    const mine=valued.filter((x:any)=>x?.side==="mine") as any[];
-    const theirs=valued.filter((x:any)=>x?.side==="theirs") as any[];
+    const mine=rosterAssets(myRoster,"mine");
+    const theirs=rosterAssets(ownerRoster,"theirs");
 
     const draftYear=Math.max(2027,Number(draft.season||2027));
-    const pick=await tradyrPick(draftYear,round,slot,teams);
-    if(!pick)return Response.json({error:"Could not find a current market value for this rookie pick"},{status:502});
+    const target=pickAsset(market,draftYear,round,slot,teams,superflex);
+    if(!target)return Response.json({error:"Could not map this pick to a current KTC future-pick value"},{status:502});
 
-    const ideas=buildIdeas(pick,mine,theirs);
+    const ideas=buildIdeas(target,mine,theirs);
     return Response.json({
-      pick:{...pick,pickNo,round,slot,ownerRosterId,ownerName},
+      pick:{...target,pickNo,round,slot,ownerRosterId,ownerName,displayName:`${draftYear} ${round}.${String(slot).padStart(2,"0")}`},
       owner:{name:ownerName,rosterId:ownerRosterId,valuedPlayers:theirs.length},
       me:{name:myName,rosterId:Number(myRoster.roster_id),valuedPlayers:mine.length},
       ideas,
       source:{
-        provider:"Tradyr Public API",
-        basis:"KTC raw value when Tradyr exposes it; Tradyr composite fallback otherwise",
-        attribution:"Powered by Tradyr · includes KeepTradeCut as a component source",
-        url:"https://tradyr.app"
+        provider:"Dynasty Daddy",
+        basis:"Current KeepTradeCut superflex values. Future numbered picks map to the matching Early/Mid/Late KTC pick bucket.",
+        attribution:"KeepTradeCut market values via Dynasty Daddy",
+        url:"https://dynasty-daddy.com"
       },
       generatedAt:new Date().toISOString()
     });
