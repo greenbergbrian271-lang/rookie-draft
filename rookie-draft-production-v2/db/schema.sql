@@ -6,3 +6,7 @@ CREATE TABLE IF NOT EXISTS planned_games (id bigserial primary key, espn_event_i
 CREATE TABLE IF NOT EXISTS settings (key text primary key, value jsonb not null, updated_at timestamptz default now());
 CREATE TABLE IF NOT EXISTS pff_imports (id bigserial primary key, imported_at timestamptz default now(), thresholds jsonb not null, result jsonb not null);
 CREATE TABLE IF NOT EXISTS archived_players (original_player_id bigint primary key, player_name text not null, draft_class int not null, position text, college text, reason text, snapshot jsonb not null, archived_at timestamptz default now());
+
+CREATE TABLE IF NOT EXISTS combine_invite_sources (draft_class int primary key, source_url text not null, source_title text, total_invites int not null default 0, imported_at timestamptz default now());
+CREATE TABLE IF NOT EXISTS combine_invites (draft_class int not null, player_name text not null, normalized_name text not null, position text, school text, source_url text not null, imported_at timestamptz default now(), primary key(draft_class,normalized_name,position));
+CREATE INDEX IF NOT EXISTS combine_invites_lookup_idx ON combine_invites(draft_class,normalized_name,position);
