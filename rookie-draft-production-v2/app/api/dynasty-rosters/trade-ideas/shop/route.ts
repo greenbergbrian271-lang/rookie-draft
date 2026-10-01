@@ -1,4 +1,4 @@
-import {GET as getTradeAssets} from "../trade/route";
+import {GET as getTradeAssets} from "../../trade/route";
 import {readTradePreferences,tradePreferenceKey,type TradePreference} from "@/lib/trade-preferences";
 
 type Asset={
