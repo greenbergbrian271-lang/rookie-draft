@@ -91,7 +91,7 @@ export async function POST(req:Request){
   try{
     const body=await req.json();
     const leagueKey=String(body?.leagueKey||"");
-    const selectedIds=Array.isArray(body?.selectedIds)?body.selectedIds.map(String).filter(Boolean):[];
+    const selectedIds:string[]=Array.isArray(body?.selectedIds)?body.selectedIds.map((id:any)=>String(id)).filter(Boolean):[];
     if(!leagueKey||!selectedIds.length)return Response.json({error:"Choose at least one player or pick to shop"},{status:400});
     if(selectedIds.length>4)return Response.json({error:"Select up to four assets at a time"},{status:400});
 
