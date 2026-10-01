@@ -2,7 +2,8 @@
 
 import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
-import {glossaryNumber,type GlossaryRows} from "@/lib/scouting-formulas";
+import {type GlossaryRows} from "@/lib/scouting-formulas";
+import {buildFinalBoardRows} from "@/lib/final-board";
 import PlayerName from "@/components/PlayerName";
 
 type Pos="QB"|"RB"|"WR"|"TE";
@@ -160,47 +161,7 @@ export default function Page(){
   const activeRoster=activeView?.rosterKey?rosters.find(x=>x.key===activeView.rosterKey):undefined;
   const g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
 
-  const scored=useMemo<ScoredRow[]>(()=>{
-    const provisional=grades.map(row=>{
-      const sourceGrade=row.finalGrade??row.preDraftGrade??null;
-      const multiplierRow=row.position==="TE"&&activeView?.tePremium?8:POS_MULTIPLIER_ROW[row.position];
-      const multiplier=glossaryNumber(multiplierRow,g);
-      const rookieTeam=teamKey(row.draftTeam||row.draftResult||"");
-      const positionHit=coverageHasTeam(activeRoster?.startingCoverage,row.position,rookieTeam);
-      const benchHit=!positionHit&&coverageHasTeam(activeRoster?.benchCoverage,undefined,rookieTeam);
-      const handcuffAdjustment=positionHit?glossaryNumber(HANDCUFF_ROW[row.position],g):(benchHit?glossaryNumber(20,g):0);
-      const boardGrade=sourceGrade==null?null:sourceGrade*multiplier+handcuffAdjustment;
-      return {...row,sourceGrade,multiplier,handcuffAdjustment,boardGrade,overallRank:null,positionRank:null,tier:null,tierGapBefore:null};
-    });
-
-    const positionRanks=new Map<string,number>();
-    for(const pos of POSITIONS){
-      provisional
-        .filter(x=>x.position===pos&&x.boardGrade!=null)
-        .sort((a,b)=>(b.boardGrade??-Infinity)-(a.boardGrade??-Infinity)||a.name.localeCompare(b.name))
-        .forEach((row,index)=>positionRanks.set(String(row.id),index+1));
-    }
-    const sorted=[...provisional].sort((a,b)=>{
-      if(a.boardGrade==null&&b.boardGrade==null)return a.position.localeCompare(b.position)||a.name.localeCompare(b.name);
-      if(a.boardGrade==null)return 1;
-      if(b.boardGrade==null)return -1;
-      return b.boardGrade-a.boardGrade||a.position.localeCompare(b.position)||a.name.localeCompare(b.name);
-    });
-    let rank=0,tier=1,previousGrade:number|null=null;
-    return sorted.map(row=>{
-      const overallRank=row.boardGrade==null?null:++rank;
-      let rowTier:number|null=null,tierGapBefore:number|null=null;
-      if(row.boardGrade!=null){
-        if(previousGrade!=null){
-          const gap=previousGrade-row.boardGrade;
-          if(gap>=TIER_GAP){tier++;tierGapBefore=gap}
-        }
-        rowTier=tier;
-        previousGrade=row.boardGrade;
-      }
-      return {...row,overallRank,positionRank:positionRanks.get(String(row.id))??null,tier:rowTier,tierGapBefore};
-    });
-  },[grades,activeView,activeRoster,g]);
+  const scored=useMemo<ScoredRow[]>(()=>buildFinalBoardRows(grades,{tePremium:Boolean(activeView?.tePremium)},activeRoster,g),[grades,activeView,activeRoster,g]);
 
   const visible=useMemo(()=>{
     const q=norm(search);
