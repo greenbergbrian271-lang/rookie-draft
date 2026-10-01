@@ -31,10 +31,10 @@ export default function NewPlayerWatchedModal({open,onClose,onDone}:{open:boolea
         const r=await fetch("/api/players",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:p.id,status:"WATCHED"})});
         if(!r.ok)throw new Error("Could not add "+p.name+" to scouting.");
         const defaults=p.position==="QB"
-          ?{"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"}
+          ?{"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"}
           :p.position==="TE"
-            ?{"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"}
-            :{"Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None","Combine Invite?":"None"};
+            ?{"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"}
+            :{"Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"};
         await Promise.all(Object.entries(defaults).map(([category,commentary])=>fetch("/api/evaluations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,category,value:null,commentary})})));
       }
       setMsg(`${picked.length} player${picked.length===1?"":"s"} added to the appropriate scouting page${picked.length===1?"":"s"}.`);setComplete(true);setQueue([]);setSelected([]);window.dispatchEvent(new Event("rookie-draft:players-changed"));onDone?.();
