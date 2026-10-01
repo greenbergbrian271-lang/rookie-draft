@@ -4,6 +4,7 @@ import {useEffect,useMemo,useState} from "react";
 import TradeCalculator from "./trade-calculator";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
+type TradePreference="actively-shopping"|"open"|"neutral"|"reluctant"|"untouchable";
 type HandcuffItem={slot:string;name:string;team:string};
 type RosterView={
   key:string;label:string;league:string;leagueId:string;updated:string;source:string;
@@ -16,6 +17,16 @@ type SortKey="name"|"position"|"team"|"age"|"ktc";
 type SortState={key:SortKey;dir:"asc"|"desc"}|null;
 
 const POS_ORDER:Record<string,number>={QB:1,RB:2,WR:3,TE:4};
+const TRADE_PREF_OPTIONS:{value:TradePreference;label:string;short:string}[]=[
+  {value:"actively-shopping",label:"Actively Shopping",short:"Shopping"},
+  {value:"open",label:"Open to Trade",short:"Open"},
+  {value:"neutral",label:"Neutral",short:"Neutral"},
+  {value:"reluctant",label:"Reluctant",short:"Reluctant"},
+  {value:"untouchable",label:"Untouchable",short:"Untouchable"},
+];
+function tradePrefKey(name:string){
+  return String(name||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+}
 
 function posClass(pos:string){
   const key=pos.toLowerCase().replace(/\s+/g,"-");
@@ -79,8 +90,11 @@ export default function Page(){
   const [refreshingKtc,setRefreshingKtc]=useState(false);
   const [message,setMessage]=useState("");
   const [messageTone,setMessageTone]=useState<"ok"|"warn">("warn");
+  const [tradePreferences,setTradePreferences]=useState<Record<string,TradePreference>>({});
+  const [savingPreference,setSavingPreference]=useState("");
 
   useEffect(()=>{void load()},[]);
+  useEffect(()=>{if(tab)void loadTradePreferences(tab)},[tab]);
 
   function applyRosters(next:RosterView[]){
     setRosters(next);
@@ -102,6 +116,45 @@ export default function Page(){
       setMessageTone("warn");
       setMessage(e?.message||"Could not load rosters");
     }finally{setLoading(false)}
+  }
+
+  async function loadTradePreferences(leagueKey:string){
+    try{
+      const res=await fetch("/api/dynasty-rosters/trade-preferences?leagueKey="+encodeURIComponent(leagueKey),{cache:"no-store"});
+      const data=await res.json();
+      if(res.ok)setTradePreferences(data?.preferences||{});
+    }catch{}
+  }
+
+  async function saveTradePreference(playerName:string,preference:TradePreference){
+    if(!tab)return;
+    const key=tradePrefKey(playerName);
+    const previous=tradePreferences[key]||"neutral";
+    setTradePreferences(current=>{
+      const next={...current};
+      if(preference==="neutral")delete next[key];else next[key]=preference;
+      return next;
+    });
+    setSavingPreference(key);
+    try{
+      const res=await fetch("/api/dynasty-rosters/trade-preferences",{
+        method:"PATCH",headers:{"content-type":"application/json"},
+        body:JSON.stringify({leagueKey:tab,playerName,preference}),
+      });
+      const data=await res.json();
+      if(!res.ok)throw new Error(data?.error||"Could not save trade preference");
+      setTradePreferences(data?.preferences||{});
+    }catch(e:any){
+      setTradePreferences(current=>{
+        const next={...current};
+        if(previous==="neutral")delete next[key];else next[key]=previous;
+        return next;
+      });
+      setMessageTone("warn");
+      setMessage(e?.message||"Could not save trade preference");
+    }finally{
+      setSavingPreference(current=>current===key?"":current);
+    }
   }
 
   async function refresh(){
@@ -218,7 +271,7 @@ export default function Page(){
           <section className="dynasty-panel dynasty-roster-panel">
             <div className="dynasty-panel-title">
               Roster
-              <span>{roster.players.length} players · click any column to sort</span>
+              <span>{roster.players.length} players · click any column to sort · preferences feed Trade Ideas</span>
             </div>
             <div className="dynasty-table-wrap">
               <table className="dynasty-roster-table">
@@ -228,6 +281,7 @@ export default function Page(){
                   <SortHeader label="Team" col="team"/>
                   <SortHeader label="Age" col="age" center/>
                   <SortHeader label="KTC Value" col="ktc" center/>
+                  <th className="center trade-pref-head">Trade Preference</th>
                 </tr></thead>
                 <tbody>
                   {sortedPlayers.map((p,i)=>{
@@ -239,6 +293,17 @@ export default function Page(){
                       <td>{p.age||"—"}</td>
                       <td className="ktc">
                         {hasKtc?fmtKtc(p.ktc):<span className="ktc-missing" title="No KTC match found after the latest KTC refresh. The player name was checked using normalized names, aliases, and first/last-name matching.">N/A <span className="ktc-help">?</span></span>}
+                      </td>
+                      <td className="trade-pref-cell">
+                        <select
+                          className={"trade-pref-select pref-"+(tradePreferences[tradePrefKey(p.name)]||"neutral")}
+                          value={tradePreferences[tradePrefKey(p.name)]||"neutral"}
+                          disabled={savingPreference===tradePrefKey(p.name)}
+                          onChange={e=>void saveTradePreference(p.name,e.target.value as TradePreference)}
+                          aria-label={"Trade preference for "+p.name}
+                        >
+                          {TRADE_PREF_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
                       </td>
                     </tr>;
                   })}
@@ -294,8 +359,8 @@ export default function Page(){
       .sort-header{width:100%;display:flex;align-items:center;justify-content:flex-start;gap:6px;background:transparent!important;border:0!important;border-radius:0!important;color:#b9c9df!important;padding:9px 11px;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
       .sort-header:hover,.sort-header.active{color:#fff!important;background:#193457!important}
       .sort-arrow{font-size:9px;opacity:.8}
-      .dynasty-roster-table th:nth-child(2),.dynasty-roster-table th:nth-child(4),.dynasty-roster-table th:nth-child(5),
-      .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5){text-align:center}
+      .dynasty-roster-table th:nth-child(2),.dynasty-roster-table th:nth-child(4),.dynasty-roster-table th:nth-child(5),.dynasty-roster-table th:nth-child(6),
+      .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5),.dynasty-roster-table td:nth-child(6){text-align:center}
       .dynasty-roster-table td{padding:8px 11px;border-bottom:1px solid #18304f;color:#e9f1fb}
       .dynasty-roster-table tbody tr:nth-child(odd) td{background:#0b1a30}
       .dynasty-roster-table tbody tr:nth-child(even) td{background:#0e2039}
@@ -303,6 +368,15 @@ export default function Page(){
       .dynasty-roster-table tbody tr:last-child td{border-bottom:0}
       .dynasty-roster-table td:first-child strong{font-size:13px}
       .dynasty-roster-table .ktc{font-weight:950;font-variant-numeric:tabular-nums;color:#fff}
+      .trade-pref-head{padding:9px 11px!important;white-space:nowrap}
+      .trade-pref-cell{min-width:142px}
+      .trade-pref-select{width:132px;height:30px;border-radius:7px;border:1px solid #345477;background:#11223d;color:#dce8f6;padding:0 8px;font-size:10px;font-weight:900;outline:none}
+      .trade-pref-select:disabled{opacity:.6}
+      .trade-pref-select.pref-actively-shopping{border-color:#2c946d;background:#103b30;color:#98f0c8}
+      .trade-pref-select.pref-open{border-color:#2d7190;background:#102d40;color:#94dcff}
+      .trade-pref-select.pref-neutral{border-color:#345477;background:#11223d;color:#dce8f6}
+      .trade-pref-select.pref-reluctant{border-color:#8a6c25;background:#352d18;color:#ffd978}
+      .trade-pref-select.pref-untouchable{border-color:#854355;background:#3b1d29;color:#ffb4c1}
       .ktc-missing{display:inline-flex;align-items:center;gap:5px;color:#b9c9df;cursor:help}
       .ktc-help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border:1px solid #557297;border-radius:50%;font-size:9px;color:#8fa7c8}
       .dynasty-side{display:grid;gap:12px}
@@ -347,7 +421,7 @@ export default function Page(){
         .dynasty-meta.league,.dynasty-meta.updated{grid-column:1/-1}
         .dynasty-side{grid-template-columns:1fr}
         .dynasty-table-wrap{overflow-x:auto}
-        .dynasty-roster-table{min-width:620px}
+        .dynasty-roster-table{min-width:780px}
         .dynasty-handcuff-copy{display:block}
         .dynasty-handcuff-copy span{display:block;margin-top:2px}
       }
