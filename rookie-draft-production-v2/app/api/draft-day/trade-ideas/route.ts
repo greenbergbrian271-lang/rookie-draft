@@ -27,6 +27,8 @@ type Asset={
   source:string;
   side?:"mine"|"theirs";
   preference?:TradePreference;
+  round?:number;
+  slot?:number;
 };
 
 let ktcCache:{expires:number;rows:KtcRow[]}|null=null;
@@ -154,6 +156,7 @@ function buildIdeas(target:Asset,mine:Asset[],theirs:Asset[]){
   const theirsSorted=[...theirs].sort((a,b)=>b.value-a.value);
 
   for(const asset of mineSorted){
+    if(asset.position==="PICK"&&target.position==="PICK"&&asset.round===target.round)continue;
     if(asset.value>=target.value*.78&&asset.value<=target.value*1.22)add(asset.position==="PICK"?"Pick swap":"Straight up",[asset],[target]);
   }
 
@@ -276,13 +279,16 @@ export async function POST(req:Request){
           id:`pick:${draftYear}:${r}:${original}`,
           name:`${draftYear} ${r}.${String(s).padStart(2,"0")}`,
           side:"mine",
+          round:r,
+          slot:s,
         });
       }
     }
     const mine=[...minePlayers,...minePicks];
 
-    const target=pickAsset(market,draftYear,round,slot,teams,superflex);
-    if(!target)return Response.json({error:"Could not map this pick to a current KTC future-pick value"},{status:502});
+    const targetBase=pickAsset(market,draftYear,round,slot,teams,superflex);
+    if(!targetBase)return Response.json({error:"Could not map this pick to a current KTC future-pick value"},{status:502});
+    const target:Asset={...targetBase,round,slot};
 
     const ideas=buildIdeas(target,mine,theirs);
     return Response.json({
