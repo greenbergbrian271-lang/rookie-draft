@@ -107,55 +107,7 @@ function AssetList({
       {rows(players,"Players")}
       {rows(picks,"Draft Picks")}
     </div>
-  </section>
-    {(ideaData||ideaLoading||ideaError)&&<div className="roster-ideas-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!ideaLoading)closeIdeas()}}>
-      <section className="roster-ideas-modal" role="dialog" aria-modal="true" aria-label="Roster trade ideas">
-        <header>
-          <div>
-            <div className="trade-kicker">Preference-Aware Trade Ideas</div>
-            <h2>{data?.myTeam.name||myTeamName} ↔ {data?.partnerTeam.name||"Trade Partner"}</h2>
-            <p>Generated from current Sleeper ownership, KTC values, your future picks, and the willingness settings on this roster.</p>
-          </div>
-          <button type="button" className="roster-ideas-close" onClick={closeIdeas} disabled={ideaLoading}>×</button>
-        </header>
-        {ideaLoading?<div className="roster-ideas-loading">Building player-and-pick packages…</div>:ideaError?<div className="trade-error">{ideaError}</div>:ideaData?<div className="roster-ideas-body">
-          <div className="roster-ideas-meta">
-            <span>{ideaData.ideas.length} ideas</span>
-            <span>{ideaData.preferencesApplied} custom preferences applied</span>
-          </div>
-          {ideaData.ideas.length?<div className="roster-ideas-list">{ideaData.ideas.map((idea,index)=><article key={index}>
-            <div className="roster-idea-head">
-              <strong>{idea.kind}</strong>
-              <span>{idea.differencePct.toFixed(1)}% adjusted gap</span>
-            </div>
-            <div className="roster-idea-grid">
-              <div>
-                <small>YOU SEND</small>
-                {idea.youSend.map((asset,i)=><p key={i}>
-                  <span><b>{asset.name}</b>{asset.type==="pick"&&<em>PICK</em>}{asset.preference&&asset.preference!=="neutral"&&<em className={"pref-tag "+asset.preference}>{asset.preference.replace("-"," ")}</em>}</span>
-                  <strong>{fmtValue(asset.value)}</strong>
-                </p>)}
-                <footer>Raw {numberFmt.format(idea.sendValue)} · Adjusted {numberFmt.format(idea.sendAdjusted)}</footer>
-              </div>
-              <div className="roster-idea-arrow">→</div>
-              <div>
-                <small>YOU RECEIVE</small>
-                {idea.youGet.map((asset,i)=><p key={i}>
-                  <span><b>{asset.name}</b>{asset.type==="pick"&&<em>PICK</em>}</span>
-                  <strong>{fmtValue(asset.value)}</strong>
-                </p>)}
-                <footer>Raw {numberFmt.format(idea.receiveValue)} · Adjusted {numberFmt.format(idea.receiveAdjusted)}</footer>
-              </div>
-            </div>
-            {idea.preferenceNote&&<div className="roster-pref-note">{idea.preferenceNote}</div>}
-            <button type="button" className="ghost roster-copy-idea" onClick={()=>copyIdea(idea)}>Copy trade</button>
-          </article>)}</div>:<div className="trade-loading">No balanced ideas fit the current preferences. Try loosening a preference or choosing another partner.</div>}
-          <div className="roster-ideas-note">{ideaData.valueNote}</div>
-        </div>:null}
-      </section>
-    </div>}
-
-  </>;
+  </section>;
 }
 
 export default function TradeCalculator({leagueKey}:{leagueKey:string}){
@@ -244,78 +196,134 @@ export default function TradeCalculator({leagueKey}:{leagueKey:string}){
   const delta=receive.total-send.total;
   const anySelected=send.count+receive.count>0;
 
-  return <><section className="trade-calculator">
-    <div className="trade-titlebar">
-      <div>
-        <div className="trade-kicker">Sleeper Trade Workspace</div>
-        <h2>Trade Calculator</h2>
-      </div>
-      {data&&<div className="trade-ktc-time">KTC updated {fmtTime(data.ktcUpdatedAt)}</div>}
-    </div>
-
-    <div className="trade-controls">
-      <label>
-        <span>Trade With</span>
-        <select value={partnerId} onChange={e=>void choosePartner(e.target.value)} disabled={loadingTeams}>
-          <option value="">{loadingTeams?"Loading teams…":"Select a team"}</option>
-          {teams.map(team=><option key={team.rosterId} value={team.rosterId}>{team.name}</option>)}
-        </select>
-      </label>
-      <div className="trade-control-note">
-        {partnerId?"Only assets owned by these two rosters are selectable.":"Choose a trade partner to lazy-load their players and current future picks."}
-      </div>
-      <div className="trade-control-actions">
-        {partnerId&&<button className="trade-ideas-button" type="button" onClick={()=>void generateIdeas()} disabled={ideaLoading||loadingAssets}>
-          {ideaLoading?"Generating…":"✦ Generate Trade Ideas"}
-        </button>}
-        {anySelected&&<button className="ghost trade-clear" type="button" onClick={()=>{setSendIds(new Set());setReceiveIds(new Set())}}>Clear Package</button>}
-      </div>
-    </div>
-
-    {error&&<div className="trade-error">{error}</div>}
-    {loadingAssets&&<div className="trade-loading">Loading this matchup’s players, picks, and KTC values…</div>}
-
-    {data&&!loadingAssets&&<>
-      <div className="trade-scoreboard" aria-live="polite">
-        <div className="trade-score">
-          <span>You Send</span>
-          <strong>{numberFmt.format(send.total)}</strong>
-          <small>{send.count} asset{send.count===1?"":"s"}{send.unvalued?" · "+send.unvalued+" unvalued":""}</small>
+  return <>
+    <section className="trade-calculator">
+      <div className="trade-titlebar">
+        <div>
+          <div className="trade-kicker">Sleeper Trade Workspace</div>
+          <h2>Trade Calculator</h2>
         </div>
-        <div className="trade-delta">
-          <span>Raw KTC Difference</span>
-          <strong className={delta>0?"positive":delta<0?"negative":""}>{delta>0?"+":""}{numberFmt.format(delta)}</strong>
-          <small>{numberFmt.format(receive.total)} received − {numberFmt.format(send.total)} sent</small>
+        {data&&<div className="trade-ktc-time">KTC updated {fmtTime(data.ktcUpdatedAt)}</div>}
+      </div>
+
+      <div className="trade-controls">
+        <label>
+          <span>Trade With</span>
+          <select value={partnerId} onChange={e=>void choosePartner(e.target.value)} disabled={loadingTeams}>
+            <option value="">{loadingTeams?"Loading teams…":"Select a team"}</option>
+            {teams.map(team=><option key={team.rosterId} value={team.rosterId}>{team.name}</option>)}
+          </select>
+        </label>
+        <div className="trade-control-note">
+          {partnerId?"Only assets owned by these two rosters are selectable.":"Choose a trade partner to lazy-load their players and current future picks."}
         </div>
-        <div className="trade-score">
-          <span>You Receive</span>
-          <strong>{numberFmt.format(receive.total)}</strong>
-          <small>{receive.count} asset{receive.count===1?"":"s"}{receive.unvalued?" · "+receive.unvalued+" unvalued":""}</small>
+        <div className="trade-control-actions">
+          {partnerId&&<button className="trade-ideas-button" type="button" onClick={()=>void generateIdeas()} disabled={ideaLoading||loadingAssets}>
+            {ideaLoading?"Generating…":"✦ Generate Trade Ideas"}
+          </button>}
+          {anySelected&&<button className="ghost trade-clear" type="button" onClick={()=>{setSendIds(new Set());setReceiveIds(new Set())}}>Clear Package</button>}
         </div>
       </div>
 
-      <div className="trade-columns">
-        <AssetList
-          title={"You Send · "+(data.myTeam.name||myTeamName)}
-          assets={myAssets}
-          selected={sendIds}
-          onToggle={asset=>toggle(setSendIds,asset.id)}
-          search={sendSearch}
-          setSearch={setSendSearch}
-        />
-        <AssetList
-          title={"You Receive · "+data.partnerTeam.name}
-          assets={partnerAssets}
-          selected={receiveIds}
-          onToggle={asset=>toggle(setReceiveIds,asset.id)}
-          search={receiveSearch}
-          setSearch={setReceiveSearch}
-        />
-      </div>
+      {error&&<div className="trade-error">{error}</div>}
+      {loadingAssets&&<div className="trade-loading">Loading this matchup’s players, picks, and KTC values…</div>}
 
-      <div className="trade-footnote">
-        <strong>Pick valuation:</strong> {data.pickValueNote} Player and pick totals are raw additive KTC values; no package-size adjustment is applied.
-      </div>
-    </>}
-  </section>;
+      {data&&!loadingAssets&&<>
+        <div className="trade-scoreboard" aria-live="polite">
+          <div className="trade-score">
+            <span>You Send</span>
+            <strong>{numberFmt.format(send.total)}</strong>
+            <small>{send.count} asset{send.count===1?"":"s"}{send.unvalued?" · "+send.unvalued+" unvalued":""}</small>
+          </div>
+          <div className="trade-delta">
+            <span>Raw KTC Difference</span>
+            <strong className={delta>0?"positive":delta<0?"negative":""}>{delta>0?"+":""}{numberFmt.format(delta)}</strong>
+            <small>{numberFmt.format(receive.total)} received − {numberFmt.format(send.total)} sent</small>
+          </div>
+          <div className="trade-score">
+            <span>You Receive</span>
+            <strong>{numberFmt.format(receive.total)}</strong>
+            <small>{receive.count} asset{receive.count===1?"":"s"}{receive.unvalued?" · "+receive.unvalued+" unvalued":""}</small>
+          </div>
+        </div>
+
+        <div className="trade-columns">
+          <AssetList
+            title={"You Send · "+(data.myTeam.name||myTeamName)}
+            assets={myAssets}
+            selected={sendIds}
+            onToggle={asset=>toggle(setSendIds,asset.id)}
+            search={sendSearch}
+            setSearch={setSendSearch}
+          />
+          <AssetList
+            title={"You Receive · "+data.partnerTeam.name}
+            assets={partnerAssets}
+            selected={receiveIds}
+            onToggle={asset=>toggle(setReceiveIds,asset.id)}
+            search={receiveSearch}
+            setSearch={setReceiveSearch}
+          />
+        </div>
+
+        <div className="trade-footnote">
+          <strong>Pick valuation:</strong> {data.pickValueNote} Player and pick totals are raw additive KTC values; no package-size adjustment is applied.
+        </div>
+      </>}
+    </section>
+
+    {(ideaData||ideaLoading||ideaError)&&<div className="roster-ideas-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!ideaLoading)closeIdeas()}}>
+      <section className="roster-ideas-modal" role="dialog" aria-modal="true" aria-label="Roster trade ideas">
+        <header>
+          <div>
+            <div className="trade-kicker">Preference-Aware Trade Ideas</div>
+            <h2>{data?.myTeam.name||myTeamName} ↔ {data?.partnerTeam.name||"Trade Partner"}</h2>
+            <p>Generated from current Sleeper ownership, KTC values, your future picks, and the willingness settings on this roster.</p>
+          </div>
+          <button type="button" className="roster-ideas-close" onClick={closeIdeas} disabled={ideaLoading}>×</button>
+        </header>
+
+        {ideaLoading?<div className="roster-ideas-loading">Building player-and-pick packages…</div>:ideaError?<div className="trade-error">{ideaError}</div>:ideaData?<div className="roster-ideas-body">
+          <div className="roster-ideas-meta">
+            <span>{ideaData.ideas.length} ideas</span>
+            <span>{ideaData.preferencesApplied} custom preferences applied</span>
+          </div>
+
+          {ideaData.ideas.length?<div className="roster-ideas-list">{ideaData.ideas.map((idea,index)=><article key={index}>
+            <div className="roster-idea-head">
+              <strong>{idea.kind}</strong>
+              <span>{idea.differencePct.toFixed(1)}% adjusted gap</span>
+            </div>
+            <div className="roster-idea-grid">
+              <div>
+                <small>YOU SEND</small>
+                {idea.youSend.map((asset,i)=><p key={i}>
+                  <span>
+                    <b>{asset.name}</b>
+                    {asset.type==="pick"&&<em>PICK</em>}
+                    {asset.preference&&asset.preference!=="neutral"&&<em className={"pref-tag "+asset.preference}>{asset.preference.replace("-"," ")}</em>}
+                  </span>
+                  <strong>{fmtValue(asset.value)}</strong>
+                </p>)}
+                <footer>Raw {numberFmt.format(idea.sendValue)} · Adjusted {numberFmt.format(idea.sendAdjusted)}</footer>
+              </div>
+              <div className="roster-idea-arrow">→</div>
+              <div>
+                <small>YOU RECEIVE</small>
+                {idea.youGet.map((asset,i)=><p key={i}>
+                  <span><b>{asset.name}</b>{asset.type==="pick"&&<em>PICK</em>}</span>
+                  <strong>{fmtValue(asset.value)}</strong>
+                </p>)}
+                <footer>Raw {numberFmt.format(idea.receiveValue)} · Adjusted {numberFmt.format(idea.receiveAdjusted)}</footer>
+              </div>
+            </div>
+            {idea.preferenceNote&&<div className="roster-pref-note">{idea.preferenceNote}</div>}
+            <button type="button" className="ghost roster-copy-idea" onClick={()=>copyIdea(idea)}>Copy trade</button>
+          </article>)}</div>:<div className="trade-loading">No balanced ideas fit the current preferences. Try loosening a preference or choosing another partner.</div>}
+
+          <div className="roster-ideas-note">{ideaData.valueNote}</div>
+        </div>:null}
+      </section>
+    </div>}
+  </>;
 }
