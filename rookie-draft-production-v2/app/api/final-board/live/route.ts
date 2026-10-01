@@ -22,7 +22,9 @@ async function json(res:Response){
 
 export async function GET(req:Request){
   try{
-    const viewKey=new URL(req.url).searchParams.get("view")||"base";
+    const url=new URL(req.url);
+    const viewKey=url.searchParams.get("view")||"base";
+    const draftClass=Number(url.searchParams.get("draftClass")||2027);
     const integrations=await getIntegrations();
     let tePremium=false,rosterKey:string|undefined,label="Base";
     if(viewKey==="tep"){tePremium=true;label="TE Premium"}
@@ -35,7 +37,7 @@ export async function GET(req:Request){
     }
 
     const [gradesData,glossaryData,rosterData]=await Promise.all([
-      json(await getGrades(new Request("http://internal/api/grades?draftClass=2027"))),
+      json(await getGrades(new Request("http://internal/api/grades?draftClass="+encodeURIComponent(String(draftClass))))),
       json(await getGlossary()),
       json(await getRosters())
     ]);
@@ -44,7 +46,7 @@ export async function GET(req:Request){
     const rosters=(Array.isArray(rosterData?.rosters)?rosterData.rosters:[]) as (FinalBoardRoster&{key:string})[];
     const roster=rosterKey?rosters.find(x=>x.key===rosterKey):undefined;
     const rows=buildFinalBoardRows(grades,{tePremium},roster,glossary);
-    return Response.json({view:{key:viewKey,label,tePremium,rosterKey},rows});
+    return Response.json({view:{key:viewKey,label,tePremium,rosterKey,draftClass},rows});
   }catch(e:unknown){
     return Response.json({error:e instanceof Error?e.message:"Could not build Final Draft Board"},{status:500});
   }
