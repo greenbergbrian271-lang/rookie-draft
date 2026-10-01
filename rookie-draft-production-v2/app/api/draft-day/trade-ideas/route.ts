@@ -138,54 +138,112 @@ function idea(kind:string,youSend:Asset[],youGet:Asset[]){
   };
 }
 
+function comboSets(items:Asset[],maxSize:number){
+  const out:Asset[][]=[];
+  const current:Asset[]=[];
+  const walk=(start:number)=>{
+    if(current.length)out.push([...current]);
+    if(current.length>=maxSize)return;
+    for(let i=start;i<items.length;i++){
+      current.push(items[i]);
+      walk(i+1);
+      current.pop();
+    }
+  };
+  walk(0);
+  return out;
+}
+
+function focusedPool(items:Asset[],targetValue:number,limit=26){
+  const valid=items.filter(item=>item.value>0);
+  const map=new Map<string,Asset>();
+  const add=(asset:Asset)=>map.set(asset.id||asset.name,asset);
+  [...valid].sort((a,b)=>b.value-a.value).slice(0,12).forEach(add);
+  [...valid].sort((a,b)=>Math.abs(a.value-targetValue/2)-Math.abs(b.value-targetValue/2)).slice(0,8).forEach(add);
+  [...valid].sort((a,b)=>Math.abs(a.value-targetValue/3)-Math.abs(b.value-targetValue/3)).slice(0,8).forEach(add);
+  valid.filter(item=>item.position==="PICK").forEach(add);
+  return [...map.values()].slice(0,limit);
+}
+
+function packageKind(send:Asset[],get:Asset[]){
+  const sendHasPick=send.some(x=>x.position==="PICK");
+  if(send.length===1&&get.length===1)return sendHasPick?"Pick swap":"Straight up";
+  if(get.length===1)return sendHasPick?"Pick + assets":send.length+"-for-one";
+  if(send.length===1)return sendHasPick?"Pick swap + add-ons":"One-for-"+get.length;
+  return sendHasPick?"Pick package":"Package deal";
+}
+
 function buildIdeas(target:Asset,mine:Asset[],theirs:Asset[]){
+  const eligibleMine=mine.filter(x=>x.preference!=="untouchable");
+  const minePool=focusedPool(eligibleMine,target.value,26);
+  const outgoing=comboSets(minePool,4)
+    .filter(items=>preferencePenalty(items)<900)
+    .map(items=>({
+      items,
+      adjusted:weightedPackageValue(items),
+    }))
+    .sort((a,b)=>a.adjusted-b.adjusted);
+
+  const addonPool=focusedPool(theirs,target.value,18);
+  const receivePackages=[
+    [target],
+    ...comboSets(addonPool,3).map(items=>[target,...items]),
+  ];
+
   const ideas:any[]=[];
   const seen=new Set<string>();
-  const eligibleMine=mine.filter(x=>x.preference!=="untouchable");
-  const add=(kind:string,youSend:Asset[],youGet:Asset[])=>{
-    if(!youSend.length||!youGet.length||preferencePenalty(youSend)>=900)return;
-    const next=idea(kind,youSend,youGet);
-    if(next.differencePct>18)return;
-    const key=assetKey(youSend)+"=>"+assetKey(youGet);
-    if(seen.has(key))return;
-    seen.add(key);
-    ideas.push(next);
+
+  const lowerBound=(value:number)=>{
+    let lo=0,hi=outgoing.length;
+    while(lo<hi){
+      const mid=(lo+hi)>>1;
+      if(outgoing[mid].adjusted<value)lo=mid+1;else hi=mid;
+    }
+    return lo;
   };
 
-  const mineSorted=[...eligibleMine].sort((a,b)=>b.value-a.value);
-  const theirsSorted=[...theirs].sort((a,b)=>b.value-a.value);
+  for(const youGet of receivePackages){
+    const wanted=weightedPackageValue(youGet);
+    const idx=lowerBound(wanted);
+    const from=Math.max(0,idx-12),to=Math.min(outgoing.length,idx+13);
+    for(let i=from;i<to;i++){
+      const youSend=outgoing[i].items;
+      if(
+        youSend.length===1&&youGet.length===1&&
+        youSend[0].position==="PICK"&&target.position==="PICK"&&
+        youSend[0].round===target.round
+      )continue;
 
-  for(const asset of mineSorted){
-    if(asset.position==="PICK"&&target.position==="PICK"&&asset.round===target.round)continue;
-    if(asset.value>=target.value*.78&&asset.value<=target.value*1.22)add(asset.position==="PICK"?"Pick swap":"Straight up",[asset],[target]);
-  }
-
-  const pairPool=mineSorted.filter(p=>p.value<target.value*.95&&p.value>target.value*.12).slice(0,24);
-  for(let i=0;i<pairPool.length;i++)for(let k=i+1;k<pairPool.length;k++){
-    const includesPick=pairPool[i].position==="PICK"||pairPool[k].position==="PICK";
-    add(includesPick?"Pick + asset":"Two-for-one",[pairPool[i],pairPool[k]],[target]);
-  }
-
-  for(const asset of mineSorted.slice(0,26)){
-    if(asset.value<=target.value*1.05)continue;
-    for(const addon of theirsSorted.slice(0,24)){
-      add(asset.position==="PICK"?"Pick swap + add-on":"Pick + add-on",[asset],[target,addon]);
+      const key=assetKey(youSend)+"=>"+assetKey(youGet);
+      if(seen.has(key))continue;
+      const next=idea(packageKind(youSend,youGet),youSend,youGet);
+      if(next.differencePct>18)continue;
+      next.score+=(youSend.length+youGet.length-2)*.55;
+      seen.add(key);
+      ideas.push(next);
     }
   }
 
   ideas.sort((a,b)=>a.score-b.score||a.differencePct-b.differencePct);
+
   const chosen:any[]=[];
   const signatures=new Set<string>();
   const addChosen=(next:any)=>{
     const key=assetKey(next.youSend)+"=>"+assetKey(next.youGet);
     if(signatures.has(key))return;
-    signatures.add(key);chosen.push(next);
+    signatures.add(key);
+    chosen.push(next);
   };
+
   for(const next of ideas.filter(x=>x.youSend.some((a:Asset)=>a.position==="PICK")).slice(0,2))addChosen(next);
-  for(const next of ideas){if(chosen.length>=6)break;addChosen(next)}
+  for(const next of ideas.filter(x=>x.youSend.length+x.youGet.length>=4).slice(0,2))addChosen(next);
+  for(const next of ideas){
+    if(chosen.length>=6)break;
+    addChosen(next);
+  }
+
   return chosen.slice(0,6).map(({score,...rest})=>rest);
 }
-
 export async function POST(req:Request){
   try{
     const body=await req.json();
