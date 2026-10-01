@@ -300,6 +300,7 @@ export default function TradeCalculator({leagueKey}:{leagueKey:string}){
                 {idea.youSend.map((asset,i)=><p key={i}>
                   <span>
                     <b>{asset.name}</b>
+                    {asset.type==="pick"&&asset.detail&&<i className="pick-origin">{asset.detail}</i>}
                     {asset.type==="pick"&&<em>PICK</em>}
                     {asset.preference&&asset.preference!=="neutral"&&<em className={"pref-tag "+asset.preference}>{asset.preference.replace("-"," ")}</em>}
                   </span>
@@ -311,7 +312,7 @@ export default function TradeCalculator({leagueKey}:{leagueKey:string}){
               <div>
                 <small>YOU RECEIVE</small>
                 {idea.youGet.map((asset,i)=><p key={i}>
-                  <span><b>{asset.name}</b>{asset.type==="pick"&&<em>PICK</em>}</span>
+                  <span><b>{asset.name}</b>{asset.type==="pick"&&asset.detail&&<i className="pick-origin">{asset.detail}</i>}{asset.type==="pick"&&<em>PICK</em>}</span>
                   <strong>{fmtValue(asset.value)}</strong>
                 </p>)}
                 <footer>Raw {numberFmt.format(idea.receiveValue)} · Adjusted {numberFmt.format(idea.receiveAdjusted)}</footer>
