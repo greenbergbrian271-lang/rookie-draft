@@ -43,13 +43,26 @@ async function generateGateway(bundles:NoteBundle[],token:string){
 }
 async function generateGemini(bundles:NoteBundle[],apiKey:string){
   const model=process.env.GEMINI_MODEL||"gemini-3.8-flash",prompt=promptFor(bundles);
-  const body={model,input:prompt,store:false,generation_config:{temperature:.15,thinking_level:"low"}};
+  const body={
+    contents:[{parts:[{text:prompt}]}],
+    generationConfig:{thinkingConfig:{thinkingLevel:"low"}}
+  };
   let last="";
   for(let attempt=0;attempt<3;attempt++){
     if(attempt)await sleep(700*Math.pow(2,attempt-1));
-    const r=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":apiKey},body:JSON.stringify(body),cache:"no-store"});
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
+      method:"POST",
+      headers:{"content-type":"application/json","x-goog-api-key":apiKey},
+      body:JSON.stringify(body),
+      cache:"no-store"
+    });
     last=await r.text();
-    if(r.ok){const json=JSON.parse(last),text=String(json?.output_text||"");return parseJson(text)}
+    if(r.ok){
+      const json=JSON.parse(last);
+      const parts=Array.isArray(json?.candidates?.[0]?.content?.parts)?json.candidates[0].content.parts:[];
+      const text=parts.map((p:any)=>String(p?.text||"")).filter(Boolean).join("\n").trim();
+      return parseJson(text);
+    }
     if(r.status!==429&&r.status<500)break;
   }
   throw new Error(`Gemini summary request failed${last?": "+last.slice(0,180):""}`);
