@@ -163,6 +163,10 @@ function applyCombine(base:any[],combine:any[],position:string){
     return enrich(next);
   });
 }
+function projectRows(base:any[],current:any[],enrich:(row:any)=>any){
+  const reference=new Map<string,any>();for(const row of base)if(row?.Player)reference.set(norm(row.Player),row);
+  return (current||[]).map(row=>{const key=norm(row?.Player);return enrich({...((key&&reference.get(key))||{}),...row})});
+}
 async function canonicalPlayerData(db:any,position:string){
   const combine=rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=2027 and p.position=?",args:[position]}));
   const storedCollegeRows=rows(await db.execute("select team,subdivision,games,completions,pass_attempts as passAttempts,pass_yards as passYards,pass_tds as passTDs,rushes,rush_yards as rushYards,rush_tds as rushTDs,total_plays as totalPlays,updated_at as updatedAt from college_stats"));
@@ -170,14 +174,23 @@ async function canonicalPlayerData(db:any,position:string){
   const collegeMap=new Map(collegeRows.map((r:any)=>[norm(r.team),r]));
   const withContext=(rs:any[])=>applyCombine(rs,combine,position).map((row:any)=>({...row,"Team Context":collegeMap.get(norm(row.College))||null}));
   const combineRefreshedAt=combine.reduce((m:any,r:any)=>!m||String(r.refreshed_at||"")>String(m)?r.refreshed_at:m,null);
-  if(position==="TE")return {rows:withContext(tePlayerDataRows()),below:[],importedAt:null,referenceSource:"Player Data · TE Data",combineRefreshedAt};
-  if(position==="WR")return {rows:withContext(wrPlayerDataRows()),below:[],importedAt:null,referenceSource:"Player Data · WR Data",combineRefreshedAt};
   const imported=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
   let result:any={};if(imported.length){try{result=JSON.parse(String(imported[0].result||"{}"))}catch{}}
-  const block=result[position]||{},above=block.above?.primary||[],below=block.below?.primary||[];
-  if(position==="QB")return {rows:withContext(mergeQB(imported.length?[...below,...above]:[])),below,importedAt:imported[0]?.imported_at??null,referenceSource:imported.length?"Player Data · QB Data + latest PFF import":"Player Data · QB Data",combineRefreshedAt};
-  if(position==="RB"){const importedAt=String(imported[0]?.imported_at||""),useImport=Boolean(imported.length)&&importedAt>rbReferenceGeneratedAt;return {rows:withContext(mergeRB(useImport?[...below,...above]:[])),below,importedAt:imported[0]?.imported_at??null,referenceSource:useImport?"Player Data · RB Data + newer PFF import":"Player Data · RB Data",combineRefreshedAt}}
-  return {rows:[],below:[],importedAt:imported[0]?.imported_at??null,referenceSource:"Player Data",combineRefreshedAt};
+  const block=result[position]||{},above=block.above?.primary||[],below=block.below?.primary||[],projection=[...below,...above],importedAt=imported[0]?.imported_at??null;
+  const warehouse=Number(result?.meta?.warehouseVersion||0)>=2&&Boolean(block.threshold);
+  if(warehouse){
+    let projected:any[]=[];
+    if(position==="QB")projected=projectRows(qbReference as any[],projection,enrichQB);
+    else if(position==="RB")projected=projectRows(rbReference as any[],projection,enrichRB);
+    else if(position==="WR")projected=projectRows(wrPlayerDataRows(),projection,enrichWR);
+    else if(position==="TE")projected=projectRows(tePlayerDataRows(),projection,enrichTE);
+    return {rows:withContext(projected),below,importedAt,threshold:block.threshold,warehouseVersion:2,season:result?.meta?.season??null,draftClass:result?.meta?.draftClass??null,referenceSource:"PFF Warehouse · "+(result?.meta?.season||"current season")+" · 20% threshold projection",combineRefreshedAt};
+  }
+  if(position==="TE")return {rows:withContext(tePlayerDataRows()),below:[],importedAt:null,threshold:null,warehouseVersion:1,referenceSource:"Player Data · TE Data",combineRefreshedAt};
+  if(position==="WR")return {rows:withContext(wrPlayerDataRows()),below:[],importedAt:null,threshold:null,warehouseVersion:1,referenceSource:"Player Data · WR Data",combineRefreshedAt};
+  if(position==="QB")return {rows:withContext(mergeQB(imported.length?projection:[])),below,importedAt,threshold:null,warehouseVersion:1,referenceSource:imported.length?"Player Data · QB Data + latest PFF import":"Player Data · QB Data",combineRefreshedAt};
+  if(position==="RB"){const useImport=Boolean(imported.length)&&String(importedAt||"")>rbReferenceGeneratedAt;return {rows:withContext(mergeRB(useImport?projection:[])),below,importedAt,threshold:null,warehouseVersion:1,referenceSource:useImport?"Player Data · RB Data + newer PFF import":"Player Data · RB Data",combineRefreshedAt}}
+  return {rows:[],below:[],importedAt,threshold:null,warehouseVersion:1,referenceSource:"Player Data",combineRefreshedAt};
 }
 export async function GET(req:Request){
   try{

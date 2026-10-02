@@ -1,176 +1,34 @@
 "use client";
-
-import {useMemo,useState} from "react";
+import {useEffect,useMemo,useState} from "react";
 import {ArrowDown,ArrowUp,ArrowUpDown,Columns3,RotateCcw,Search} from "lucide-react";
-import {workbookSecondary as w} from "@/lib/workbook-secondary";
-
-type Cell=string|number|boolean|null|undefined;
-type Row=readonly Cell[];
 type Position="QB"|"RB"|"WR"|"TE";
-type SortState={column:number;direction:"asc"|"desc"}|null;
-
-const sources:Record<Position,readonly Row[]>={
-  QB:w.qbData as readonly Row[],
-  RB:w.rbData as readonly Row[],
-  WR:w.wrData as readonly Row[],
-  TE:w.teData as readonly Row[],
-};
-const positions:Position[]=["QB","RB","WR","TE"];
-
-const text=(value:Cell)=>value==null?"":String(value).trim();
-const filled=(row:Row)=>row.some(value=>text(value)!=="");
-const toNumber=(value:Cell)=>{
-  if(typeof value==="number"&&Number.isFinite(value))return value;
-  const raw=text(value);
-  if(!raw)return null;
-  const normalized=raw.replace(/[%,$]/g,"").replace(/,/g,"");
-  if(!/^-?\d*\.?\d+$/.test(normalized))return null;
-  const parsed=Number(normalized);
-  return Number.isFinite(parsed)?parsed:null;
-};
-const compare=(a:Cell,b:Cell)=>{
-  const na=toNumber(a),nb=toNumber(b);
-  if(na!=null&&nb!=null)return na-nb;
-  return text(a).localeCompare(text(b),undefined,{numeric:true,sensitivity:"base"});
-};
-const kindFor=(label:string,index:number)=>{
-  const key=label.toLowerCase();
-  if(index===0||/player|name/.test(key))return "identity";
-  if(index===1||/college|school|team/.test(key))return "school";
-  if(/grade|score|rank|rating|percentile/.test(key))return "grade";
-  if(/height|weight|age|class|dash|forty|40|hand|arm|bmi/.test(key))return "bio";
-  if(/target|reception|catch|route|snap|rush|attempt|yard|touchdown|\btd\b|pass|pressure|sack|drop|epa|ypa|ypc|share|rate|%/.test(key))return "metric";
-  return "default";
-};
-
+type SortState={column:string;direction:"asc"|"desc"}|null;
+const positions:Position[]=["QB","RB","WR","TE"],hidden=new Set(["Team Context","Percentiles"]);
+const text=(v:any)=>v==null?"":typeof v==="object"?"":String(v).trim();
+const toNumber=(v:any)=>{if(typeof v==="number"&&Number.isFinite(v))return v;const s=text(v).replace(/[%,$]/g,"").replace(/,/g,"");if(!s||!/^-?\d*\.?\d+$/.test(s))return null;const n=Number(s);return Number.isFinite(n)?n:null};
+const compare=(a:any,b:any)=>{const na=toNumber(a),nb=toNumber(b);return na!=null&&nb!=null?na-nb:text(a).localeCompare(text(b),undefined,{numeric:true,sensitivity:"base"})};
+const kindFor=(label:string,index:number)=>{const key=label.toLowerCase();if(label==="Player")return "identity";if(label==="College")return "school";if(/grade|score|rank|rating|percentile/.test(key))return "grade";if(/height|weight|age|class|dash|forty|40|hand|arm|bmi/.test(key))return "bio";if(/target|reception|catch|route|snap|rush|attempt|yard|touchdown|td|pass|pressure|sack|drop|epa|ypa|ypc|share|rate|%/.test(key))return "metric";return index<2?"identity":"default"};
 export default function Page(){
-  const [position,setPosition]=useState<Position>("QB");
-  const [query,setQuery]=useState("");
-  const [sort,setSort]=useState<SortState>(null);
-  const [compact,setCompact]=useState(true);
-  const [showEmptyColumns,setShowEmptyColumns]=useState(false);
-
-  const source=sources[position];
-  const body=useMemo(()=>source.slice(1).filter(filled),[source]);
-  const width=useMemo(()=>Math.max(source[0]?.length||0,...body.map(row=>row.length)),[source,body]);
-  const headers=useMemo(()=>Array.from({length:width},(_,i)=>text(source[0]?.[i])||`Metric ${i+1}`),[source,width]);
-  const visibleColumns=useMemo(()=>Array.from({length:width},(_,i)=>i).filter(i=>showEmptyColumns||text(source[0]?.[i])!==""||body.some(row=>text(row[i])!=="")),[width,showEmptyColumns,source,body]);
-  const normalizedQuery=query.trim().toLowerCase();
-  const filtered=useMemo(()=>body.filter(row=>!normalizedQuery||row.some(cell=>text(cell).toLowerCase().includes(normalizedQuery))),[body,normalizedQuery]);
-  const rows=useMemo(()=>{
-    if(!sort)return filtered;
-    const next=[...filtered];
-    next.sort((a,b)=>compare(a[sort.column],b[sort.column])*(sort.direction==="asc"?1:-1));
-    return next;
-  },[filtered,sort]);
-
-  const datasetCounts=useMemo(()=>Object.fromEntries(positions.map(pos=>[pos,sources[pos].slice(1).filter(filled).length])) as Record<Position,number>,[]);
-  const sortedHeader=sort?headers[sort.column]:"";
-  const hasViewChanges=query!==""||sort!==null||!compact||showEmptyColumns;
-
-  function toggleSort(column:number){
-    setSort(current=>{
-      if(!current||current.column!==column)return {column,direction:"asc"};
-      if(current.direction==="asc")return {column,direction:"desc"};
-      return null;
-    });
-  }
-  function resetView(){
-    setQuery("");
-    setSort(null);
-    setCompact(true);
-    setShowEmptyColumns(false);
-  }
-  function selectPosition(next:Position){
-    setPosition(next);
-    setQuery("");
-    setSort(null);
-    setShowEmptyColumns(false);
-  }
-
-  return <div className="player-data-page" data-position={position}>
-    <section className="pd-hero">
-      <div className="pd-hero-copy">
-        <span className="ey">Scouting Database</span>
-        <h1>Player Data</h1>
-        <p>One clean workspace for the underlying positional datasets. Search every field, sort any metric, and keep player identity pinned while you scan wide tables.</p>
-      </div>
-      <div className="pd-summary">
-        <div><span>Position</span><strong>{position}</strong></div>
-        <div><span>Players</span><strong>{body.length}</strong></div>
-        <div><span>Metrics</span><strong>{visibleColumns.length}</strong></div>
-      </div>
-    </section>
-
-    <nav className="pd-position-tabs" aria-label="Player data position">
-      {positions.map(pos=><button key={pos} className={position===pos?"active":""} aria-pressed={position===pos} onClick={()=>selectPosition(pos)}>
-        <span className="pd-position-mark">{pos}</span>
-        <span className="pd-position-copy"><b>{pos} Data</b><small>{datasetCounts[pos]} players</small></span>
-      </button>)}
-    </nav>
-
-    <section className="pd-controls" aria-label="Player data controls">
-      <label className="pd-search">
-        <Search size={17} aria-hidden="true"/>
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder={`Search ${position} players, schools or metrics…`} aria-label={`Search ${position} player data`}/>
-        {query&&<button type="button" onClick={()=>setQuery("")} aria-label="Clear search">×</button>}
-      </label>
-      <div className="pd-control-group">
-        <label className="pd-switch">
-          <input type="checkbox" checked={showEmptyColumns} onChange={e=>setShowEmptyColumns(e.target.checked)}/>
-          <span aria-hidden="true"/>
-          <em><Columns3 size={14}/>Empty columns</em>
-        </label>
-        <label className="pd-switch">
-          <input type="checkbox" checked={compact} onChange={e=>setCompact(e.target.checked)}/>
-          <span aria-hidden="true"/>
-          <em>Compact rows</em>
-        </label>
-        <button className="pd-reset" type="button" onClick={resetView} disabled={!hasViewChanges}><RotateCcw size={14}/>Reset</button>
-      </div>
-    </section>
-
-    <section className="pd-table-card">
-      <header className="pd-table-card-head">
-        <div>
-          <span className="pd-kicker">{position} dataset</span>
-          <h2>{rows.length===body.length?`${body.length} players`:`${rows.length} of ${body.length} players`}</h2>
-        </div>
-        <div className="pd-table-status">
-          {sort?<span>Sorted by <b>{sortedHeader}</b> · {sort.direction==="asc"?"ascending":"descending"}</span>:<span>Click any column header to sort</span>}
-          <span>{visibleColumns.length} visible columns</span>
-        </div>
-      </header>
-
-      <div className={`pd-table-wrap ${compact?"compact":""}`}>
-        <table className="pd-table">
-          <thead><tr>
-            {visibleColumns.map((column,displayIndex)=>{
-              const active=sort?.column===column;
-              return <th key={column} data-kind={kindFor(headers[column],column)} className={displayIndex<2?`pd-sticky-col pd-sticky-${displayIndex+1}`:""}>
-                <button type="button" onClick={()=>toggleSort(column)} className={active?"sorted":""} title={`Sort by ${headers[column]}`}>
-                  <span>{headers[column]}</span>
-                  {active?(sort?.direction==="asc"?<ArrowUp size={13}/>:<ArrowDown size={13}/>):<ArrowUpDown size={12}/>}
-                </button>
-              </th>;
-            })}
-          </tr></thead>
-          <tbody>
-            {rows.length?rows.map((row,rowIndex)=><tr key={`${text(row[0])||"row"}-${rowIndex}`}>
-              {visibleColumns.map((column,displayIndex)=>{
-                const value=text(row[column]);
-                const numeric=toNumber(row[column])!=null&&column>1;
-                return <td key={column} data-kind={kindFor(headers[column],column)} data-empty={!value||undefined} className={`${displayIndex<2?`pd-sticky-col pd-sticky-${displayIndex+1}`:""} ${numeric?"numeric":""}`}>
-                  {value||<span className="pd-empty-value">—</span>}
-                </td>;
-              })}
-            </tr>):<tr><td className="pd-no-results" colSpan={Math.max(visibleColumns.length,1)}>No players match “{query}”.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <style jsx global>{`
+ const [position,setPosition]=useState<Position>("QB"),[data,setData]=useState<any>({rows:[]}),[loading,setLoading]=useState(true),[query,setQuery]=useState(""),[sort,setSort]=useState<SortState>(null),[compact,setCompact]=useState(true),[showEmptyColumns,setShowEmptyColumns]=useState(false);
+ useEffect(()=>{let active=true;setLoading(true);fetch("/api/player-data?position="+position,{cache:"no-store"}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not load Player Data");return j}).then(j=>{if(active)setData(j)}).catch(e=>{if(active)setData({rows:[],error:e?.message||"Could not load Player Data"})}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[position]);
+ const body=useMemo(()=>Array.isArray(data.rows)?data.rows:[],[data.rows]);
+ const columns=useMemo(()=>{const keys=new Set<string>();body.forEach((r:any)=>Object.entries(r||{}).forEach(([k,v])=>{if(!hidden.has(k)&&(typeof v!=="object"||v==null))keys.add(k)}));return [...keys].sort((a,b)=>(a==="Player"?0:a==="College"?1:a==="Eligibility"?2:10)-(b==="Player"?0:b==="College"?1:b==="Eligibility"?2:10))},[body]);
+ const visibleColumns=useMemo(()=>columns.filter(k=>showEmptyColumns||body.some((r:any)=>text(r?.[k])!=="")),[columns,body,showEmptyColumns]);
+ const needle=query.trim().toLowerCase(),filtered=useMemo(()=>body.filter((r:any)=>!needle||visibleColumns.some(k=>text(r?.[k]).toLowerCase().includes(needle))),[body,needle,visibleColumns]);
+ const rows=useMemo(()=>{if(!sort)return filtered;return [...filtered].sort((a:any,b:any)=>compare(a?.[sort.column],b?.[sort.column])*(sort.direction==="asc"?1:-1))},[filtered,sort]);
+ const threshold=data.threshold||null,warehouse=Number(data.warehouseVersion||0)>=2&&Boolean(threshold),hasViewChanges=query!==""||sort!==null||!compact||showEmptyColumns;
+ function toggleSort(column:string){setSort(current=>!current||current.column!==column?{column,direction:"asc"}:current.direction==="asc"?{column,direction:"desc"}:null)}
+ function resetView(){setQuery("");setSort(null);setCompact(true);setShowEmptyColumns(false)}
+ function selectPosition(next:Position){setPosition(next);setQuery("");setSort(null);setShowEmptyColumns(false)}
+ return <div className="player-data-page" data-position={position}>
+  <section className="pd-hero"><div className="pd-hero-copy"><span className="ey">Scouting Database · Player Data</span><h1>{position} Player Data</h1><p>{warehouse?"Threshold-managed PFF projection: every eligible player plus below-threshold prospects already on Players to Scout.":"Canonical reference data. The next warehouse import will automatically apply the PFF threshold projection."}</p></div><div className="pd-summary"><div><span>Displayed</span><strong>{body.length}</strong></div><div><span>Percentile pool</span><strong>{threshold?.eligibleCount??"—"}</strong></div><div><span>Scout overrides</span><strong>{threshold?.scoutOverrideCount??"—"}</strong></div></div></section>
+  <nav className="pd-position-tabs" aria-label="Player data position">{positions.map(pos=><button key={pos} className={position===pos?"active":""} onClick={()=>selectPosition(pos)}><span className="pd-position-mark">{pos}</span><span className="pd-position-copy"><b>{pos} Data</b><small>{position===pos&&threshold?String(threshold.thresholdValue)+" "+threshold.volumeMetric:"Player Data"}</small></span></button>)}</nav>
+  {warehouse&&<div className="card" style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10,borderColor:"#29476e"}}><div><span className="ey">Threshold</span><b>{threshold.volumeMetric}: {threshold.thresholdValue}+</b><div className="muted" style={{fontSize:10}}>20% of leader {threshold.leaderVolume}, rounded up.</div></div><div><span className="ey">Percentile population</span><b>{threshold.eligibleCount} eligible</b><div className="muted" style={{fontSize:10}}>Only these players define percentiles.</div></div><div><span className="ey">Scouting overrides</span><b>{threshold.scoutOverrideCount} displayed</b><div className="muted" style={{fontSize:10}}>Compared to the pool, never included in it.</div></div><div><span className="ey">Warehouse</span><b>{threshold.storedCount} stored</b><div className="muted" style={{fontSize:10}}>Filtered players and unused fields remain in Turso.</div></div></div>}
+  <section className="pd-controls"><label className="pd-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={"Search "+position+" players, schools or metrics…"}/>{query&&<button onClick={()=>setQuery("")}>×</button>}</label><div className="pd-control-group"><label className="pd-switch"><input type="checkbox" checked={showEmptyColumns} onChange={e=>setShowEmptyColumns(e.target.checked)}/><span/><em><Columns3 size={14}/>Empty columns</em></label><label className="pd-switch"><input type="checkbox" checked={compact} onChange={e=>setCompact(e.target.checked)}/><span/><em>Compact rows</em></label><button className="pd-reset" onClick={resetView} disabled={!hasViewChanges}><RotateCcw size={14}/>Reset</button></div></section>
+  <section className="pd-table-card"><header className="pd-table-card-head"><div><span className="pd-kicker">{warehouse?"PFF warehouse projection":"Canonical reference"}</span><h2>{loading?"Loading…":data.error?"Player Data unavailable":rows.length===body.length?String(body.length)+" players":String(rows.length)+" of "+String(body.length)+" players"}</h2></div><div className="pd-table-status">{data.referenceSource&&<span>{data.referenceSource}</span>}{data.importedAt&&<span>Imported {new Date(data.importedAt).toLocaleString()}</span>}{sort&&<span>Sorted by <b>{sort.column}</b> · {sort.direction}</span>}</div></header>
+   {data.error?<div className="pd-no-results">{data.error}</div>:<div className={"pd-table-wrap "+(compact?"compact":"")}><table className="pd-table"><thead><tr>{visibleColumns.map((column,index)=>{const active=sort?.column===column;return <th key={column} data-kind={kindFor(column,index)} className={index<2?"pd-sticky-col pd-sticky-"+String(index+1):""}><button onClick={()=>toggleSort(column)} className={active?"sorted":""}><span>{column}</span>{active?(sort?.direction==="asc"?<ArrowUp size={13}/>:<ArrowDown size={13}/>):<ArrowUpDown size={12}/>}</button></th>})}</tr></thead><tbody>{loading?<tr><td className="pd-no-results" colSpan={Math.max(visibleColumns.length,1)}>Loading {position} Player Data…</td></tr>:rows.length?rows.map((row:any,rowIndex:number)=><tr key={(text(row.Player)||"row")+"-"+String(rowIndex)}>{visibleColumns.map((column,index)=>{const value=text(row?.[column]),numeric=toNumber(row?.[column])!=null&&column!=="Player"&&column!=="College";return <td key={column} data-kind={kindFor(column,index)} data-empty={!value||undefined} className={(index<2?"pd-sticky-col pd-sticky-"+String(index+1):"")+" "+(numeric?"numeric":"")}>{column==="Eligibility"?<span style={{display:"inline-flex",padding:"3px 7px",borderRadius:999,border:"1px solid #365981",fontSize:9,fontWeight:900,color:value==="Scouting Override"?"#ffc56d":"#83e3d3"}}>{value||"—"}</span>:value||<span className="pd-empty-value">—</span>}</td>})}</tr>):<tr><td className="pd-no-results" colSpan={Math.max(visibleColumns.length,1)}>No players match this view.</td></tr>}</tbody></table></div>}
+  </section>
+<style jsx global>{`
       .player-data-page{--pd-accent:#fc2b6d;--pd-accent-soft:rgba(252,43,109,.13);display:grid;gap:14px;min-width:0}
       .player-data-page[data-position="RB"]{--pd-accent:#20ceb7;--pd-accent-soft:rgba(32,206,183,.13)}
       .player-data-page[data-position="WR"]{--pd-accent:#58a7ff;--pd-accent-soft:rgba(88,167,255,.13)}
@@ -211,5 +69,5 @@ export default function Page(){
       @media(max-width:760px){.pd-hero{display:block;padding:20px}.pd-summary{margin-top:18px;min-width:0}.pd-position-tabs{grid-template-columns:repeat(2,1fr)}.pd-control-group{justify-content:flex-start}.pd-table-card-head{display:block}.pd-table-status{justify-content:flex-start;margin-top:9px}.pd-table-wrap{max-height:none;min-height:420px}.pd-table .pd-sticky-1{min-width:160px;max-width:160px}.pd-table .pd-sticky-2{left:160px;min-width:140px;max-width:140px}}
       @media(max-width:520px){.pd-summary{grid-template-columns:repeat(3,1fr)}.pd-summary div{padding:9px}.pd-summary strong{font-size:18px}.pd-position-tabs{gap:6px}.pd-position-tabs button{padding:9px}.pd-switch em{font-size:9px}.pd-table .pd-sticky-2{position:static;box-shadow:none}.pd-table th.pd-sticky-2{position:sticky;top:0}}
     `}</style>
-  </div>;
+ </div>;
 }

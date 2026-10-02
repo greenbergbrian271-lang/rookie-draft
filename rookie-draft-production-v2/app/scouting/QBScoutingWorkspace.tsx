@@ -139,6 +139,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     });
   },[players,selectedId]);
 
+  const percentileImports=useMemo(()=>imports.filter((r:any)=>String(r?.Eligibility||"")!=="Scouting Override"),[imports]);
   const importMap=useMemo(()=>{
     const m=new Map<string,any>();
     for(const row of imports||[]){
@@ -186,7 +187,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return workbookScoutingGrade("QB",grades,fieldsFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
   function metricDataFor(p:Player){
-    const imp=importedFor(p),all=(imports||[]).filter(r=>r&&norm(r.Player||String(r["Player, College"]||"").split(",")[0]));
+    const imp=importedFor(p),all=percentileImports.filter(r=>r&&norm(r.Player||String(r["Player, College"]||"").split(",")[0]));
     return ANALYTICS.map(metric=>{
       const population=all.map(r=>num(r[metric.label],metric.pct)).filter((x):x is number=>x!=null);
       const raw=num(imp?.[metric.label],metric.pct);
@@ -200,7 +201,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return STATS.map(([label,source])=>{
       const pct=label.includes("%"),inverse=label==="Interceptions";
       const raw=num(valueFor(imp,source),pct);
-      const population=(imports||[]).map(r=>num(valueFor(r,source),pct)).filter((v):v is number=>v!=null);
+      const population=percentileImports.map(r=>num(valueFor(r,source),pct)).filter((v):v is number=>v!=null);
       const base=raw==null?null:percentRankInc(population,raw,3);
       const percentile=base==null?null:(inverse?1-base:base);
       return {label,source,pct,inverse,raw,percentile};

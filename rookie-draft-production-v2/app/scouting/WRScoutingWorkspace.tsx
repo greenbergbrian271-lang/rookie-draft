@@ -121,6 +121,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     setCompareIds(cur=>{const valid=cur.filter(id=>players.some(p=>String(p.id)===id));return valid.length?valid:players.map(p=>String(p.id))});
   },[players,selectedId]);
 
+  const percentileImports=useMemo(()=>imports.filter((r:any)=>String(r?.Eligibility||"")!=="Scouting Override"),[imports]);
   const importMap=useMemo(()=>{
     const m=new Map<string,any>();
     for(const row of imports||[]){const name=row?.Player??String(row?.["Player, College"]||"").split(",")[0];if(name)m.set(norm(name),row)}
@@ -176,18 +177,18 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   function percentileFor(source:string,p:Player,inverse=false,pct=false){
     const imp=importedFor(p),raw=num(sourceValue(imp,source),pct);
     if(raw==null)return null;
-    const pop=(imports||[]).map(r=>num(sourceValue(r,source),pct)).filter((x):x is number=>x!=null);
+    const pop=percentileImports.map(r=>num(sourceValue(r,source),pct)).filter((x):x is number=>x!=null);
     const base=percentRankInc(pop,raw,3);return base==null?null:(inverse?1-base:base);
   }
   const productionPopulation=useMemo(()=>({
-    yardsPerReception:(imports||[]).map(r=>num(sourceValue(r,"Yards/Rec"))).filter((x):x is number=>x!=null),
-    yardsPerTarget:(imports||[]).map(r=>num(sourceValue(r,"Yards/Tgt"))).filter((x):x is number=>x!=null),
-    targetShare:(imports||[]).map(r=>num(sourceValue(r,"Target %"),true)).filter((x):x is number=>x!=null),
-    catchPct:(imports||[]).map(r=>num(sourceValue(r,"Catch %"),true)).filter((x):x is number=>x!=null),
-    yptpa:(imports||[]).map(r=>num(sourceValue(r,"YPTPA"))).filter((x):x is number=>x!=null),
-    weightedDomRtg:(imports||[]).map(r=>num(sourceValue(r,"Weighted Dom Rtg"),true)).filter((x):x is number=>x!=null),
-    domRtg:(imports||[]).map(r=>num(sourceValue(r,"Dom Rtg"),true)).filter((x):x is number=>x!=null),
-    speedScore:(imports||[]).map(r=>num(sourceValue(r,"Speed Score"))).filter((x):x is number=>x!=null)
+    yardsPerReception:percentileImports.map(r=>num(sourceValue(r,"Yards/Rec"))).filter((x):x is number=>x!=null),
+    yardsPerTarget:percentileImports.map(r=>num(sourceValue(r,"Yards/Tgt"))).filter((x):x is number=>x!=null),
+    targetShare:percentileImports.map(r=>num(sourceValue(r,"Target %"),true)).filter((x):x is number=>x!=null),
+    catchPct:percentileImports.map(r=>num(sourceValue(r,"Catch %"),true)).filter((x):x is number=>x!=null),
+    yptpa:percentileImports.map(r=>num(sourceValue(r,"YPTPA"))).filter((x):x is number=>x!=null),
+    weightedDomRtg:percentileImports.map(r=>num(sourceValue(r,"Weighted Dom Rtg"),true)).filter((x):x is number=>x!=null),
+    domRtg:percentileImports.map(r=>num(sourceValue(r,"Dom Rtg"),true)).filter((x):x is number=>x!=null),
+    speedScore:percentileImports.map(r=>num(sourceValue(r,"Speed Score"))).filter((x):x is number=>x!=null)
   }),[imports]);
   function productionContextFor(p:Player){
     const r=importedFor(p),college=collegeFor(p),receptions=num(r.Receptions),targets=num(r.Targets),yards=num(r.Yards),tds=num(r.Touchdowns),attempts=num(college?.passAttempts),teamYards=num(college?.passYards),teamTds=num(college?.passTDs);
@@ -221,13 +222,13 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   function rawProductionMetricDataFor(p:Player){
     const r=importedFor(p),m=productionContextFor(p);
     const specs=[
-      {label:"Games",raw:num(r.Games),pct:false,values:imports.map(x=>num(x.Games)).filter((v):v is number=>v!=null),digits:0},
-      {label:"Receptions",raw:num(r.Receptions),pct:false,values:imports.map(x=>num(x.Receptions)).filter((v):v is number=>v!=null),digits:0},
-      {label:"Targets",raw:num(r.Targets),pct:false,values:imports.map(x=>num(x.Targets)).filter((v):v is number=>v!=null),digits:0},
-      {label:"Yards",raw:num(r.Yards),pct:false,values:imports.map(x=>num(x.Yards)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Games",raw:num(r.Games),pct:false,values:percentileImports.map(x=>num(x.Games)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Receptions",raw:num(r.Receptions),pct:false,values:percentileImports.map(x=>num(x.Receptions)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Targets",raw:num(r.Targets),pct:false,values:percentileImports.map(x=>num(x.Targets)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Yards",raw:num(r.Yards),pct:false,values:percentileImports.map(x=>num(x.Yards)).filter((v):v is number=>v!=null),digits:0},
       {label:"Yards/Rec",raw:m.yardsPerReception,pct:false,values:productionPopulation.yardsPerReception,digits:2},
       {label:"Yards/Tgt",raw:m.yardsPerTarget,pct:false,values:productionPopulation.yardsPerTarget,digits:2},
-      {label:"Touchdowns",raw:num(r.Touchdowns),pct:false,values:imports.map(x=>num(x.Touchdowns)).filter((v):v is number=>v!=null),digits:0},
+      {label:"Touchdowns",raw:num(r.Touchdowns),pct:false,values:percentileImports.map(x=>num(x.Touchdowns)).filter((v):v is number=>v!=null),digits:0},
       {label:"Target %",raw:m.targetShare,pct:true,values:productionPopulation.targetShare,digits:1},
       {label:"Catch %",raw:m.catchPct,pct:true,values:productionPopulation.catchPct,digits:1}
     ];
@@ -238,7 +239,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const peakYFor=(row:any)=>{const vals=[num(row?.["FR Yards"]),num(row?.["Soph Yards"])].filter((v):v is number=>v!=null);return vals.length?Math.max(...vals):null};
     const peakTdFor=(row:any)=>{const vals=[num(row?.["FR TDs"]),num(row?.["Soph TDs"])].filter((v):v is number=>v!=null);return vals.length?Math.max(...vals):null};
     const peakY=peakYFor(r),peakTd=peakTdFor(r);
-    const peakYPop=(imports||[]).map(peakYFor).filter((v):v is number=>v!=null),peakTdPop=(imports||[]).map(peakTdFor).filter((v):v is number=>v!=null);
+    const peakYPop=percentileImports.map(peakYFor).filter((v):v is number=>v!=null),peakTdPop=percentileImports.map(peakTdFor).filter((v):v is number=>v!=null);
     const peakParts=[peakY==null?null:percentRankInc(peakYPop,peakY,3),peakTd==null?null:percentRankInc(peakTdPop,peakTd,3)].filter((v):v is number=>v!=null);
     const peakPercentile=peakParts.length?peakParts.reduce((s,v)=>s+v,0)/peakParts.length:null;
     return [
@@ -252,7 +253,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const imp=importedFor(p);
     return ANALYTICS.map(metric=>{
       const raw=num(sourceValue(imp,metric.source),metric.pct);
-      const population=(imports||[]).map(r=>num(sourceValue(r,metric.source),metric.pct)).filter((x):x is number=>x!=null);
+      const population=percentileImports.map(r=>num(sourceValue(r,metric.source),metric.pct)).filter((x):x is number=>x!=null);
       const base=raw==null?null:percentRankInc(population,raw,3);
       const percentile=base==null?null:(metric.inverse?1-base:base);
       return {...metric,raw,rawPercentile:base,percentile};
