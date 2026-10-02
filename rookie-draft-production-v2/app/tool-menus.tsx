@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import {Briefcase,Search,Table2} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";
@@ -11,7 +12,7 @@ import ReturningPlayerModal from "@/components/ReturningPlayerModal";
 import MockDraftModal from "@/components/MockDraftModal";
 import {useDraftClass} from "@/lib/use-draft-class";
 type Item={label:string,id:string};
-const groups=[{label:"GM Tools",items:[["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["All-Star Game","all-star"],["Maybe Scout Player","maybe"],["Archive Player","archive"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Refresh Combine Data","combine-refresh"],["Add Team + Production Stats","production"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
+const groups=[{label:"GM Tools",items:[["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["Maybe Scout Player","maybe"],["Archive Player","archive"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Refresh Combine Data","combine-refresh"],["Add Team + Production Stats","production"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
 const playerActions:Record<string,{status?:string,draftClass?:number}>={finished:{status:"FINISHED"}};
 export default function ToolMenus(){const draftClass=useDraftClass();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);
 useEffect(()=>{if(tool){fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{});if(tool.id==="combine-refresh")fetch("/api/combine-refresh",{cache:"no-store"}).then(r=>r.json()).then(setCombineStatus).catch(()=>{})}},[tool,draftClass]);
@@ -43,18 +44,13 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
   >
     <span style={{display:"inline-flex",alignItems:"center",gap:7}}>
       <span aria-hidden="true" style={{
-        display:"inline-grid",
-        placeItems:"center",
-        width:24,
-        height:20,
-        borderRadius:6,
-        background:"#142844",
-        border:"1px solid #31527f",
-        color:"#9fb9da",
-        fontSize:8,
-        fontWeight:950,
-        letterSpacing:".04em"
-      }}>{["GM","SC","SH"][groupIndex]}</span>
+        display:"inline-flex",
+        alignItems:"center",
+        justifyContent:"center",
+        width:18,
+        height:18,
+        color:open===g.label?"#d9e7f7":"#91a8c8"
+      }}>{groupIndex===0?<Briefcase size={17} strokeWidth={2.2}/>:groupIndex===1?<Search size={17} strokeWidth={2.2}/>:<Table2 size={17} strokeWidth={2.2}/>}</span>
       <strong style={{fontSize:12}}>{g.label}</strong>
     </span>
     <span style={{marginLeft:8}}>▾</span>

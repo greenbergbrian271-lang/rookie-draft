@@ -12,6 +12,9 @@ export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaRead
 `create table if not exists planned_games(id integer primary key autoincrement,espn_event_id text unique not null,kickoff text not null,home_team text,away_team text,status text default 'PLANNED')`,
 `create table if not exists game_notes(id integer primary key autoincrement,espn_event_id text unique not null,kickoff text not null,home_team text,away_team text,title text not null,notes text not null,need_to_grade integer not null default 0,matchup_snapshot text,created_at text default current_timestamp,updated_at text default current_timestamp)`,
 `create table if not exists workflow_tags(player_id integer not null references players(id) on delete cascade,tag text not null,detail text,created_at text default current_timestamp,updated_at text default current_timestamp,primary key(player_id,tag))`,
+`create table if not exists all_star_game_settings(game_key text primary key,website_url text not null,twitter_url text not null,roster_a_name text not null,roster_a_url text,roster_b_name text not null,roster_b_url text,updated_at text default current_timestamp)`,
+`create table if not exists all_star_invites(id integer primary key autoincrement,game_key text not null,player_id integer not null references players(id) on delete cascade,roster_key text,source_kind text,source_url text,source_excerpt text,participation_status text not null default 'ACTIVE',discovered_at text default current_timestamp,updated_at text default current_timestamp,unique(game_key,player_id))`,
+`create index if not exists all_star_invites_game_idx on all_star_invites(game_key,roster_key)`,
 `create table if not exists player_school_history(id integer primary key autoincrement,player_id integer not null references players(id) on delete cascade,from_college text,to_college text not null,effective_season integer,recorded_at text default current_timestamp)`,
 `create index if not exists player_school_history_player_idx on player_school_history(player_id,recorded_at desc)`,
 `create table if not exists settings(key text primary key,value text not null,updated_at text default current_timestamp)`,
@@ -31,7 +34,8 @@ for(const sql of [
   `alter table college_stats add column pass_yards_per_completion real`,
   `alter table college_stats add column pass_interceptions real`,
   `alter table college_stats add column rushes real`,
-  `alter table college_stats add column yards_per_rush real`
+  `alter table college_stats add column yards_per_rush real`,
+  `alter table all_star_invites add column participation_status text not null default 'ACTIVE'`
 ]){try{await c.execute(sql)}catch(e:unknown){const message=e instanceof Error?e.message:String(e);if(!message.toLowerCase().includes("duplicate column"))throw e}}
 const marker=await c.execute({sql:"select value from settings where key=?",args:["baseline_2027_seeded"]});
 if(!marker.rows.length){
