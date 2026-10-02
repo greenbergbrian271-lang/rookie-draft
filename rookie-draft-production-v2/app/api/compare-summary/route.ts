@@ -100,8 +100,8 @@ export async function POST(req:Request){
           base[id]={
             playerId:id,
             summary:String(item?.summary||base[id].summary).trim()||base[id].summary,
-            strengths:Array.isArray(item?.strengths)?item.strengths.map(String).map(x=>x.trim()).filter(Boolean).slice(0,3):[],
-            concerns:Array.isArray(item?.concerns)?item.concerns.map(String).map(x=>x.trim()).filter(Boolean).slice(0,3):[],
+            strengths:Array.isArray(item?.strengths)?item.strengths.map((x:unknown)=>String(x).trim()).filter(Boolean).slice(0,3):[],
+            concerns:Array.isArray(item?.concerns)?item.concerns.map((x:unknown)=>String(x).trim()).filter(Boolean).slice(0,3):[],
             noteCount:base[id].noteCount,
             source:"ai"
           };
