@@ -163,6 +163,24 @@ function applyCombine(base:any[],combine:any[],position:string){
     return enrich(next);
   });
 }
+function referenceRows(position:string){
+  if(position==="QB")return mergeQB([]);
+  if(position==="RB")return mergeRB([]);
+  if(position==="WR")return wrPlayerDataRows();
+  if(position==="TE")return tePlayerDataRows();
+  return [];
+}
+function mergeVisible(reference:any[],current:any[]){
+  const base=new Map(reference.map(row=>[norm(row?.Player),row]));
+  return current.map(row=>({...((base.get(norm(row?.Player))||{}) as any),...row}));
+}
+async function warehouseMeta(db:any){
+  const ds=rows(await db.execute("select id,season,draft_class,leaders,thresholds,summary,created_at from pff_datasets order by id desc limit 1"));
+  if(!ds.length)return null;
+  const d:any=ds[0];
+  const parse=(v:any)=>{try{return JSON.parse(String(v||"{}"))}catch{return {}}};
+  return {...d,leaders:parse(d.leaders),thresholds:parse(d.thresholds),summary:parse(d.summary)};
+}
 async function canonicalPlayerData(db:any,position:string){
   const combine=rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=2027 and p.position=?",args:[position]}));
   const storedCollegeRows=rows(await db.execute("select team,subdivision,games,completions,pass_attempts as passAttempts,pass_yards as passYards,pass_tds as passTDs,rushes,rush_yards as rushYards,rush_tds as rushTDs,total_plays as totalPlays,updated_at as updatedAt from college_stats"));
@@ -170,14 +188,28 @@ async function canonicalPlayerData(db:any,position:string){
   const collegeMap=new Map(collegeRows.map((r:any)=>[norm(r.team),r]));
   const withContext=(rs:any[])=>applyCombine(rs,combine,position).map((row:any)=>({...row,"Team Context":collegeMap.get(norm(row.College))||null}));
   const combineRefreshedAt=combine.reduce((m:any,r:any)=>!m||String(r.refreshed_at||"")>String(m)?r.refreshed_at:m,null);
-  if(position==="TE")return {rows:withContext(tePlayerDataRows()),below:[],importedAt:null,referenceSource:"Player Data · TE Data",combineRefreshedAt};
-  if(position==="WR")return {rows:withContext(wrPlayerDataRows()),below:[],importedAt:null,referenceSource:"Player Data · WR Data",combineRefreshedAt};
   const imported=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
   let result:any={};if(imported.length){try{result=JSON.parse(String(imported[0].result||"{}"))}catch{}}
-  const block=result[position]||{},above=block.above?.primary||[],below=block.below?.primary||[];
-  if(position==="QB")return {rows:withContext(mergeQB(imported.length?[...below,...above]:[])),below,importedAt:imported[0]?.imported_at??null,referenceSource:imported.length?"Player Data · QB Data + latest PFF import":"Player Data · QB Data",combineRefreshedAt};
-  if(position==="RB"){const importedAt=String(imported[0]?.imported_at||""),useImport=Boolean(imported.length)&&importedAt>rbReferenceGeneratedAt;return {rows:withContext(mergeRB(useImport?[...below,...above]:[])),below,importedAt:imported[0]?.imported_at??null,referenceSource:useImport?"Player Data · RB Data + newer PFF import":"Player Data · RB Data",combineRefreshedAt}}
-  return {rows:[],below:[],importedAt:imported[0]?.imported_at??null,referenceSource:"Player Data",combineRefreshedAt};
+  const block=result[position]||{},above=block.above?.primary||[],below=block.below?.primary||[],visible=[...above,...below];
+  const reference=referenceRows(position);
+  const selected=visible.length?mergeVisible(reference,visible):reference;
+  const warehouse=await warehouseMeta(db);
+  return {
+    rows:withContext(selected),
+    below,
+    importedAt:imported[0]?.imported_at??null,
+    referenceSource:visible.length?"Player Data · PFF warehouse + canonical reference":"Player Data · canonical reference",
+    combineRefreshedAt,
+    warehouse:warehouse?{
+      datasetId:warehouse.id,
+      season:warehouse.season,
+      draftClass:warehouse.draft_class,
+      leader:warehouse.leaders?.[position]||null,
+      threshold:warehouse.thresholds?.[position]??null,
+      summary:warehouse.summary?.[position]||null,
+      createdAt:warehouse.created_at
+    }:null
+  };
 }
 export async function GET(req:Request){
   try{
@@ -188,8 +220,8 @@ export async function GET(req:Request){
       return Response.json({position:pos,...payload});
     }
     const r=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
-    if(!r.length)return Response.json({result:{},importedAt:null});
+    if(!r.length)return Response.json({result:{},importedAt:null,warehouse:await warehouseMeta(db)});
     let result:any={};try{result=JSON.parse(String(r[0].result||"{}"))}catch{}
-    return Response.json({result,importedAt:r[0].imported_at});
-  }catch(e:any){return Response.json({error:e?.message||"Could not load player data"},{status:500})}
+    return Response.json({result,importedAt:r[0].imported_at,warehouse:await warehouseMeta(db)});
+  }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not load player data"},{status:500})}
 }
