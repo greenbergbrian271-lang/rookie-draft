@@ -15,7 +15,8 @@
     "lucide-react": "^0.468.0",
     "@libsql/client": "^0.18.0",
     "@upstash/redis": "^1.38.4",
-    "@upstash/blob": "^0.0.6"
+    "@upstash/blob": "^0.0.6",
+    "ai": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

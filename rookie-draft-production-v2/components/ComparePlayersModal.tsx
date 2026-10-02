@@ -151,8 +151,8 @@ function sourceNumber(value:unknown,pct=false){if(value==null||value==="")return
 function sourceDisplay(value:unknown,pct=false){const n=sourceNumber(value,pct);if(n==null)return compact(value);return pct?n.toFixed(1)+"%":n.toLocaleString(undefined,{maximumFractionDigits:2})}
 function bestSourceIndex(ids:string[],sourceRows:Record<string,Record<string,unknown>>,metric:LensMetric){const valid=ids.map((id,i)=>{const n=sourceNumber(sourceValue(sourceRows[id],metric.keys),metric.pct);return n==null?null:{n,i}}).filter((x):x is {n:number;i:number}=>x!==null);if(valid.length<2||valid.every(x=>x.n===valid[0].n))return -1;valid.sort((a,b)=>metric.lowerBetter?a.n-b.n:b.n-a.n);return valid[0].i}
 function fallbackInsight(profile:Profile|undefined,id:string):Insight{
-  const summary=String(profile?.notesSummary||"No scouting notes have been added yet.");
-  return {playerId:id,summary,strengths:[],concerns:[],noteCount:summary.startsWith("No scouting")?0:1,source:summary.startsWith("No scouting")?"none":"fallback"};
+  const hasNotes=Boolean(String(profile?.notesSummary||"").trim()&&!String(profile?.notesSummary||"").startsWith("No scouting"));
+  return {playerId:id,summary:hasNotes?"AI scouting synthesis is temporarily unavailable. Your saved notes are still intact; refresh the comparison to retry.":"No scouting notes have been added yet.",strengths:[],concerns:[],noteCount:hasNotes?1:0,source:hasNotes?"fallback":"none"};
 }
 
 export default function ComparePlayersModal({open,onClose}:{open:boolean;onClose:()=>void}){
@@ -357,8 +357,10 @@ export default function ComparePlayersModal({open,onClose}:{open:boolean;onClose
           </section>
 
           {samePosition?<section className={styles.matrix}>
-            <div className={styles.sectionTitle}><div><span>03</span><div><h3>{samePosition} Deep Dive</h3><p>Same-position comparison adds the position-specific production and analytical inputs alongside your film grades.</p></div></div><small>Green outline = strongest result in the row</small></div>
+            <div className={styles.sectionTitle}><div><span>03</span><div><h3>{samePosition} Deep Dive</h3><p>Same-position comparisons always follow Film → Production → Analytical.</p></div></div><small>Green outline = strongest result in the row</small></div>
             <div className={styles.matrixScroll}><table><tbody>
+              <tr className={styles.groupRow}><th>{samePosition} Film Traits</th>{comparisonPlayers.map(p=><td key={String(p.id)}>{p.name}</td>)}</tr>
+              {FILM[samePosition].map(trait=>{const values=comparisonIds.map(id=>traitValue(profiles[id],trait)),valid=values.map((v,i)=>v==null?null:{v,i}).filter((x):x is {v:number;i:number}=>x!==null),best=valid.length>=2&&!valid.every(x=>x.v===valid[0].v)?[...valid].sort((a,b)=>b.v-a.v)[0].i:-1;return <tr key={trait}><th>{trait}</th>{values.map((value,index)=><td className={best===index?styles.best:""} key={comparisonIds[index]}><span className={`${styles.traitScore} ${value==null?styles.missing:""}`}>{value==null?"—":value.toFixed(1)}</span></td>)}</tr>})}
               {PRODUCTION_LENS[samePosition].length>0&&<>
                 <tr className={styles.groupRow}><th>Production</th>{comparisonPlayers.map(p=><td key={String(p.id)}>{p.name}</td>)}</tr>
                 {(()=>{const best=bestIndex(comparisonRows,"productionGrade");return <tr><th><span>Production Grade</span><small>Position production model</small></th>{comparisonRows.map((row,index)=><td className={best===index?styles.best:""} key={String(row.id)}>{renderMetric({label:"Production Grade",field:"productionGrade",kind:"grade"},row)}</td>)}</tr>})()}
@@ -367,8 +369,6 @@ export default function ComparePlayersModal({open,onClose}:{open:boolean;onClose
               <tr className={styles.groupRow}><th>Analytics</th>{comparisonPlayers.map(p=><td key={String(p.id)}>{p.name}</td>)}</tr>
               {(()=>{const best=bestIndex(comparisonRows,"analyticalGrade");return <tr><th><span>Analytical Grade</span><small>Position percentile model</small></th>{comparisonRows.map((row,index)=><td className={best===index?styles.best:""} key={String(row.id)}>{renderMetric({label:"Analytical Grade",field:"analyticalGrade",kind:"grade"},row)}</td>)}</tr>})()}
               {ANALYTICAL_LENS[samePosition].map(metric=>{const values=comparisonIds.map(id=>sourceValue(sourceRows[id],metric.keys));if(values.every(v=>v==null||String(v).trim()===""))return null;const best=bestSourceIndex(comparisonIds,sourceRows,metric);return <tr key={"an-"+metric.label}><th>{metric.label}</th>{values.map((value,index)=><td className={best===index?styles.best:""} key={comparisonIds[index]}><strong className={styles.lensValue}>{sourceDisplay(value,metric.pct)}</strong></td>)}</tr>})}
-              <tr className={styles.groupRow}><th>{samePosition} Film Traits</th>{comparisonPlayers.map(p=><td key={String(p.id)}>{p.name}</td>)}</tr>
-              {FILM[samePosition].map(trait=>{const values=comparisonIds.map(id=>traitValue(profiles[id],trait)),valid=values.map((v,i)=>v==null?null:{v,i}).filter((x):x is {v:number;i:number}=>x!==null),best=valid.length>=2&&!valid.every(x=>x.v===valid[0].v)?[...valid].sort((a,b)=>b.v-a.v)[0].i:-1;return <tr key={trait}><th>{trait}</th>{values.map((value,index)=><td className={best===index?styles.best:""} key={comparisonIds[index]}><span className={`${styles.traitScore} ${value==null?styles.missing:""}`}>{value==null?"—":value.toFixed(1)}</span></td>)}</tr>})}
             </tbody></table></div>
           </section>:<section className={styles.matrix}>
             <div className={styles.sectionTitle}><div><span>03</span><div><h3>Film Trait Lens</h3><p>Trait scales differ by position, so mixed-position comparisons show each prospect’s strongest and weakest traits instead of a fake apples-to-oranges winner.</p></div></div></div>
@@ -379,7 +379,7 @@ export default function ComparePlayersModal({open,onClose}:{open:boolean;onClose
             <div className={styles.sectionTitle}><div><span>04</span><div><h3>Scouting Intelligence</h3><p>One synthesis across the saved game notes for each prospect, with strengths and concerns separated for fast scanning.</p></div></div><small>Summaries never change your grades</small></div>
             <div className={styles.insightGrid} style={{"--cols":comparisonPlayers.length} as CSSProperties}>
               {comparisonPlayers.map(p=>{const id=String(p.id),insight=insights[id]||fallbackInsight(profiles[id],id);return <article key={id} className={styles.insightCard}>
-                <div className={styles.insightHead}><div><span className={styles.aiBadge}>{insight.source==="ai"?"AI SUMMARY":insight.source==="none"?"NO NOTES":"NOTES DIGEST"}</span><h4>{p.name}</h4></div><small>{insight.noteCount} note{insight.noteCount===1?"":"s"}</small></div>
+                <div className={styles.insightHead}><div><span className={styles.aiBadge}>{insight.source==="ai"?"AI SYNTHESIS":insight.source==="none"?"NO NOTES":"AI UNAVAILABLE"}</span><h4>{p.name}</h4></div><small>{insight.noteCount} note{insight.noteCount===1?"":"s"}</small></div>
                 <p>{insight.summary||"No scouting notes have been added yet."}</p>
                 {(insight.strengths.length>0||insight.concerns.length>0)&&<div className={styles.signalGrid}><div><small>Strength signals</small>{insight.strengths.length?insight.strengths.map(x=><span className={styles.positive} key={x}>+ {x}</span>):<em>None called out</em>}</div><div><small>Concern signals</small>{insight.concerns.length?insight.concerns.map(x=><span className={styles.negative} key={x}>− {x}</span>):<em>None called out</em>}</div></div>}
               </article>})}
