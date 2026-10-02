@@ -219,7 +219,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return preDraftGrade("QB",scout,null,analyticalFor(p),false,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
   function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("QB",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
-  function finalGradeFor(p:Player){const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return draftAdjustedFinalGrade("QB",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined)}
+  function finalGradeFor(p:Player){const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("QB",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
 
   function rankingGradeFor(p:Player){return preDraftFor(p)??scoutingFor(p)}
   const rankedPlayers=useMemo(()=>[...players].sort((a,b)=>{
@@ -291,7 +291,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     const id=String(p.id),imp=importedFor(p),metrics=metricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),draftCtx=draftContextFor(p);
     const teamScore=draftCtx.teamScore,draftCapital=draftCtx.draftCapitalScore,g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     const teamAdj=preDraft==null?null:(teamScore-5)*2*glossaryNumber(23,g),capitalAdj=preDraft==null?null:(draftCapital-5)*2*glossaryNumber(24,g);
-    const finalGrade=preDraft==null?null:draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,g);
+    const finalGrade=preDraft==null?null:(draftCtx.finalized?draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,g):preDraft);
     const combineInput={bmi:num(imp?.BMI)??undefined,forty:num(imp?.["40 Yard Dash"])??undefined,speedScore:num(imp?.["Speed Score"])??undefined,broadJump:num(imp?.["Broad Jump"])??undefined};
     const combine=Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,g):null;
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
@@ -301,7 +301,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>
         <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scouting + analytics"/>
-        <GradeCard label="Final" value={finalGrade} accent="final" hint={finalGrade==null?"Waiting for NFL draft":"Draft-adjusted"}/>
+        <GradeCard label="Final" value={finalGrade} accent="final" hint={preDraft==null?"Waiting for pre-draft grade":draftCtx.finalized?"Draft-adjusted":"Matches Pre-Draft until NFL Draft"}/>
       </div>
 
       {tab==="Film"&&<div className="qb-tab-content">

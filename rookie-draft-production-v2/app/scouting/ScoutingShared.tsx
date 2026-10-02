@@ -21,19 +21,21 @@ export function useDraftFeed(){
 export function useDraftPicks(){return useDraftFeed().picks}
 export function resolveDraftContext(position:"QB"|"RB"|"WR"|"TE",playerName:string,picks:DraftPick[],fallback:{result?:any,teamScore?:any,draftCapitalScore?:any}={}){
   const live=picks.find(x=>x.pos===position&&norm(x.name)===norm(playerName));
-  const number=(v:any)=>{const n=Number(v);return Number.isFinite(n)?n:null};
-  const storedResult=String(fallback.result??"").trim();
+  const number=(v:any)=>{if(v==null||v==="")return null;const n=Number(v);return Number.isFinite(n)?n:null};
+  const storedResult=String(fallback.result??"").trim(),storedTeam=number(fallback.teamScore),storedCapital=number(fallback.draftCapitalScore);
+  const storedFinal=Boolean(storedResult&&!/^pending$/i.test(storedResult)&&storedTeam!=null&&storedCapital!=null);
   return {
     result:live?("Pick "+live.overall+", "+live.team):(storedResult||"Pending"),
     team:live?.team||"",
-    teamScore:live?.teamScore??number(fallback.teamScore)??5,
-    draftCapitalScore:live?.draftCapitalScore??number(fallback.draftCapitalScore)??5,
-    automated:Boolean(live)
+    teamScore:live?.teamScore??storedTeam??5,
+    draftCapitalScore:live?.draftCapitalScore??storedCapital??5,
+    automated:Boolean(live),
+    finalized:Boolean(live)||storedFinal
   };
 }
 
 export function DraftAdjustmentPanel({preDraft,finalGrade,draftResult,teamScore,draftCapital,teamAdj,capitalAdj,production=true,updatedAt}:{preDraft:number|null,finalGrade:number|null,draftResult:string,teamScore:number,draftCapital:number,teamAdj:number|null,capitalAdj:number|null,production?:boolean,updatedAt?:string|null}){
-  const fmt=(v:number|null)=>v==null?"—":v.toFixed(2);
+  const fmt=(v:number|null)=>v==null?"—":v.toFixed(2),finalized=Boolean(draftResult&&!/^(pending|tbd|not drafted yet)$/i.test(draftResult.trim()));
   return <div className="qb-tab-content">
     <div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2><p>See exactly how landing spot and draft capital move the pre-draft grade after the NFL Draft.</p></div>{updatedAt&&<DataFreshness label="Draft feed" value={updatedAt}/>}</div>
     <div className="qb-draft-grid">
@@ -41,12 +43,12 @@ export function DraftAdjustmentPanel({preDraft,finalGrade,draftResult,teamScore,
       <div className="qb-draft-arrow">→</div>
       <div className="qb-draft-card"><span>NFL Draft Result</span><strong>{draftResult}</strong><small>Auto-filled after the NFL Draft</small></div>
       <div className="qb-draft-arrow">→</div>
-      <div className="qb-draft-card final"><span>Draft-Adjusted Final</span><strong>{fmt(finalGrade)}</strong><small>{preDraft!=null&&finalGrade!=null?((finalGrade-preDraft)>=0?"+":"")+(finalGrade-preDraft).toFixed(2)+" total adjustment":"Team fit + draft capital"}</small></div>
+      <div className="qb-draft-card final"><span>Final Draft Grade</span><strong>{fmt(finalGrade)}</strong><small>{!finalized?"Matches Pre-Draft until the NFL Draft":preDraft!=null&&finalGrade!=null?((finalGrade-preDraft)>=0?"+":"")+(finalGrade-preDraft).toFixed(2)+" total adjustment":"Team fit + draft capital"}</small></div>
     </div>
     <div className="qb-draft-detail">
-      <div className="qb-draft-card"><span>Team Fit</span><strong>{teamScore.toFixed(2)} / 10</strong><small>{teamAdj==null?"Waiting for pre-draft grade":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" grade points")}</small></div>
-      <div className="qb-draft-card"><span>Draft Capital</span><strong>{draftCapital.toFixed(2)} / 10</strong><small>{capitalAdj==null?"Waiting for pre-draft grade":((capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" grade points")}</small></div>
-      <div className="qb-draft-card final"><span>Adjustment Math</span><strong>{preDraft==null||finalGrade==null?"—":(finalGrade-preDraft).toFixed(2)}</strong><small>{teamAdj==null||capitalAdj==null?"Post-draft inputs populate this breakdown":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" team fit · "+(capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" draft capital")}</small></div>
+      <div className="qb-draft-card"><span>Team Fit</span><strong>{finalized?teamScore.toFixed(2)+" / 10":"—"}</strong><small>{!finalized?"Populates after the NFL Draft":teamAdj==null?"Waiting for pre-draft grade":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" grade points")}</small></div>
+      <div className="qb-draft-card"><span>Draft Capital</span><strong>{finalized?draftCapital.toFixed(2)+" / 10":"—"}</strong><small>{!finalized?"Populates after the NFL Draft":capitalAdj==null?"Waiting for pre-draft grade":((capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" grade points")}</small></div>
+      <div className="qb-draft-card final"><span>Adjustment Math</span><strong>{!finalized?"0.00":preDraft==null||finalGrade==null?"—":(finalGrade-preDraft).toFixed(2)}</strong><small>{!finalized?"No post-draft adjustment yet":teamAdj==null||capitalAdj==null?"Post-draft inputs populate this breakdown":((teamAdj>=0?"+":"")+teamAdj.toFixed(2)+" team fit · "+(capitalAdj>=0?"+":"")+capitalAdj.toFixed(2)+" draft capital")}</small></div>
     </div>
   </div>
 }

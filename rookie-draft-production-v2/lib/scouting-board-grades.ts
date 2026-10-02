@@ -357,8 +357,8 @@ export async function buildBoardGradeRows(input:{
     const team=livePick?.teamScore??storedTeam,capital=livePick?.draftCapitalScore??storedCapital;
     const draftResult=livePick?("Pick "+livePick.overall+", "+livePick.team):storedResult;
     const hasFinal=Boolean(livePick)||(team!=null&&capital!=null&&draftResult!==""&&!/^pending$/i.test(draftResult));
-    const finalGrade=hasFinal&&team!=null&&capital!=null?draftAdjustedFinalGrade(p.position,pre,team,capital,glossary):null;
-    out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:finalGrade==null?"Pre-Draft":"Final",draftResult:draftResult||null,draftTeam:livePick?.team||null});
+    const finalGrade=hasFinal&&team!=null&&capital!=null?draftAdjustedFinalGrade(p.position,pre,team,capital,glossary):pre;
+    out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:hasFinal?"Final":"Pre-Draft",draftResult:draftResult||null,draftTeam:livePick?.team||null});
   }
   return out;
 }
