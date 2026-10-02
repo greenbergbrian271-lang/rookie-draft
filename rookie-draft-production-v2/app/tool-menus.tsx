@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import {Briefcase,Search,Wrench} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";
@@ -11,7 +12,7 @@ import ReturningPlayerModal from "@/components/ReturningPlayerModal";
 import MockDraftModal from "@/components/MockDraftModal";
 import {useDraftClass} from "@/lib/use-draft-class";
 type Item={label:string,id:string};
-const groups=[{label:"GM Tools",items:[["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["All-Star Game","all-star"],["Maybe Scout Player","maybe"],["Archive Player","archive"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Refresh Combine Data","combine-refresh"],["Add Team + Production Stats","production"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
+const groups=[{label:"GM Tools",items:[["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["Maybe Scout Player","maybe"],["Archive Player","archive"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Refresh Combine Data","combine-refresh"],["Add Team + Production Stats","production"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
 const playerActions:Record<string,{status?:string,draftClass?:number}>={finished:{status:"FINISHED"}};
 export default function ToolMenus(){const draftClass=useDraftClass();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);
 useEffect(()=>{if(tool){fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{});if(tool.id==="combine-refresh")fetch("/api/combine-refresh",{cache:"no-store"}).then(r=>r.json()).then(setCombineStatus).catch(()=>{})}},[tool,draftClass]);
@@ -54,7 +55,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
         fontSize:8,
         fontWeight:950,
         letterSpacing:".04em"
-      }}>{["GM","SC","SH"][groupIndex]}</span>
+      }}>{groupIndex===0?<Briefcase size={13}/>:groupIndex===1?<Search size={13}/>:<Wrench size={13}/>}</span>
       <strong style={{fontSize:12}}>{g.label}</strong>
     </span>
     <span style={{marginLeft:8}}>▾</span>
