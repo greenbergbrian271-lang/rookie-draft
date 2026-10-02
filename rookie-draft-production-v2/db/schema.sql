@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS combine_invites (draft_class int not null, player_nam
 CREATE INDEX IF NOT EXISTS combine_invites_lookup_idx ON combine_invites(draft_class,normalized_name,position);
 
 CREATE TABLE IF NOT EXISTS all_star_game_settings (game_key text primary key, website_url text not null, twitter_url text not null, roster_a_name text not null, roster_a_url text, roster_b_name text not null, roster_b_url text, updated_at timestamptz default now());
-CREATE TABLE IF NOT EXISTS all_star_invites (id bigserial primary key, game_key text not null, player_id bigint references players(id) on delete cascade, roster_key text, source_kind text, source_url text, source_excerpt text, discovered_at timestamptz default now(), updated_at timestamptz default now(), unique(game_key,player_id));
+CREATE TABLE IF NOT EXISTS all_star_invites (id bigserial primary key, game_key text not null, player_id bigint references players(id) on delete cascade, roster_key text, source_kind text, source_url text, source_excerpt text, participation_status text not null default 'ACTIVE', discovered_at timestamptz default now(), updated_at timestamptz default now(), unique(game_key,player_id));
 CREATE INDEX IF NOT EXISTS all_star_invites_game_idx ON all_star_invites(game_key,roster_key);

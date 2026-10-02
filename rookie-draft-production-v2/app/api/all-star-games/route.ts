@@ -28,7 +28,7 @@ export async function GET(req:Request){
     const q=await ensureTursoSchema(),u=new URL(req.url),draftClass=Number(u.searchParams.get("draftClass")||2027);
     if(draftClass===2027)await migrateLegacy(q);
     const settings=rows(await q.execute("select * from all_star_game_settings"));
-    const inviteRows=rows(await q.execute({sql:"select a.game_key,a.player_id,a.roster_key,a.source_kind,a.source_url,a.source_excerpt,a.discovered_at,p.name,p.position,p.college,p.headshot_url from all_star_invites a join players p on p.id=a.player_id where p.draft_class=? order by p.position,p.watch_order,p.name",args:[draftClass]}));
+    const inviteRows=rows(await q.execute({sql:"select a.game_key,a.player_id,a.roster_key,a.source_kind,a.source_url,a.source_excerpt,a.discovered_at,a.participation_status,p.name,p.position,p.college,p.headshot_url from all_star_invites a join players p on p.id=a.player_id where p.draft_class=? order by p.position,p.watch_order,p.name",args:[draftClass]}));
     const scanRows=rows(await q.execute("select key,value,updated_at from settings where key like 'all_star_scan_%'"));
     const scans=new Map(scanRows.map((x:any)=>[String(x.key).replace("all_star_scan_",""),x]));
     return Response.json({draftClass,games:ALL_STAR_GAMES.map(g=>{
