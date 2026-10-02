@@ -91,7 +91,7 @@ export default function AllStarGamesPage(){
       return <section className={styles.gameCard} key={game.key} style={{"--game-accent":game.accent,"--game-accent2":game.accent2} as CSSProperties}>
         <div className={styles.brandBar}/>
         <header className={styles.gameHeader}>
-          <div className={styles.gameIdentity}><div className={styles.logoWrap}><Image unoptimized src={"/api/all-star-games/logo?gameKey="+encodeURIComponent(game.key)} alt={game.name+" logo"} width={90} height={64} className={styles.gameLogo}/></div><div><div className={styles.dateLine}>{game.dateLabel} · {game.location}</div><h2>{game.name}</h2><p>{game.tagline}</p></div></div>
+          <div className={styles.gameIdentity}><div className={styles.logoWrap}><img src={"https://www.google.com/s2/favicons?domain_url="+encodeURIComponent(cfg.websiteUrl)+"&sz=256"} alt={game.name+" logo"} className={styles.gameLogo}/></div><div><div className={styles.dateLine}>{game.dateLabel} · {game.location}</div><h2>{game.name}</h2><p>{game.tagline}</p></div></div>
           <div className={styles.cardActions}><button className={styles.watch} onClick={()=>watchNow(game)}><Play size={15}/>Watch Now</button><button className={styles.iconButton} aria-label={"Settings for "+game.name} onClick={()=>openSettings(game)}><Settings size={18}/></button></div>
         </header>
 
@@ -119,7 +119,7 @@ export default function AllStarGamesPage(){
 
     {viewGame&&rosterView&&<div className={styles.modalBackdrop} onMouseDown={e=>e.target===e.currentTarget&&setRosterView(null)}>
       <div className={styles.rosterModal}>
-        <div className={styles.modalHead}><div className={styles.rosterModalTitle}><div className={styles.miniLogo}><Image unoptimized src={"/api/all-star-games/logo?gameKey="+encodeURIComponent(viewGame.key)} alt="" width={62} height={44}/></div><div><div className="ey">{viewGame.name}</div><h2>{rosterView.title}</h2><p>{viewPlayers.length} tracked player{viewPlayers.length===1?"":"s"} · click a player name for the profile.</p></div></div><button className={styles.closeButton} onClick={()=>setRosterView(null)} aria-label="Close"><X size={20}/></button></div>
+        <div className={styles.modalHead}><div className={styles.rosterModalTitle}><div className={styles.miniLogo}><img src={"https://www.google.com/s2/favicons?domain_url="+encodeURIComponent(viewGame.config.websiteUrl)+"&sz=256"} alt=""/></div><div><div className="ey">{viewGame.name}</div><h2>{rosterView.title}</h2><p>{viewPlayers.length} tracked player{viewPlayers.length===1?"":"s"} · click a player name for the profile.</p></div></div><button className={styles.closeButton} onClick={()=>setRosterView(null)} aria-label="Close"><X size={20}/></button></div>
         <div className={styles.rosterBody}>{POSITIONS.map(pos=>{
           const ps=viewPlayers.filter((p:any)=>p.position===pos);
           if(!ps.length)return null;

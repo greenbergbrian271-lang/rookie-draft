@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useState} from "react";\nimport {Binoculars,BriefcaseBusiness,TableProperties} from "lucide-react";
+import {useEffect,useState} from "react";\nimport {Briefcase,Search,Wrench} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";
@@ -53,7 +53,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
         fontSize:8,
         fontWeight:950,
         letterSpacing:".04em"
-      }}>{groupIndex===0?<BriefcaseBusiness size={13}/>:groupIndex===1?<Binoculars size={13}/>:<TableProperties size={13}/>}</span>
+      }}>{groupIndex===0?<Briefcase size={13}/>:groupIndex===1?<Search size={13}/>:<Wrench size={13}/>}</span>
       <strong style={{fontSize:12}}>{g.label}</strong>
     </span>
     <span style={{marginLeft:8}}>▾</span>
