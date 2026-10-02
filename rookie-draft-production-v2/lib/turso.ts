@@ -34,7 +34,8 @@ for(const sql of [
   `alter table college_stats add column pass_yards_per_completion real`,
   `alter table college_stats add column pass_interceptions real`,
   `alter table college_stats add column rushes real`,
-  `alter table college_stats add column yards_per_rush real`,\n  `alter table all_star_invites add column participation_status text not null default 'ACTIVE'`
+  `alter table college_stats add column yards_per_rush real`,
+  `alter table all_star_invites add column participation_status text not null default 'ACTIVE'`
 ]){try{await c.execute(sql)}catch(e:unknown){const message=e instanceof Error?e.message:String(e);if(!message.toLowerCase().includes("duplicate column"))throw e}}
 const marker=await c.execute({sql:"select value from settings where key=?",args:["baseline_2027_seeded"]});
 if(!marker.rows.length){

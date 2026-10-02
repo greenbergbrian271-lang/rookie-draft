@@ -69,8 +69,13 @@ export default function AllStarGamesPage(){
   }
   async function watchNow(game:any){
     const cfg=game.config,active=game.invites.filter((p:any)=>!isOut(p)),out=game.invites.filter((p:any)=>isOut(p)),byRoster=(key:string)=>active.filter((p:any)=>p.roster_key===key),unassigned=active.filter((p:any)=>!p.roster_key);
-    const section=(name:string,players:any[])=>name+"\n"+(players.length?players.map((p:any)=>"• "+p.position+" "+p.name+" — "+(p.college||"College TBD")+"\n  ◦ ").join("\n"):"• No tracked invites yet");
-    const notes=[section(cfg.rosterAName,byRoster("A")),section(cfg.rosterBName,byRoster("B")),unassigned.length?section("Accepted Invites — Roster TBD",unassigned):"",out.length?section("Not Playing / Practice Only",out):""].filter(Boolean).join("\n\n");
+    const section=(name:string,players:any[])=>name+"
+"+(players.length?players.map((p:any)=>"• "+p.position+" "+p.name+" — "+(p.college||"College TBD")+"
+  ◦ ").join("
+"):"• No tracked invites yet");
+    const notes=[section(cfg.rosterAName,byRoster("A")),section(cfg.rosterBName,byRoster("B")),unassigned.length?section("Accepted Invites — Roster TBD",unassigned):"",out.length?section("Not Playing / Practice Only",out):""].filter(Boolean).join("
+
+");
     const r=await fetch("/api/game-notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"all-star-"+game.key+"-2027",kickoff:game.date,homeTeam:cfg.rosterAName,awayTeam:cfg.rosterBName,title:game.name+" - "+game.dateLabel,notes,matchupSnapshot:{type:"all-star-game",gameKey:game.key,rosterA:cfg.rosterAName,rosterB:cfg.rosterBName}})});
     if(r.ok)location.href="/game-notes";else{const j=await r.json().catch(()=>({}));setMessage({type:"error",text:j.error||"Could not create the game note."})}
   }

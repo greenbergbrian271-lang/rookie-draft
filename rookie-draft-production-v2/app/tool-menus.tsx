@@ -1,5 +1,6 @@
 "use client";
-import {useEffect,useState} from "react";\nimport {Briefcase,Search,Wrench} from "lucide-react";
+import {useEffect,useState} from "react";
+import {Briefcase,Search,Wrench} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";
