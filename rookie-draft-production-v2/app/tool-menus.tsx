@@ -25,7 +25,7 @@ async function combineRefreshRun(){setMsg(`Refreshing ${draftClass} NFL Combine 
 async function auditRun(){setMsg("Checking player colleges against workbook school formatting…");const r=await fetch("/api/format-audit",{cache:"no-store"}),j=await r.json();setMsg(r.ok?(j.unknown?.length?`${j.unknown.length} college name(s) need review: ${j.unknown.join(", ")}`:"All player colleges resolve to workbook school formatting."):(j.error||"Formatting audit failed."))}
 async function moveRun(direction:"up"|"down"){if(!playerId)return setMsg("Select a player.");const r=await fetch("/api/players/move",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:Number(playerId),direction})}),j=await r.json();if(r.ok){setMsg(`${j.player} moved ${direction}.`);fetch("/api/players",{cache:"no-store"}).then(x=>x.json()).then(x=>Array.isArray(x)&&setPlayers(x))}else setMsg(j.error||"Move failed.")}
 async function simpleRun(endpoint:string,label:string){setMsg(label+"…");const r=await fetch(endpoint,{method:"POST"}),j=await r.json();setMsg(r.ok?`${label}: ${j.updated??j.count??"complete"}.`:(j.error||`${label} failed.`))}
-return <>div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{gap:7,padding:"8px 18px"}}>
+return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{gap:7,padding:"8px 18px"}}>
 {groups.map((g,groupIndex)=><div className="tool-menu" key={g.label}>
   <button
     aria-expanded={open===g.label}
