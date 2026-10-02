@@ -53,15 +53,3 @@ export async function PATCH(req:Request){
     return Response.json({ok:true,config:{gameKey:g.key,websiteUrl,twitterUrl,rosterAName,rosterAUrl,rosterBName,rosterBUrl,updatedAt:now}});
   }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not save all-star settings."},{status:500})}
 }
-
-export async function POST(req:Request){
-  try{
-    const x=await req.json(),gameKey=String(x?.gameKey||""),playerId=Number(x?.playerId),g=gameDefinition(gameKey);
-    if(!g||!playerId)return Response.json({error:"Game and player are required."},{status:400});
-    const q=await ensureTursoSchema(),now=new Date().toISOString(),optedOut=Number(Boolean(x?.optedOut)),note=String(x?.note||"").trim()||null;
-    const existing=rows(await q.execute({sql:"select id from all_star_invites where game_key=? and player_id=?",args:[gameKey,playerId]}))[0];
-    if(!existing)return Response.json({error:"Invite not found."},{status:404});
-    await q.execute({sql:"update all_star_invites set opted_out=?,opt_out_note=?,updated_at=? where game_key=? and player_id=?",args:[optedOut,note,now,gameKey,playerId]});
-    return Response.json({ok:true,gameKey,playerId,optedOut:Boolean(optedOut),note});
-  }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not update all-star participation."},{status:500})}
-}
