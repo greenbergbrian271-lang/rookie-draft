@@ -42,12 +42,10 @@ NOTES:
 ${b.notes||"[No notes]"}`).join("\n\n---\n\n")}`;
 }
 async function synthesize(bundles:NoteBundle[]){
-  const model=process.env.AI_GATEWAY_MODEL||"google/gemini-3.5-flash-lite";
   const {text}=await generateText({
-    model,
+    model:"openai/gpt-5.6-sol",
     prompt:promptFor(bundles),
-    temperature:.15,
-    providerOptions:{gateway:{disallowPromptTraining:true}}
+    temperature:.15
   });
   return parseJson(text);
 }
