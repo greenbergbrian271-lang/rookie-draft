@@ -1,0 +1,20 @@
+name: Compare build debug
+on:
+  push:
+    branches:
+      - compare-build-debug
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rookie-draft-production-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: rookie-draft-production-v2/package.json
+      - run: npm install
+      - run: npm run build
