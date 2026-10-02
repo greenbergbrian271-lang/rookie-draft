@@ -1,53 +1,83 @@
-import {generateText} from "ai";
 import {ensureTursoSchema,rows} from "@/lib/turso";
 
 type NoteBundle={id:string;name:string;position:string;notes:string;noteCount:number};
 type Insight={playerId:string;summary:string;strengths:string[];concerns:string[];noteCount:number;source:"ai"|"fallback"|"none"};
 
-function unavailable(bundle:NoteBundle):Insight{
+const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
+function sentences(text:string){return text.replace(/\s+/g," ").split(/(?<=[.!?])\s+/).map(x=>x.trim()).filter(Boolean)}
+function fallback(bundle:NoteBundle):Insight{
   if(!bundle.notes.trim())return {playerId:bundle.id,summary:"No scouting notes have been added yet.",strengths:[],concerns:[],noteCount:0,source:"none"};
   return {playerId:bundle.id,summary:"AI scouting synthesis is temporarily unavailable. Refresh the comparison to retry.",strengths:[],concerns:[],noteCount:bundle.noteCount,source:"fallback"};
 }
-function parseJson(text:string){
-  const clean=text.trim().replace(/^\`\`\`(?:json)?\s*/i,"").replace(/\s*\`\`\`$/,"");
-  const parsed=JSON.parse(clean);
-  return Array.isArray(parsed)?parsed:Array.isArray(parsed?.players)?parsed.players:[];
-}
+function parseJson(text:string){const clean=text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");return JSON.parse(clean)}
 function promptFor(bundles:NoteBundle[]){
   return `You are the scouting analyst inside a private dynasty rookie-draft workspace.
 
-Your job is to SYNTHESIZE the scout's saved game notes, not quote them, not copy their wording, and not simply concatenate observations.
+SYNTHESIZE the saved scouting notes. Do not quote, copy, or concatenate the notes.
 
 For each player:
 - Read every note from every game.
-- Identify recurring traits and patterns across games.
-- Distinguish one-off observations from repeated evidence.
+- Identify repeated traits and patterns across games.
+- Separate recurring evidence from one-off observations.
 - Reconcile contradictions or development over time.
-- Write a concise 2-3 sentence scouting synthesis in fresh language.
-- Provide 1-3 short recurring strength themes and 0-3 short recurring concern themes.
-- Stay strictly grounded in the notes. Do not invent stats, traits, rankings, grades, or draft projections.
-- Do not quote more than a few words from any note.
-- Do not use first-person language even when the scout's notes do.
-- Do not mention that you are an AI.
+- Write a concise 2-3 sentence synthesis in fresh language.
+- Give 1-3 short recurring strength themes and 0-3 recurring concern themes.
+- Stay strictly grounded in the notes; do not invent facts, stats, grades, or projections.
+- Do not use first-person language even when the notes do.
 
-Return ONLY valid JSON as an array, one object per player, in the same order:
-[{"playerId":"...","summary":"...","strengths":["..."],"concerns":["..."]}]
+Return strict JSON only, as an array with exactly these keys per player: playerId, summary, strengths, concerns.
 
-${bundles.map((b,i)=>`PLAYER ${i+1}
-ID: ${b.id}
-NAME: ${b.name}
-POSITION: ${b.position}
-SAVED NOTE RECORDS: ${b.noteCount}
-NOTES:
-${b.notes||"[No notes]"}`).join("\n\n---\n\n")}`;
+${bundles.map((b,i)=>`PLAYER ${i+1}\nID: ${b.id}\nNAME: ${b.name}\nPOSITION: ${b.position}\nSAVED NOTES (${b.noteCount} note records):\n${b.notes||"[No notes]"}`).join("\n\n---\n\n")}`;
 }
-async function synthesize(bundles:NoteBundle[]){
-  const {text}=await generateText({
-    model:"openai/gpt-5.6-sol",
-    prompt:promptFor(bundles),
-    temperature:.15
-  });
-  return parseJson(text);
+async function generateGateway(bundles:NoteBundle[],token:string){
+  const model=process.env.AI_GATEWAY_MODEL||"openai/gpt-5.6-sol",prompt=promptFor(bundles);
+  let last="";
+  for(let attempt=0;attempt<3;attempt++){
+    if(attempt)await sleep(700*Math.pow(2,attempt-1));
+    const r=await fetch("https://ai-gateway.vercel.sh/v1/chat/completions",{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({model,messages:[{role:"user",content:prompt}],temperature:.15}),cache:"no-store"});
+    last=await r.text();
+    if(r.ok){const json=JSON.parse(last),text=String(json?.choices?.[0]?.message?.content||"");return parseJson(text)}
+    if(r.status!==429&&r.status<500)break;
+  }
+  throw new Error(`AI Gateway summary request failed${last?": "+last.slice(0,180):""}`);
+}
+async function generateGemini(bundles:NoteBundle[],apiKey:string){
+  const model=process.env.GEMINI_MODEL||"gemini-2.5-flash",prompt=promptFor(bundles);
+  const body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,responseMimeType:"application/json"}};
+  let last="";
+  for(let attempt=0;attempt<3;attempt++){
+    if(attempt)await sleep(700*Math.pow(2,attempt-1));
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),cache:"no-store"});
+    last=await r.text();
+    if(r.ok){const json=JSON.parse(last),text=String(json?.candidates?.[0]?.content?.parts?.[0]?.text||"");return parseJson(text)}
+    if(r.status!==429&&r.status<500)break;
+  }
+  throw new Error(`Gemini summary request failed${last?": "+last.slice(0,180):""}`);
+}
+
+export async function GET(req:Request){
+  const url=new URL(req.url),test=url.searchParams.get("test")==="1";
+  const gatewayToken=process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN;
+  const geminiKey=process.env.GEMINI_API_KEY;
+  if(!test)return Response.json({gatewayConfigured:Boolean(gatewayToken),geminiConfigured:Boolean(geminiKey),model:process.env.AI_GATEWAY_MODEL||"openai/gpt-5.6-sol"});
+  const sample:NoteBundle={id:"health",name:"Health Check",position:"WR",notes:"Won repeatedly on intermediate routes. Had one concentration drop. Created separation late in the game.",noteCount:1};
+  if(gatewayToken){
+    try{
+      const out=await generateGateway([sample],gatewayToken);
+      return Response.json({ok:true,provider:"gateway",model:process.env.AI_GATEWAY_MODEL||"openai/gpt-5.6-sol",sample:Array.isArray(out)?out[0]:out});
+    }catch(e:unknown){
+      return Response.json({ok:false,provider:"gateway",error:e instanceof Error?e.message:"Gateway test failed"},{status:502});
+    }
+  }
+  if(geminiKey){
+    try{
+      const out=await generateGemini([sample],geminiKey);
+      return Response.json({ok:true,provider:"gemini",model:process.env.GEMINI_MODEL||"gemini-2.5-flash",sample:Array.isArray(out)?out[0]:out});
+    }catch(e:unknown){
+      return Response.json({ok:false,provider:"gemini",error:e instanceof Error?e.message:"Gemini test failed"},{status:502});
+    }
+  }
+  return Response.json({ok:false,error:"No AI Gateway or Gemini credentials are available in this deployment."},{status:503});
 }
 
 export async function POST(req:Request){
@@ -67,37 +97,17 @@ export async function POST(req:Request){
       const legacy=evals.find((e:any)=>String(e.player_id)===id),legacyText=String(legacy?.commentary??legacy?.value??"").trim();
       if(legacyText)chunks.push(`Legacy scouting commentary:\n${legacyText}`);
       const games=sessions.filter((s:any)=>String(s.player_id)===id).filter((s:any)=>String(s.raw_notes??s.overall_writeup??"").trim());
-      for(const s of games){
-        const heading=[s.game_date,s.opponent?`vs ${s.opponent}`:""].filter(Boolean).join(" ")||"Scouting session";
-        const rawNote=String(s.raw_notes||"").trim(),writeup=String(s.overall_writeup||"").trim();
-        chunks.push(`${heading}:\n${[rawNote,writeup].filter(Boolean).join("\n")}`);
-      }
+      for(const s of games){const heading=[s.game_date,s.opponent?`vs ${s.opponent}`:""].filter(Boolean).join(" ")||"Scouting session",raw=String(s.raw_notes||"").trim(),writeup=String(s.overall_writeup||"").trim();chunks.push(`${heading}:\n${[raw,writeup].filter(Boolean).join("\n")}`)}
       return {id,name:String(p?.name||`Player ${id}`),position:String(p?.position||""),notes:chunks.join("\n\n"),noteCount:games.length+(legacyText?1:0)};
     });
-
-    const base=Object.fromEntries(bundles.map(b=>[b.id,unavailable(b)])) as Record<string,Insight>;
-    const withNotes=bundles.filter(b=>b.notes.trim());
+    const base=Object.fromEntries(bundles.map(b=>[b.id,fallback(b)])) as Record<string,Insight>,withNotes=bundles.filter(b=>b.notes.trim());
     if(withNotes.length){
-      try{
-        const generated=await synthesize(withNotes);
-        for(const item of generated){
-          const id=String(item?.playerId||"");
-          if(!base[id])continue;
-          base[id]={
-            playerId:id,
-            summary:String(item?.summary||"").trim()||base[id].summary,
-            strengths:Array.isArray(item?.strengths)?item.strengths.map(String).map(x=>x.trim()).filter(Boolean).slice(0,3):[],
-            concerns:Array.isArray(item?.concerns)?item.concerns.map(String).map(x=>x.trim()).filter(Boolean).slice(0,3):[],
-            noteCount:base[id].noteCount,
-            source:"ai"
-          };
-        }
-      }catch(e){
-        console.error("[COMPARE SUMMARY] AI synthesis failed",e);
-      }
+      let generated:any=null;
+      const gatewayToken=process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN;
+      if(gatewayToken){try{generated=await generateGateway(withNotes,gatewayToken)}catch(e){console.warn("[COMPARE SUMMARY] AI Gateway failed",e)}}
+      if(!Array.isArray(generated)&&process.env.GEMINI_API_KEY){try{generated=await generateGemini(withNotes,process.env.GEMINI_API_KEY)}catch(e){console.warn("[COMPARE SUMMARY] Gemini fallback failed",e)}}
+      if(Array.isArray(generated))for(const item of generated){const id=String(item?.playerId||"");if(!base[id])continue;base[id]={playerId:id,summary:String(item?.summary||base[id].summary).trim()||base[id].summary,strengths:Array.isArray(item?.strengths)?item.strengths.map(String).filter(Boolean).slice(0,3):[],concerns:Array.isArray(item?.concerns)?item.concerns.map(String).filter(Boolean).slice(0,3):[],noteCount:base[id].noteCount,source:"ai"}}
     }
     return Response.json({summaries:ids.map(id=>base[id])});
-  }catch(e:unknown){
-    return Response.json({error:e instanceof Error?e.message:"Could not summarize scouting notes."},{status:500});
-  }
+  }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not summarize scouting notes."},{status:500})}
 }
