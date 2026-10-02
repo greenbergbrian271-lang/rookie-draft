@@ -6,7 +6,7 @@ import {schoolStyle} from "@/lib/school-colors";
 import styles from "./all-star-games.module.css";
 
 const POSITIONS=["QB","RB","WR","TE"];
-const isOut=(p:any)=>String(p.participation_status||"ACTIVE")==="OPTED_OUT";
+const isOut=(p:any)=>Boolean(Number(p.opted_out||0));
 const sourceLabel=(kind:string)=>kind==="twitter"?"X":kind==="roster_a"?"Roster A":kind==="roster_b"?"Roster B":kind==="legacy"?"Legacy":"Website";
 
 export default function AllStarGamesPage(){
@@ -60,7 +60,7 @@ export default function AllStarGamesPage(){
   async function setParticipation(gameKey:string,player:any,status:"ACTIVE"|"OPTED_OUT"){
     setParticipationBusy(Number(player.player_id));
     try{
-      const r=await fetch("/api/all-star-games/participation",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({gameKey,playerId:player.player_id,status})}),j=await r.json();
+      const r=await fetch("/api/all-star-games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({gameKey,playerId:player.player_id,optedOut:status==="OPTED_OUT",note:status==="OPTED_OUT"?"Practice / accepted invite; not playing in game.":""})}),j=await r.json();
       if(!r.ok)throw new Error(j.error||"Could not update participation.");
       setMessage({type:"success",text:player.name+(status==="OPTED_OUT"?" marked as not playing. The invite remains on file.":" restored to the active game roster.")});
       await load();
@@ -95,7 +95,7 @@ export default function AllStarGamesPage(){
       return <section className={styles.gameCard} key={game.key} style={{"--game-accent":game.accent,"--game-accent2":game.accent2} as CSSProperties}>
         <div className={styles.brandBar}/>
         <header className={styles.gameHeader}>
-          <div className={styles.gameIdentity}><div className={styles.logoWrap}><img src={"https://www.google.com/s2/favicons?domain_url="+encodeURIComponent(cfg.websiteUrl)+"&sz=256"} alt={game.name+" logo"} className={styles.gameLogo}/></div><div><div className={styles.dateLine}>{game.dateLabel} · {game.location}</div><h2>{game.name}</h2><p>{game.tagline}</p></div></div>
+          <div className={styles.gameIdentity}><div className={styles.logoWrap}><img src={game.logoUrl} alt={game.name+" logo"} className={styles.gameLogo}/></div><div><div className={styles.dateLine}>{game.dateLabel} · {game.location}</div><h2>{game.name}</h2><p>{game.tagline}</p></div></div>
           <div className={styles.cardActions}><button className={styles.watch} onClick={()=>watchNow(game)}><Play size={15}/>Watch Now</button><button className={styles.iconButton} aria-label={"Settings for "+game.name} onClick={()=>openSettings(game)}><Settings size={18}/></button></div>
         </header>
 
@@ -123,7 +123,7 @@ export default function AllStarGamesPage(){
 
     {viewGame&&rosterView&&<div className={styles.modalBackdrop} onMouseDown={e=>e.target===e.currentTarget&&setRosterView(null)}>
       <div className={styles.rosterModal}>
-        <div className={styles.modalHead}><div className={styles.rosterModalTitle}><div className={styles.miniLogo}><img src={"https://www.google.com/s2/favicons?domain_url="+encodeURIComponent(viewGame.config.websiteUrl)+"&sz=256"} alt=""/></div><div><div className="ey">{viewGame.name}</div><h2>{rosterView.title}</h2><p>{viewPlayers.length} tracked player{viewPlayers.length===1?"":"s"} · click a player name for the profile.</p></div></div><button className={styles.closeButton} onClick={()=>setRosterView(null)} aria-label="Close"><X size={20}/></button></div>
+        <div className={styles.modalHead}><div className={styles.rosterModalTitle}><div className={styles.miniLogo}><img src={viewGame.logoUrl} alt=""/></div><div><div className="ey">{viewGame.name}</div><h2>{rosterView.title}</h2><p>{viewPlayers.length} tracked player{viewPlayers.length===1?"":"s"} · click a player name for the profile.</p></div></div><button className={styles.closeButton} onClick={()=>setRosterView(null)} aria-label="Close"><X size={20}/></button></div>
         <div className={styles.rosterBody}>{POSITIONS.map(pos=>{
           const ps=viewPlayers.filter((p:any)=>p.position===pos);
           if(!ps.length)return null;
