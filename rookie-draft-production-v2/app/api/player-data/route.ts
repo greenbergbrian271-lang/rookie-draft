@@ -167,14 +167,16 @@ function projectRows(base:readonly any[],current:any[],enrich:(row:any)=>any){
   const reference=new Map<string,any>();for(const row of base)if(row?.Player)reference.set(norm(row.Player),row);
   return (current||[]).map(row=>{const key=norm(row?.Player);return enrich({...((key&&reference.get(key))||{}),...row})});
 }
-async function canonicalPlayerData(db:any,position:string){
-  const combine=rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=2027 and p.position=?",args:[position]}));
+async function canonicalPlayerData(db:any,position:string,draftClass:number){
+  const combine=rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=? and p.position=?",args:[draftClass,position]}));
   const storedCollegeRows=rows(await db.execute("select team,subdivision,games,completions,pass_attempts as passAttempts,pass_yards as passYards,pass_tds as passTDs,rushes,rush_yards as rushYards,rush_tds as rushTDs,total_plays as totalPlays,updated_at as updatedAt from college_stats"));
   const collegeRows=storedCollegeRows.length?storedCollegeRows:(currentCollegeStatsReference as unknown as any[]);
   const collegeMap=new Map(collegeRows.map((r:any)=>[norm(r.team),r]));
   const withContext=(rs:any[])=>applyCombine(rs,combine,position).map((row:any)=>({...row,"Team Context":collegeMap.get(norm(row.College))||null}));
   const combineRefreshedAt=combine.reduce((m:any,r:any)=>!m||String(r.refreshed_at||"")>String(m)?r.refreshed_at:m,null);
-  const imported=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
+  let imported:any[]=[];let registered=false;
+  try{const active=rows(await db.execute({sql:"select a.import_id from pff_active_datasets a where a.draft_class=? and a.position=? limit 1",args:[draftClass,position]}));const registry=rows(await db.execute({sql:"select 1 as found from pff_dataset_registry where draft_class=? limit 1",args:[draftClass]}));registered=Boolean(registry.length);if(active.length)imported=rows(await db.execute({sql:"select result,imported_at from pff_imports where id=? limit 1",args:[Number(active[0].import_id)]}))}catch{}
+  if(!imported.length&&!registered)imported=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
   let result:any={};if(imported.length){try{result=JSON.parse(String(imported[0].result||"{}"))}catch{}}
   const block=result[position]||{},above=block.above?.primary||[],below=block.below?.primary||[],projection=[...below,...above],importedAt=imported[0]?.imported_at??null;
   const warehouse=Number(result?.meta?.warehouseVersion||0)>=2&&Boolean(block.threshold);
@@ -194,10 +196,10 @@ async function canonicalPlayerData(db:any,position:string){
 }
 export async function GET(req:Request){
   try{
-    const pos=new URL(req.url).searchParams.get("position");
+    const params=new URL(req.url).searchParams,pos=params.get("position"),draftClass=Number(params.get("draftClass")||2027);
     const db=await ensureTursoSchema();
     if(pos&&["QB","RB","WR","TE"].includes(pos)){
-      const payload=await canonicalPlayerData(db,pos);
+      const payload=await canonicalPlayerData(db,pos,draftClass);
       return Response.json({position:pos,...payload});
     }
     const r=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
