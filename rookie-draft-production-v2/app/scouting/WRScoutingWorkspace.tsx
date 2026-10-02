@@ -313,14 +313,14 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   function jumpToPlayer(p:Player){setMode("Evaluate");setSelectedId(String(p.id));requestAnimationFrame(()=>document.getElementById("wr-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}))}
 
   function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("WR",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
-  function finalGradeFor(p:Player){const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return draftAdjustedFinalGrade("WR",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined)}
+  function finalGradeFor(p:Player){const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("WR",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
 
 
   function renderPlayerSection(p:Player){
     const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),draftCtx=draftContextFor(p),early=earlyDeclareFor(p);
     const teamScore=draftCtx.teamScore,draftCapital=draftCtx.draftCapitalScore,g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
     const teamAdj=preDraft==null?(null):(teamScore-5)*2*glossaryNumber(29,g),capitalAdj=preDraft==null?(null):(draftCapital-5)*2*glossaryNumber(30,g);
-    const finalGrade=preDraft==null?null:draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g);
+    const finalGrade=preDraft==null?null:(draftCtx.finalized?draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g):preDraft);
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     const penalty=penaltyFor(p),showPenaltyBadge=penalty;
     const mockMeasurements=[imp.Wingspan,imp["Arm Length"],imp["Hand Size"]].filter(v=>v!==null&&v!==undefined&&v!=="");
@@ -332,7 +332,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint={penalty?"ADOT / contested penalty applied":"Workbook percentile model"}/>
         <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scout + production + analytics"/>
-        <GradeCard label="Final" value={finalGrade} accent="final" hint={finalGrade==null?"Waiting for NFL draft":"Draft-adjusted"}/>
+        <GradeCard label="Final" value={finalGrade} accent="final" hint={preDraft==null?"Waiting for pre-draft grade":draftCtx.finalized?"Draft-adjusted":"Matches Pre-Draft until NFL Draft"}/>
       </div>
 
       {tab==="Film"&&<div className="qb-tab-content">
