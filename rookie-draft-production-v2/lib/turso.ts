@@ -1,6 +1,6 @@
 import {createClient} from "@libsql/client";
 import {rebuild2027} from "@/lib/rebuild-2027";
-import {scoutingSeed2027} from "@/lib/scouting-seed-2027";
+import {scoutingSeed2027} from "@/lib/scouting-seed-2027";\nimport {historicalPlayerSeeds} from "@/lib/historical-player-seeds";
 let client:ReturnType<typeof createClient>|null=null,schemaReady:Promise<ReturnType<typeof createClient>>|null=null;
 export function turso(){if(!process.env.TURSO_DATABASE_URL||!process.env.TURSO_AUTH_TOKEN)throw new Error("Turso is not configured");return client||=(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}))}
 export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaReady=(async()=>{const c=turso();await c.execute("pragma foreign_keys=on");for(const sql of [
@@ -56,6 +56,25 @@ if(!marker.rows.length){
   if(Number(verified.rows[0]?.count||0)!==rebuild2027.length)throw new Error("2027 player baseline verification failed");
   const now=new Date().toISOString();
   await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["baseline_2027_seeded",JSON.stringify({source:"Players to Scout",count:rebuild2027.length,seededAt:now}),now]});
+}
+const historicalMarker=await c.execute({sql:"select value from settings where key=?",args:["historical_players_seed_v1"]});
+if(!historicalMarker.rows.length){
+  const now=new Date().toISOString(),statements:any[]=[];
+  let count=0;
+  for(const [yearText,seeds] of Object.entries(historicalPlayerSeeds)){
+    const draftClass=Number(yearText);
+    let watchOrder=0;
+    for(const seed of seeds){
+      if(seed.status==="WATCHED")watchOrder++;
+      statements.push({
+        sql:"insert into players(name,position,college,draft_class,scouting_status,watch_order,updated_at) values(?,?,?,?,?,?,?) on conflict(name,draft_class) do nothing",
+        args:[seed.name,seed.position,seed.college??null,draftClass,seed.status,seed.status==="WATCHED"?watchOrder:null,now]
+      });
+      count++;
+    }
+  }
+  for(let i=0;i<statements.length;i+=50)await c.batch(statements.slice(i,i+50),"write");
+  await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["historical_players_seed_v1",JSON.stringify({source:"2020-2026 historical rookie draft workbooks",count,seededAt:now}),now]});
 }
 const scoutingMarker=await c.execute({sql:"select value from settings where key=?",args:["scouting_workspace_seed_v1"]});
 if(!scoutingMarker.rows.length){
