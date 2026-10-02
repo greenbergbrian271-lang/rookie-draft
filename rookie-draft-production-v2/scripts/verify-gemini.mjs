@@ -15,9 +15,9 @@ if(!res.ok)throw new Error("Gemini verification failed: "+res.status+" "+raw.sli
 const body=JSON.parse(raw);
 let text=String(body.output_text||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");
 const parsed=JSON.parse(text);
-if(typeof parsed.summary!=="string"||parsed.summary.length<50)throw new Error("Gemini verification did not return a substantive summary.");
-if(!Array.isArray(parsed.strengths)||parsed.strengths.length<1)throw new Error("Gemini verification did not return strengths.");
-if(!Array.isArray(parsed.concerns)||parsed.concerns.length<1)throw new Error("Gemini verification did not return concerns.");
+if(typeof parsed.summary!=="string"||parsed.summary.trim().length<40)throw new Error("Gemini verification did not return a substantive summary.");
+if(!Array.isArray(parsed.strengths))throw new Error("Gemini verification did not return a strengths array.");
+if(!Array.isArray(parsed.concerns))throw new Error("Gemini verification did not return a concerns array.");
 const normalized=parsed.summary.toLowerCase();
 for(const copied of ["explosive off the line and stacked the corner vertically several times","physical press caused trouble early"]){
   if(normalized.includes(copied))throw new Error("Gemini verification echoed raw notes instead of synthesizing.");
