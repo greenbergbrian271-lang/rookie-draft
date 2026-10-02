@@ -90,9 +90,10 @@ export async function POST(req:Request){
     });
     const base=Object.fromEntries(bundles.map(b=>[b.id,fallback(b)])) as Record<string,Insight>;
     const withNotes=bundles.filter(b=>b.notes.trim());
-    if(withNotes.length&&process.env.GEMINI_API_KEY){
+    const geminiKey=process.env.GEMINI_API_KEY;
+    if(withNotes.length&&geminiKey){
       try{
-        const generated=await generateGemini(withNotes,process.env.GEMINI_API_KEY);
+        const generated=await generateGemini(withNotes,geminiKey);
         if(Array.isArray(generated))for(const item of generated){
           const id=String(item?.playerId||"");
           if(!base[id])continue;
