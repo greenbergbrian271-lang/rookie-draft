@@ -163,7 +163,7 @@ function applyCombine(base:any[],combine:any[],position:string){
     return enrich(next);
   });
 }
-function projectRows(base:any[],current:any[],enrich:(row:any)=>any){
+function projectRows(base:readonly any[],current:any[],enrich:(row:any)=>any){
   const reference=new Map<string,any>();for(const row of base)if(row?.Player)reference.set(norm(row.Player),row);
   return (current||[]).map(row=>{const key=norm(row?.Player);return enrich({...((key&&reference.get(key))||{}),...row})});
 }
@@ -180,8 +180,8 @@ async function canonicalPlayerData(db:any,position:string){
   const warehouse=Number(result?.meta?.warehouseVersion||0)>=2&&Boolean(block.threshold);
   if(warehouse){
     let projected:any[]=[];
-    if(position==="QB")projected=projectRows(qbReference as any[],projection,enrichQB);
-    else if(position==="RB")projected=projectRows(rbReference as any[],projection,enrichRB);
+    if(position==="QB")projected=projectRows(qbReference as readonly any[],projection,enrichQB);
+    else if(position==="RB")projected=projectRows(rbReference as readonly any[],projection,enrichRB);
     else if(position==="WR")projected=projectRows(wrPlayerDataRows(),projection,enrichWR);
     else if(position==="TE")projected=projectRows(tePlayerDataRows(),projection,enrichTE);
     return {rows:withContext(projected),below,importedAt,threshold:block.threshold,warehouseVersion:2,season:result?.meta?.season??null,draftClass:result?.meta?.draftClass??null,referenceSource:"PFF Warehouse · "+(result?.meta?.season||"current season")+" · 20% threshold projection",combineRefreshedAt};
