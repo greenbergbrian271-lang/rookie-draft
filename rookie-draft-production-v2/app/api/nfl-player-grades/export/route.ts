@@ -11,8 +11,8 @@ export async function GET(req:Request){
     const q=await ensureTursoSchema();
     const url=new URL(req.url);
     const seasonParam=url.searchParams.get("season");
-    const season=seasonParam?Number(seasonParam):null;
-    if(seasonParam&&(!Number.isInteger(season)||season!<2000||season!>2100)){
+    const season=seasonParam==null?null:Number(seasonParam);
+    if(season!=null&&(!Number.isInteger(season)||season<2000||season>2100)){
       return new Response("Invalid season",{status:400});
     }
 
