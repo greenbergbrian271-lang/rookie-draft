@@ -76,7 +76,7 @@ const norm=(v:unknown)=>String(v??"").trim().toLowerCase().normalize("NFD").repl
 const num=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)?n:null};
 const fmtGrade=(v:unknown)=>{const n=num(v);return n==null?"—":n.toFixed(2)};
 const compact=(v:unknown)=>{const s=String(v??"").trim();return s||"—"};
-function tone(v:unknown){const n=num(v);if(n==null)return "missing";if(n>=85)return "elite";if(n>=75)return "plus";if(n>=65)return "solid";if(n>=55)return "fringe";return "concern"}
+function toneClass(v:unknown){const n=num(v);if(n==null)return styles.missing;if(n>=85)return styles.elite;if(n>=75)return styles.plus;if(n>=65)return styles.solid;if(n>=55)return styles.fringe;return styles.concern}
 function bestIndex(rows:GradeRow[],field:keyof GradeRow,lower=false){
   const values=rows.map(r=>num(r[field]));
   const valid=values.map((v,i)=>v==null?null:{v,i}).filter((x):x is {v:number;i:number}=>x!==null);
@@ -131,8 +131,25 @@ export default function ComparePlayersModal({open,onClose}:{open:boolean;onClose
   const selectedPlayers=useMemo(()=>selected.map(id=>eligible.find(p=>String(p.id)===id)).filter((p):p is Player=>Boolean(p)),[selected,eligible]);
   const comparisonPlayers=useMemo(()=>comparisonIds.map(id=>eligible.find(p=>String(p.id)===id)||profiles[id]?.player).filter((p):p is Player=>Boolean(p)),[comparisonIds,eligible,profiles]);
   const byRow=useMemo(()=>new Map(rows.map(r=>[String(r.id),r])),[rows]);
-  const comparisonRows=useMemo(()=>comparisonIds.map(id=>byRow.get(id)||({...(profiles[id]?.player||{}),id,name:profiles[id]?.player?.name||"Player",position:(profiles[id]?.player?.position||"QB") as Position,draft_class:draftClass,scoutingGrade:profiles[id]?.grades?.scouting??null,productionGrade:profiles[id]?.grades?.production??null,analyticalGrade:profiles[id]?.grades?.analytical??null,preDraftGrade:profiles[id]?.grades?.pre??null,finalGrade:profiles[id]?.grades?.final??null} as GradeRow)),[comparisonIds,byRow,profiles,draftClass]);
-  const samePosition=comparisonPlayers.length>1&&comparisonPlayers.every(p=>p.position===comparisonPlayers[0].position)?comparisonPlayers[0].position:null;
+  const comparisonRows=useMemo<GradeRow[]>(()=>comparisonIds.map(id=>{
+    const board=byRow.get(id);if(board)return board;
+    const profile=profiles[id],player=profile?.player;
+    return {
+      id,
+      name:player?.name||"Player",
+      position:player?.position||"QB",
+      college:player?.college??null,
+      draft_class:player?.draft_class??draftClass,
+      scouting_status:player?.scouting_status??null,
+      headshot_url:player?.headshot_url??null,
+      scoutingGrade:profile?.grades?.scouting??null,
+      productionGrade:profile?.grades?.production??null,
+      analyticalGrade:profile?.grades?.analytical??null,
+      preDraftGrade:profile?.grades?.pre??null,
+      finalGrade:profile?.grades?.final??null,
+    };
+  }),[comparisonIds,byRow,profiles,draftClass]);
+  const samePosition:Position|null=comparisonPlayers.length>1&&comparisonPlayers.every(p=>p.position===comparisonPlayers[0].position)?comparisonPlayers[0].position:null;
 
   function addPlayer(id:string){if(selected.length>=5||selected.includes(id))return;setSelected(prev=>[...prev,id]);setSearch("");if(selected.length>=4)setPickerOpen(false)}
   function removePlayer(id:string){setSelected(prev=>prev.filter(x=>x!==id));if(comparisonIds.includes(id)){setComparisonIds([]);setRows([]);setProfiles({});setInsights({})}}
@@ -169,7 +186,7 @@ export default function ComparePlayersModal({open,onClose}:{open:boolean;onClose
 
   function renderMetric(metric:Metric,row:GradeRow){
     const value=row[metric.field];
-    if(metric.kind==="grade")return <span className={`${styles.grade} ${styles[tone(value)]}`}>{fmtGrade(value)}</span>;
+    if(metric.kind==="grade")return <span className={`${styles.grade} ${toneClass(value)}`}>{fmtGrade(value)}</span>;
     if(metric.kind==="rank")return <strong className={styles.rankValue}>{value==null?"—":metric.field==="positionRank"?`${row.position}${value}`:String(value)}</strong>;
     return <span>{compact(value)}</span>;
   }
@@ -250,7 +267,7 @@ export default function ComparePlayersModal({open,onClose}:{open:boolean;onClose
           <section className={styles.contextSection}>
             <div className={styles.sectionTitle}><div><span>02</span><div><h3>Prospect Context</h3><p>The stuff that changes how the grade should be interpreted.</p></div></div></div>
             <div className={styles.contextGrid} style={{"--cols":comparisonPlayers.length} as CSSProperties}>
-              {comparisonPlayers.map(p=>{const profile=profiles[String(p.id)],context=[
+              {comparisonPlayers.map(p=>{const profile=profiles[String(p.id)],context:Array<[string,unknown]>=[
                 ["Class",valueFrom(profile,["Class","Draft Class"])||draftClass],
                 ["Expected Role",valueFrom(profile,["Expected Role","Role"])],
                 ["Draft Projection",valueFrom(profile,["Draft Projection","Projected Draft Capital"])],
