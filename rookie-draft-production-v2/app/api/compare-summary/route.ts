@@ -42,14 +42,14 @@ async function generateGateway(bundles:NoteBundle[],token:string){
   throw new Error(`AI Gateway summary request failed${last?": "+last.slice(0,180):""}`);
 }
 async function generateGemini(bundles:NoteBundle[],apiKey:string){
-  const model=process.env.GEMINI_MODEL||"gemini-2.5-flash",prompt=promptFor(bundles);
-  const body={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,responseMimeType:"application/json"}};
+  const model=process.env.GEMINI_MODEL||"gemini-3.8-flash",prompt=promptFor(bundles);
+  const body={model,input:prompt,store:false,generation_config:{temperature:.15,thinking_level:"low"}};
   let last="";
   for(let attempt=0;attempt<3;attempt++){
     if(attempt)await sleep(700*Math.pow(2,attempt-1));
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),cache:"no-store"});
+    const r=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":apiKey},body:JSON.stringify(body),cache:"no-store"});
     last=await r.text();
-    if(r.ok){const json=JSON.parse(last),text=String(json?.candidates?.[0]?.content?.parts?.[0]?.text||"");return parseJson(text)}
+    if(r.ok){const json=JSON.parse(last),text=String(json?.output_text||"");return parseJson(text)}
     if(r.status!==429&&r.status<500)break;
   }
   throw new Error(`Gemini summary request failed${last?": "+last.slice(0,180):""}`);
@@ -72,7 +72,7 @@ export async function GET(req:Request){
   if(geminiKey){
     try{
       const out=await generateGemini([sample],geminiKey);
-      return Response.json({ok:true,provider:"gemini",model:process.env.GEMINI_MODEL||"gemini-2.5-flash",sample:Array.isArray(out)?out[0]:out});
+      return Response.json({ok:true,provider:"gemini",model:process.env.GEMINI_MODEL||"gemini-3.8-flash",sample:Array.isArray(out)?out[0]:out});
     }catch(e:unknown){
       return Response.json({ok:false,provider:"gemini",error:e instanceof Error?e.message:"Gemini test failed"},{status:502});
     }
