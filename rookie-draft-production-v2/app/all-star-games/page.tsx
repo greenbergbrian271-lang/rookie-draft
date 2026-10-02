@@ -6,7 +6,7 @@ import {schoolStyle} from "@/lib/school-colors";
 import styles from "./all-star-games.module.css";
 
 const POSITIONS=["QB","RB","WR","TE"];
-const isOut=(p:any)=>Boolean(Number(p.opted_out||0));
+const isOut=(p:any)=>String(p.participation_status||"ACTIVE")==="OPTED_OUT";
 const sourceLabel=(kind:string)=>kind==="twitter"?"X":kind==="roster_a"?"Roster A":kind==="roster_b"?"Roster B":kind==="legacy"?"Legacy":"Website";
 
 export default function AllStarGamesPage(){
@@ -60,7 +60,7 @@ export default function AllStarGamesPage(){
   async function setParticipation(gameKey:string,player:any,status:"ACTIVE"|"OPTED_OUT"){
     setParticipationBusy(Number(player.player_id));
     try{
-      const r=await fetch("/api/all-star-games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({gameKey,playerId:player.player_id,optedOut:status==="OPTED_OUT",note:status==="OPTED_OUT"?"Practice / accepted invite; not playing in game.":""})}),j=await r.json();
+      const r=await fetch("/api/all-star-games/participation",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({gameKey,playerId:player.player_id,status})}),j=await r.json();
       if(!r.ok)throw new Error(j.error||"Could not update participation.");
       setMessage({type:"success",text:player.name+(status==="OPTED_OUT"?" marked as not playing. The invite remains on file.":" restored to the active game roster.")});
       await load();
