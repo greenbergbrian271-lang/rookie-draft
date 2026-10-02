@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import {Briefcase,Search,Wrench} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";
@@ -53,7 +54,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
         fontSize:8,
         fontWeight:950,
         letterSpacing:".04em"
-      }}>{["GM","SC","SH"][groupIndex]}</span>
+      }}>{groupIndex===0?<Briefcase size={13}/>:groupIndex===1?<Search size={13}/>:<Wrench size={13}/>}</span>
       <strong style={{fontSize:12}}>{g.label}</strong>
     </span>
     <span style={{marginLeft:8}}>▾</span>
