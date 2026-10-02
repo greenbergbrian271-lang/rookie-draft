@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import {useEffect,useMemo,useState} from "react";
 import type {CSSProperties} from "react";
 import {AlertTriangle,Ban,CheckCircle2,Clock3,ExternalLink,Globe2,Link2,Play,RefreshCw,RotateCcw,Settings,Users,X} from "lucide-react";
