@@ -1,0 +1,3 @@
+import {getHistoricalArchive} from "@/lib/historical-archive";
+export const dynamic="force-dynamic";
+export async function GET(req:Request){const year=Number(new URL(req.url).searchParams.get("draftClass"));const archive=getHistoricalArchive(year);return archive?Response.json(archive,{headers:{"cache-control":"public, max-age=3600, s-maxage=86400"}}):Response.json({error:"Historical draft class not found"},{status:404})}

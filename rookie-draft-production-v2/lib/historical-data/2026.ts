@@ -1,0 +1,1 @@
+import a from "./2026-boards-a";import b from "./2026-boards-b";import s from "./2026-scouting";import d from "./2026-drafts";export default {y:2026,b:[...a,...b],s,d};
