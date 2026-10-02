@@ -1,6 +1,7 @@
 import {createClient} from "@libsql/client";
 import {rebuild2027} from "@/lib/rebuild-2027";
-import {scoutingSeed2027} from "@/lib/scouting-seed-2027";\nimport {historicalPlayerSeeds} from "@/lib/historical-player-seeds";
+import {scoutingSeed2027} from "@/lib/scouting-seed-2027";
+import {historicalPlayerSeeds} from "@/lib/historical-player-seeds";
 let client:ReturnType<typeof createClient>|null=null,schemaReady:Promise<ReturnType<typeof createClient>>|null=null;
 export function turso(){if(!process.env.TURSO_DATABASE_URL||!process.env.TURSO_AUTH_TOKEN)throw new Error("Turso is not configured");return client||=(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}))}
 export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaReady=(async()=>{const c=turso();await c.execute("pragma foreign_keys=on");for(const sql of [
