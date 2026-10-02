@@ -5,6 +5,7 @@ import {wrReference} from "@/lib/wr-reference";
 import {workbookSecondary} from "@/lib/workbook-secondary";
 import {currentCollegeStatsReference} from "@/lib/current-college-stats-reference";
 
+const CANONICAL_REFERENCE_SEASON=2025;
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 const number=(v:any)=>{
   if(v==null||v==="")return null;
@@ -167,39 +168,60 @@ function projectRows(base:readonly any[],current:any[],enrich:(row:any)=>any){
   const reference=new Map<string,any>();for(const row of base)if(row?.Player)reference.set(norm(row.Player),row);
   return (current||[]).map(row=>{const key=norm(row?.Player);return enrich({...((key&&reference.get(key))||{}),...row})});
 }
-async function canonicalPlayerData(db:any,position:string,draftClass:number){
+async function canonicalPlayerData(db:any,position:string,draftClass:number,requestedSeason:number|null){
   const combine=rows(await db.execute({sql:"select cr.*,p.name as roster_name from combine_results cr join players p on p.id=cr.player_id where p.draft_class=? and p.position=?",args:[draftClass,position]}));
   const storedCollegeRows=rows(await db.execute("select team,subdivision,games,completions,pass_attempts as passAttempts,pass_yards as passYards,pass_tds as passTDs,rushes,rush_yards as rushYards,rush_tds as rushTDs,total_plays as totalPlays,updated_at as updatedAt from college_stats"));
   const collegeRows=storedCollegeRows.length?storedCollegeRows:(currentCollegeStatsReference as unknown as any[]);
   const collegeMap=new Map(collegeRows.map((r:any)=>[norm(r.team),r]));
   const withContext=(rs:any[])=>applyCombine(rs,combine,position).map((row:any)=>({...row,"Team Context":collegeMap.get(norm(row.College))||null}));
   const combineRefreshedAt=combine.reduce((m:any,r:any)=>!m||String(r.refreshed_at||"")>String(m)?r.refreshed_at:m,null);
-  let imported:any[]=[];let registered=false;
-  try{const active=rows(await db.execute({sql:"select a.import_id from pff_active_datasets a where a.draft_class=? and a.position=? limit 1",args:[draftClass,position]}));const registry=rows(await db.execute({sql:"select 1 as found from pff_dataset_registry where draft_class=? limit 1",args:[draftClass]}));registered=Boolean(registry.length);if(active.length)imported=rows(await db.execute({sql:"select result,imported_at from pff_imports where id=? limit 1",args:[Number(active[0].import_id)]}))}catch{}
-  if(!imported.length&&!registered)imported=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
+  let imported:any[]=[],registered=false,datasetMode:string|null=null,activeSeason:number|null=null;
+  let availableSeasons:number[]=[];
+  try{
+    const seasonRows=rows(await db.execute({sql:"select distinct r.season from pff_dataset_registry r join pff_thresholds t on t.import_id=r.import_id where r.draft_class=? and t.position=? order by r.season desc",args:[draftClass,position]}));
+    availableSeasons=seasonRows.map((x:any)=>Number(x.season)).filter((x:number)=>Number.isFinite(x));
+    registered=Boolean(seasonRows.length);
+    const active=rows(await db.execute({sql:"select a.import_id,r.season,r.dataset_mode from pff_active_datasets a join pff_dataset_registry r on r.import_id=a.import_id where a.draft_class=? and a.position=? limit 1",args:[draftClass,position]}));
+    if(active.length)activeSeason=Number(active[0].season)||null;
+    if(requestedSeason!=null){
+      const chosen=rows(await db.execute({sql:"select r.import_id,r.season,r.dataset_mode from pff_dataset_registry r join pff_thresholds t on t.import_id=r.import_id and t.position=? where r.draft_class=? and r.season=? order by r.revision desc limit 1",args:[position,draftClass,requestedSeason]}));
+      if(chosen.length){datasetMode=String(chosen[0].dataset_mode||"HISTORICAL");imported=rows(await db.execute({sql:"select result,imported_at from pff_imports where id=? limit 1",args:[Number(chosen[0].import_id)]}))}
+    }else if(active.length){
+      datasetMode="ACTIVE";imported=rows(await db.execute({sql:"select result,imported_at from pff_imports where id=? limit 1",args:[Number(active[0].import_id)]}));
+    }
+  }catch{}
+  if(draftClass===2027&&!availableSeasons.includes(CANONICAL_REFERENCE_SEASON))availableSeasons.push(CANONICAL_REFERENCE_SEASON);
+  availableSeasons=[...new Set(availableSeasons)].sort((a,b)=>b-a);
+  if(!imported.length&&!registered&&requestedSeason==null)imported=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
   let result:any={};if(imported.length){try{result=JSON.parse(String(imported[0].result||"{}"))}catch{}}
   const block=result[position]||{},above=block.above?.primary||[],below=block.below?.primary||[],projection=[...below,...above],importedAt=imported[0]?.imported_at??null;
   const warehouse=Number(result?.meta?.warehouseVersion||0)>=2&&Boolean(block.threshold);
+  const resultSeason=Number(result?.meta?.season)||null;
+  const analysisSeason=activeSeason??(warehouse&&requestedSeason==null?resultSeason:null)??(draftClass===2027?CANONICAL_REFERENCE_SEASON:null);
+  const selectedSeason=resultSeason??requestedSeason??analysisSeason??(draftClass===2027?CANONICAL_REFERENCE_SEASON:null);
+  const common={season:selectedSeason,analysisSeason,availableSeasons,datasetMode:warehouse?(datasetMode||(selectedSeason===analysisSeason?"ACTIVE":"HISTORICAL")):"CANONICAL",isAnalysisSeason:selectedSeason!=null&&selectedSeason===analysisSeason};
   if(warehouse){
     let projected:any[]=[];
     if(position==="QB")projected=projectRows(qbReference as readonly any[],projection,enrichQB);
     else if(position==="RB")projected=projectRows(rbReference as readonly any[],projection,enrichRB);
     else if(position==="WR")projected=projectRows(wrPlayerDataRows(),projection,enrichWR);
     else if(position==="TE")projected=projectRows(tePlayerDataRows(),projection,enrichTE);
-    return {rows:withContext(projected),below,importedAt,threshold:block.threshold,warehouseVersion:2,season:result?.meta?.season??null,draftClass:result?.meta?.draftClass??null,referenceSource:"PFF Warehouse · "+(result?.meta?.season||"current season")+" · 20% threshold projection",combineRefreshedAt};
+    return {rows:withContext(projected),below,importedAt,threshold:block.threshold,warehouseVersion:Number(result?.meta?.warehouseVersion||2),draftClass:result?.meta?.draftClass??draftClass,referenceSource:"PFF Warehouse · "+String(selectedSeason||"Unknown")+" Season · "+(selectedSeason===analysisSeason?"Analysis dataset":"Historical"),combineRefreshedAt,...common};
   }
-  if(position==="TE")return {rows:withContext(tePlayerDataRows()),below:[],importedAt:null,threshold:null,warehouseVersion:1,referenceSource:"Player Data · TE Data",combineRefreshedAt};
-  if(position==="WR")return {rows:withContext(wrPlayerDataRows()),below:[],importedAt:null,threshold:null,warehouseVersion:1,referenceSource:"Player Data · WR Data",combineRefreshedAt};
-  if(position==="QB")return {rows:withContext(mergeQB(imported.length?projection:[])),below,importedAt,threshold:null,warehouseVersion:1,referenceSource:imported.length?"Player Data · QB Data + latest PFF import":"Player Data · QB Data",combineRefreshedAt};
-  if(position==="RB"){const useImport=Boolean(imported.length)&&String(importedAt||"")>rbReferenceGeneratedAt;return {rows:withContext(mergeRB(useImport?projection:[])),below,importedAt,threshold:null,warehouseVersion:1,referenceSource:useImport?"Player Data · RB Data + newer PFF import":"Player Data · RB Data",combineRefreshedAt}}
-  return {rows:[],below:[],importedAt,threshold:null,warehouseVersion:1,referenceSource:"Player Data",combineRefreshedAt};
+  const canonicalAllowed=requestedSeason==null||requestedSeason===CANONICAL_REFERENCE_SEASON;
+  if(!canonicalAllowed)return {rows:[],below:[],importedAt:null,threshold:null,warehouseVersion:1,draftClass,referenceSource:String(requestedSeason)+" Season · no Player Data stored",combineRefreshedAt,...common};
+  if(position==="TE")return {rows:withContext(tePlayerDataRows()),below:[],importedAt:null,threshold:null,warehouseVersion:1,draftClass,referenceSource:String(CANONICAL_REFERENCE_SEASON)+" Season · Player Data · TE Data",combineRefreshedAt,...common};
+  if(position==="WR")return {rows:withContext(wrPlayerDataRows()),below:[],importedAt:null,threshold:null,warehouseVersion:1,draftClass,referenceSource:String(CANONICAL_REFERENCE_SEASON)+" Season · Player Data · WR Data",combineRefreshedAt,...common};
+  if(position==="QB")return {rows:withContext(mergeQB(imported.length?projection:[])),below,importedAt,threshold:null,warehouseVersion:1,draftClass,referenceSource:imported.length?"Player Data · QB Data + latest PFF import":String(CANONICAL_REFERENCE_SEASON)+" Season · Player Data · QB Data",combineRefreshedAt,...common};
+  if(position==="RB"){const useImport=Boolean(imported.length)&&String(importedAt||"")>rbReferenceGeneratedAt;return {rows:withContext(mergeRB(useImport?projection:[])),below,importedAt,threshold:null,warehouseVersion:1,draftClass,referenceSource:useImport?"Player Data · RB Data + newer PFF import":String(CANONICAL_REFERENCE_SEASON)+" Season · Player Data · RB Data",combineRefreshedAt,...common}}
+  return {rows:[],below:[],importedAt,threshold:null,warehouseVersion:1,draftClass,referenceSource:"Player Data",combineRefreshedAt,...common};
 }
 export async function GET(req:Request){
   try{
-    const params=new URL(req.url).searchParams,pos=params.get("position"),draftClass=Number(params.get("draftClass")||2027);
+    const params=new URL(req.url).searchParams,pos=params.get("position"),draftClass=Number(params.get("draftClass")||2027),seasonParam=params.get("season"),requestedSeason=seasonParam?Number(seasonParam):null;
     const db=await ensureTursoSchema();
     if(pos&&["QB","RB","WR","TE"].includes(pos)){
-      const payload=await canonicalPlayerData(db,pos,draftClass);
+      const payload=await canonicalPlayerData(db,pos,draftClass,requestedSeason);
       return Response.json({position:pos,...payload});
     }
     const r=rows(await db.execute("select result,imported_at from pff_imports order by imported_at desc limit 1"));
