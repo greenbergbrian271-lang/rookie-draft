@@ -18,7 +18,7 @@ type Session={id:string|number;player_id?:string|number;game_date?:string|null;o
 type DraftPick={overall:number;pos:"QB"|"RB"|"WR"|"TE";name:string;team:string;college?:string;teamScore:number;draftCapitalScore:number};
 type Props={
   players:Player[];vals:Record<string,any>;setVals:React.Dispatch<React.SetStateAction<Record<string,any>>>;
-  imports:any[];glossary:any[][];onSave:(player:Player,category:string,value:any)=>Promise<any>;onAdd:()=>void;demoMode?:boolean;draftClass?:number;priorReports?:Record<string,any>;
+  imports:any[];glossary:any[][];onSave:(player:Player,category:string,value:any)=>Promise<any>;onAdd:()=>void;demoMode?:boolean;draftClass?:number;priorReports?:Record<string,any>;archiveMode?:boolean;gradeOverrides?:Record<string,any>;
 };
 type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft";
 type Mode="Evaluate"|"Compare";
@@ -98,7 +98,7 @@ function heatColor(ratio:number){const r=Math.max(0,Math.min(1,ratio));return "h
 function conditionalStyle(value:any,values:number[]){const n=typeof value==="number"?value:null;if(n==null||!Number.isFinite(n)||!values.length)return undefined;const min=Math.min(...values),max=Math.max(...values),ratio=max===min?.5:(n-min)/(max-min),h=Math.round(ratio*120);return {background:"hsl("+h+" 72% 42% / .18)",boxShadow:"inset 0 -2px 0 hsl("+h+" 72% 48% / .75)"}}
 function fmt(v:number|null){return v==null?"—":v.toFixed(2)}
 
-export default function WRScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false,draftClass=2027,priorReports={}}:Props){
+export default function WRScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false,draftClass=2027,priorReports={},archiveMode=false,gradeOverrides={}}:Props){
   const {openPlayer}=usePlayerProfile();
   const [selectedId,setSelectedId]=useState("");
   const [search,setSearch]=useState("");
@@ -129,21 +129,22 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   },[imports]);
   const collegeMap=useMemo(()=>new Map<string,any>(colleges.map(x=>[norm(x.team),x] as [string,any])),[colleges]);
   const importedFor=(p:Player)=>importMap.get(norm(p.name))||{};
-  const collegeFor=(p:Player)=>importedFor(p)?.["Team Context"]||collegeMap.get(norm(p.college))||{};
+  const collegeFor=(p:Player)=>archiveMode?(importedFor(p)?.["Team Context"]||{}):(importedFor(p)?.["Team Context"]||collegeMap.get(norm(p.college))||{});
   const evalFor=(p:Player,cat:string)=>vals[p.id+"|"+cat];
+  const archivedGrade=(p:Player,key:string)=>archiveMode?(Object.prototype.hasOwnProperty.call(gradeOverrides[String(p.id)]||{},key)?(gradeOverrides[String(p.id)]?.[key]??null):null):undefined;
   const selected=players.find(p=>String(p.id)===selectedId)||players[0];
 
   useEffect(()=>{
     for(const p of players){
       const id=String(p.id);if(sessions[id]?.length||(!demoMode&&sessions[id]))continue;
       const legacy=String(evalFor(p,"__COMMENTARY__")||"").trim(),legacyLabel=String(evalFor(p,"__GAME_LABEL__")||"").trim();
-      if(demoMode){setSessions(x=>x[id]?.length?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});continue}
+      if(demoMode||archiveMode){setSessions(x=>x[id]?.length?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});continue}
       fetch("/api/scouting-sessions?playerId="+encodeURIComponent(id),{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((rows:any[])=>{
         const live=Array.isArray(rows)?rows:[],fallback=!live.length&&legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[];
         setSessions(x=>x[id]?x:{...x,[id]:live.length?live:fallback});
       }).catch(()=>setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]}));
     }
-  },[players,vals,demoMode]);
+  },[players,vals,demoMode,archiveMode]);
 
   const combinePopulation=useMemo(()=>({
     forty:(imports||[]).map(r=>num(sourceValue(r,"40 Yard Dash"))).filter((x):x is number=>x!=null),
@@ -153,7 +154,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     broadJump:[],benchReps:[]
   }),[imports]);
 
-  function gameCountFor(p:Player){return (sessions[String(p.id)]||[]).length}
+  function gameCountFor(p:Player){if(archiveMode){const n=Number(evalFor(p,"Games watched")??evalFor(p,"Games Watched"));if(Number.isFinite(n))return n}return (sessions[String(p.id)]||[]).length}
   function fieldsFor(p:Player){
     const out:Record<string,any>={...importedFor(p)};
     for(const cat of [...FILM,"Games watched","Games Watched","Expected Role","Archetype","Draft Projection","Early Declare?","Special Teams","Special Teams?","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){
@@ -167,7 +168,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const grades=FILM.map(x=>num(evalFor(p,x))??NaN);
     return workbookScoutingGrade("WR",grades,fieldsFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
-  function combineFor(p:Player){
+  function combineFor(p:Player){if(archiveMode)return archivedGrade(p,"combine") as number|null;
     const imp=importedFor(p),height=heightInches(imp?.Height),weight=num(imp?.Weight),forty=num(sourceValue(imp,"40 Yard Dash"));
     const bmi=num(imp?.BMI)??(height&&weight?weight*703/(height*height):null);
     const speedScore=num(imp?.["Speed Score"])??(weight&&forty?weight*200/Math.pow(forty,4):null);
@@ -202,6 +203,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     return {yardsPerReception,yardsPerTarget,targetShare,catchPct,yptpa,weightedDom,dom};
   }
   function productionFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"production") as number|null;
     const r=importedFor(p),college=collegeFor(p),ctx=productionContextFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
     return wrProductionGrade({
       scouting:manualScoutingFor(p),
@@ -264,17 +266,20 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     return adot!=null&&contested!=null&&adot<=13&&contested>=.23;
   }
   function analyticalFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"analytical") as number|null;
     const metrics=metricDataFor(p),record=Object.fromEntries(metrics.map(x=>[x.key,x.percentile])) as Record<string,number|null>;
     return wrAnalyticalGrade(manualScoutingFor(p),record,penaltyFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
   function earlyDeclareFor(p:Player){const r=importedFor(p);return earlyDeclareStatus(r.Class||r["Draft Class"],evalFor(p,"Early Declare?"))}
   function scoutingFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"scouting") as number|null;
     const watched=gameCountFor(p);
     if(watched>=1)return manualScoutingFor(p);
     const fallback=[productionFor(p),analyticalFor(p)].filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
     return fallback.length?fallback.reduce((s,v)=>s+v,0)/fallback.length:null;
   }
   function preDraftFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"pre") as number|null;
     const scout=scoutingFor(p);if(scout==null)return null;
     const early=earlyDeclareFor(p).yes;
     return preDraftGrade("WR",scout,productionFor(p),analyticalFor(p),early,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
@@ -287,18 +292,18 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   }),[players,vals,imports,colleges,glossary,sessions]);
   const filtered=useMemo(()=>{const q=norm(search);return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[rankedPlayers,search]);
 
-  async function persist(p:Player,cat:string,value:any){
+  async function persist(p:Player,cat:string,value:any){if(archiveMode)return null;
     setSaveState("saving");setVals(v=>({...v,[p.id+"|"+cat]:value}));
     if(demoMode){setTimeout(()=>setSaveState("saved"),120);return}
     try{await onSave(p,cat,value);setSaveState("saved")}catch{setSaveState("error")}
   }
-  function local(p:Player,cat:string,value:any){setVals(v=>({...v,[p.id+"|"+cat]:value}))}
-  async function saveSession(p:Player,session:Session,patch:Partial<Session>){
+  function local(p:Player,cat:string,value:any){if(archiveMode)return;setVals(v=>({...v,[p.id+"|"+cat]:value}))}
+  async function saveSession(p:Player,session:Session,patch:Partial<Session>){if(archiveMode)return;
     const id=String(p.id),next={...session,...patch};setSessions(x=>({...x,[id]:(x[id]||[]).map(s=>String(s.id)===String(session.id)?next:s)}));
     if(session.legacy||demoMode){if(patch.raw_notes!==undefined)await persist(p,"__COMMENTARY__",patch.raw_notes||"");if(patch.opponent!==undefined)await persist(p,"__GAME_LABEL__",patch.opponent||"");return}
     await fetch("/api/scouting-sessions",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:session.id,opponent:next.opponent,gameDate:next.game_date,rawNotes:next.raw_notes,overallWriteup:next.overall_writeup})});
   }
-  async function addSession(p:Player){
+  async function addSession(p:Player){if(archiveMode)return;
     const id=String(p.id),draft=newGame[id]||{opponent:"",notes:""};if(!draft.opponent.trim()&&!draft.notes.trim())return;
     if(demoMode){const s:Session={id:"demo-"+Date.now(),opponent:draft.opponent||"New game",raw_notes:draft.notes,legacy:true};setSessions(x=>({...x,[id]:[s,...(x[id]||[])]}))}
     else{const r=await fetch("/api/scouting-sessions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,opponent:draft.opponent,rawNotes:draft.notes})});if(r.ok){const s=await r.json();setSessions(x=>({...x,[id]:[s,...(x[id]||[])]}))}}
@@ -313,21 +318,21 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   },[mode,rankedPlayers]);
   function jumpToPlayer(p:Player){setMode("Evaluate");setSelectedId(String(p.id));requestAnimationFrame(()=>document.getElementById("wr-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}))}
 
-  function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("WR",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
-  function finalGradeFor(p:Player){const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("WR",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
+  function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("WR",p.name,archiveMode?[]:draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
+  function finalGradeFor(p:Player){if(archiveMode)return archivedGrade(p,"final") as number|null;const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("WR",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
 
 
   function renderPlayerSection(p:Player){
     const id=String(p.id),imp=importedFor(p),college=collegeFor(p),metrics=metricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),draftCtx=draftContextFor(p),early=earlyDeclareFor(p);
     const teamScore=draftCtx.teamScore,draftCapital=draftCtx.draftCapitalScore,g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
-    const teamAdj=preDraft==null?(null):(teamScore-5)*2*glossaryNumber(29,g),capitalAdj=preDraft==null?(null):(draftCapital-5)*2*glossaryNumber(30,g);
-    const finalGrade=preDraft==null?null:(draftCtx.finalized?draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g):preDraft);
+    const teamAdj=archiveMode?null:(preDraft==null?null:(teamScore-5)*2*glossaryNumber(29,g)),capitalAdj=archiveMode?null:(preDraft==null?null:(draftCapital-5)*2*glossaryNumber(30,g));
+    const finalGrade=archiveMode?(archivedGrade(p,"final") as number|null):(preDraft==null?null:(draftCtx.finalized?draftAdjustedFinalGrade("WR",preDraft,teamScore,draftCapital,g):preDraft));
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     const penalty=penaltyFor(p),showPenaltyBadge=penalty;
     const mockMeasurements=[imp.Wingspan,imp["Arm Length"],imp["Hand Size"]].filter(v=>v!==null&&v!==undefined&&v!=="");
     const hasMockDraftable=Boolean(imp["MockDraftable URL"]||imp.MockDraftable||mockMeasurements.length);
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
-      <ScoutingPlayerHero player={p} position="WR" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class||imp?.["Draft Class"]} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
+      <ScoutingPlayerHero player={p} position="WR" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class||imp?.["Draft Class"]} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/7 traits graded"}/>
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>

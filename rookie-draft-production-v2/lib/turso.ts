@@ -77,6 +77,16 @@ if(!historicalMarker.rows.length){
   for(let i=0;i<statements.length;i+=50)await c.batch(statements.slice(i,i+50),"write");
   await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["historical_players_seed_v1",JSON.stringify({source:"2020-2026 historical rookie draft workbooks",count,seededAt:now}),now]});
 }
+const historicalOrderMarker=await c.execute({sql:"select value from settings where key=?",args:["historical_rank_order_v1"]});
+if(!historicalOrderMarker.rows.length){
+  const now=new Date().toISOString(),statements:any[]=[];
+  for(const draftClass of [2020,2021]){
+    const seeds=historicalPlayerSeeds[draftClass]||[];
+    seeds.forEach((seed,index)=>statements.push({sql:"update players set watch_order=?,updated_at=? where draft_class=? and name=?",args:[index+1,now,draftClass,seed.name]}));
+  }
+  for(let i=0;i<statements.length;i+=50)await c.batch(statements.slice(i,i+50),"write");
+  await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["historical_rank_order_v1",JSON.stringify({years:[2020,2021],seededAt:now}),now]});
+}
 const scoutingMarker=await c.execute({sql:"select value from settings where key=?",args:["scouting_workspace_seed_v1"]});
 if(!scoutingMarker.rows.length){
   const now=new Date().toISOString();

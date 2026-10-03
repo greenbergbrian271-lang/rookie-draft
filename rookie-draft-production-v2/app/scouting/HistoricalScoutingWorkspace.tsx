@@ -1,44 +1,126 @@
 "use client";
+
 import {useEffect,useMemo,useState} from "react";
+import QBScoutingWorkspace from "./QBScoutingWorkspace";
+import RBScoutingWorkspace from "./RBScoutingWorkspace";
+import WRScoutingWorkspace from "./WRScoutingWorkspace";
+import TEScoutingWorkspace from "./TEScoutingWorkspace";
 import {schoolStyle} from "@/lib/school-colors";
-import {usePlayerProfile} from "@/components/PlayerProfile";
+
 type Pos="QB"|"RB"|"WR"|"TE";
-type Row={player:any;snapshot:{name:string;college:string|null;grades:Record<string,any>;fields:{group:string;label:string;value:any}[];commentary?:string|null;gameLabel?:string|null}};
+type SnapshotField={group:string;label:string;value:any};
+type Snapshot={name:string;college:string|null;grades:Record<string,any>;fields:SnapshotField[];commentary?:string|null;gameLabel?:string|null};
+type HistoricalRow={player:any;snapshot:Snapshot};
 const POSITIONS:Pos[]=["QB","RB","WR","TE"];
-const GRADE_ORDER=["Draft Adjusted Final Grade","Pre-Draft Grade","Scouting Grade","Production Grade","Analytical Grade","Combine/Pro Day Grade","Combine/Pro Day Score"];
-const pct=(label:string,v:any)=>{const n=Number(v);if(!Number.isFinite(n))return String(v??"—");if(label.includes("%")&&Math.abs(n)<=1)return (n*100).toFixed(1)+"%";return n.toLocaleString(undefined,{maximumFractionDigits:3})};
-const grade=(v:any)=>{const n=Number(v);return Number.isFinite(n)?n.toFixed(2):"—"};
-const groupTitle=(g:string)=>g==="0"?"Player Information":g;
+
+function asNumber(v:any){const n=Number(v);return v==null||v===""||!Number.isFinite(n)?null:n}
+function gradeMap(snapshot:Snapshot){
+  const g=snapshot.grades||{},out:Record<string,number|null>={};
+  const put=(key:string,label:string)=>{if(Object.prototype.hasOwnProperty.call(g,label))out[key]=asNumber(g[label])};
+  put("scouting","Scouting Grade");put("production","Production Grade");put("analytical","Analytical Grade");put("pre","Pre-Draft Grade");put("final","Draft Adjusted Final Grade");
+  if(Object.prototype.hasOwnProperty.call(g,"Combine/Pro Day Grade"))out.combine=asNumber(g["Combine/Pro Day Grade"]);
+  else if(Object.prototype.hasOwnProperty.call(g,"Combine/Pro Day Score"))out.combine=asNumber(g["Combine/Pro Day Score"]);
+  return out;
+}
+function normalizeLabel(raw:string){
+  const label=String(raw||"").trim();
+  const aliases:Record<string,string>={
+    "Weightd Dom Rtg":"Weighted Dom Rtg",
+    "Yards/target":"Yards/Tgt",
+    "Yards / Target":"Yards/Tgt",
+    "1st/target":"1st Downs / Tgt",
+    "40-YD":"40 Yard Dash",
+    "Bench Press":"Bench Reps"
+  };
+  return aliases[label]||label;
+}
+function normalizeField(pos:Pos,field:SnapshotField,seen:Record<string,number>){
+  let label=normalizeLabel(field.label),value=field.value;
+  const weighted=field.group==="Scouting"?label.match(/^(.*?)\s*\((\d+(?:\.\d+)?)\)$/):null;
+  if(weighted){
+    label=weighted[1].trim();
+    const max=Number(weighted[2]),n=Number(value);
+    if(Number.isFinite(max)&&max>0&&Number.isFinite(n))value=n/max*100;
+  }
+  if(label==="Team Score (5)"){label="Team Score (10)";const n=Number(value);if(Number.isFinite(n))value=n*2}
+  if(label==="Draft Capital Score (5)"){label="Draft Capital Score (10)";const n=Number(value);if(Number.isFinite(n))value=n*2}
+  const k=label;seen[k]=(seen[k]||0)+1;
+  if(pos==="QB"&&/Stats$/i.test(field.group)){
+    if(label==="Yards"&&seen[k]>1)label="Rush Yards";
+    if(label==="Yards/Attempt"&&seen[k]>1)label="Rush Yards/Attempt";
+    if(label==="Touchdowns"&&seen[k]>1)label="Rush Touchdowns";
+  }
+  if(pos==="RB"&&/Stats$/i.test(field.group)&&field.group!=="Team Stats"){
+    if(label==="Touchdowns")label=seen[k]===1?"Rush Touchdowns":"Rec Touchdowns";
+    if(label==="Yards")label="Rec Yards";
+  }
+  return {label,value,group:field.group};
+}
+function adaptRows(pos:Pos,rows:HistoricalRow[]){
+  const vals:Record<string,any>={},imports:any[]=[],grades:Record<string,any>={};
+  const players=rows.map((row,index)=>{
+    const p={...row.player,watch_order:index+1},imp:any={Player:p.name,"Player, College":p.name+(p.college?", "+p.college:""),College:p.college||row.snapshot.college||""},seen:Record<string,number>={},team:any={};
+    for(const field of row.snapshot.fields||[]){
+      const f=normalizeField(pos,field,seen);
+      if(!f.label)continue;
+      imp[f.label]=f.value;
+      const key=String(p.id)+"|"+f.label;
+      if(vals[key]===undefined)vals[key]=f.value;
+      if(f.group==="Team Stats"){
+        const n=asNumber(f.value);
+        if(n!=null){
+          if(f.label==="Pass Attempts")team.passAttempts=n;
+          else if(f.label==="Pass Yards"||f.label==="Rec Yards")team.passYards=n;
+          else if(f.label==="Pass TDs"||f.label==="Rec TDs")team.passTDs=n;
+          else if(f.label==="Rush Yards")team.rushYards=n;
+          else if(f.label==="Rush TDs")team.rushTDs=n;
+          else if(f.label==="Completions")team.completions=n;
+          else if(f.label==="Plays"||f.label==="Total Plays")team.totalPlays=n;
+        }
+      }
+    }
+    if(Object.keys(team).length)imp["Team Context"]=team;
+    if(row.snapshot.commentary)vals[String(p.id)+"|__COMMENTARY__"]=row.snapshot.commentary;
+    if(row.snapshot.gameLabel)vals[String(p.id)+"|__GAME_LABEL__"]=row.snapshot.gameLabel;
+    grades[String(p.id)]=gradeMap(row.snapshot);
+    imports.push(imp);
+    return p;
+  });
+  return {players,vals,imports,grades};
+}
+
+function EarlyArchive({draftClass}:{draftClass:number}){
+  const [players,setPlayers]=useState<any[]>([]),[loading,setLoading]=useState(true);
+  useEffect(()=>{let live=true;setLoading(true);fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!live)return;const rows=Array.isArray(j)?j.filter((p:any)=>Number(p.draft_class)===draftClass):[];rows.sort((a:any,b:any)=>(Number(a.watch_order)||9999)-(Number(b.watch_order)||9999)||Number(a.id)-Number(b.id));setPlayers(rows)}).catch(()=>live&&setPlayers([])).finally(()=>live&&setLoading(false));return()=>{live=false}},[draftClass]);
+  return <div className="historical-early">
+    <div className="page-head"><div><span className="ey">{draftClass} · Historical Draft Class</span><h1>{draftClass} Rookie Rankings</h1><p className="muted">This class predates the graded scouting-card format, so the original player order is preserved without adding grades that did not exist.</p></div><span className="status">● Read-only snapshot</span></div>
+    {loading?<div className="card historical-early-empty">Loading {draftClass} class…</div>:<div className="historical-early-list">{players.map((p:any,i:number)=><div className="card historical-early-row" key={p.id} style={schoolStyle(p.college)}><strong>{i+1}</strong><div><b>{p.name}</b><span>{p.position}{p.college?" · "+p.college:""}</span></div></div>)}</div>}
+    <style jsx global>{`.historical-early{max-width:1180px;margin:0 auto}.historical-early-list{display:grid;gap:7px}.historical-early-row{display:grid;grid-template-columns:54px 1fr;align-items:center;padding:13px 16px}.historical-early-row>strong{font-size:22px}.historical-early-row b,.historical-early-row span{display:block}.historical-early-row span{margin-top:3px;font-size:11px;color:#9db0ca}.historical-early-empty{padding:24px}`}</style>
+  </div>
+}
+
 export default function HistoricalScoutingWorkspace({draftClass}:{draftClass:number}){
-  const [pos,setPos]=useState<Pos>("QB"),[rows,setRows]=useState<Row[]>([]),[selectedId,setSelectedId]=useState(""),[search,setSearch]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[media,setMedia]=useState<Record<string,string>>({});
-  const {openPlayer}=usePlayerProfile();
+  const [pos,setPos]=useState<Pos>("QB"),[rows,setRows]=useState<HistoricalRow[]>([]),[vals,setVals]=useState<Record<string,any>>({}),[imports,setImports]=useState<any[]>([]),[grades,setGrades]=useState<Record<string,any>>({}),[loading,setLoading]=useState(true),[error,setError]=useState("");
   useEffect(()=>{const q=new URLSearchParams(window.location.search).get("pos") as Pos|null;if(q&&POSITIONS.includes(q))setPos(q)},[]);
-  useEffect(()=>{let live=true;setLoading(true);setError("");fetch(`/api/historical-scouting?draftClass=${draftClass}&position=${pos}`,{cache:"no-store"}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not load archive");if(live){const next=Array.isArray(j.rows)?j.rows:[];setRows(next);setSelectedId(cur=>next.some((x:Row)=>String(x.player.id)===cur)?cur:(next[0]?String(next[0].player.id):""))}}).catch(e=>live&&setError(e?.message||"Could not load archive")).finally(()=>live&&setLoading(false));return()=>{live=false}},[draftClass,pos]);
-  const visible=useMemo(()=>{const q=search.trim().toLowerCase();return rows.filter(x=>!q||(x.player.name+" "+(x.player.college||"")).toLowerCase().includes(q))},[rows,search]);
-  const selected=rows.find(x=>String(x.player.id)===selectedId)||visible[0]||rows[0];
-  useEffect(()=>{if(!selected?.player?.id||selected.player.headshot_url||media[String(selected.player.id)])return;let live=true;fetch("/api/player-headshot?id="+selected.player.id,{cache:"no-store"}).then(r=>r.json()).then(j=>{if(live&&j?.url)setMedia(x=>({...x,[String(selected.player.id)]:j.url}))}).catch(()=>{});return()=>{live=false}},[selected?.player?.id,selected?.player?.headshot_url,media]);
-  const groups=useMemo(()=>{const map=new Map<string,{label:string;value:any}[]>();for(const f of selected?.snapshot?.fields||[]){if(["Position Rank","Player, College","Player","College"].includes(f.label))continue;const g=groupTitle(f.group||"Other");if(!map.has(g))map.set(g,[]);map.get(g)!.push({label:f.label,value:f.value})}return [...map.entries()]},[selected]);
-  const gradeRows=selected?GRADE_ORDER.filter(k=>selected.snapshot.grades?.[k]!=null).map(k=>[k,selected.snapshot.grades[k]] as const):[];
-  return <div className="hist-scout">
-    <div className="page-head"><div><span className="ey">{draftClass} · Historical Scouting Archive</span><h1>{pos} Scouting</h1><p className="muted">Exact values preserved from the {draftClass} workbook. Nothing on this page is recalculated with a newer formula.</p></div><span className="status">● Read-only snapshot</span></div>
+  useEffect(()=>{
+    if(draftClass<=2021)return;
+    let live=true;setLoading(true);setError("");
+    fetch("/api/historical-scouting?draftClass="+draftClass+"&position="+pos,{cache:"no-store"}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not load historical scouting data");if(!live)return;const next=Array.isArray(j.rows)?j.rows:[];setRows(next);const adapted=adaptRows(pos,next);setVals(adapted.vals);setImports(adapted.imports);setGrades(adapted.grades)}).catch(e=>{if(live){setRows([]);setVals({});setImports([]);setGrades({});setError(e?.message||"Could not load historical scouting data")}}).finally(()=>live&&setLoading(false));
+    return()=>{live=false};
+  },[draftClass,pos]);
+  const players=useMemo(()=>adaptRows(pos,rows).players,[rows,pos]);
+  if(draftClass<=2021)return <EarlyArchive draftClass={draftClass}/>;
+  const props={players,vals,setVals,imports,glossary:[] as any[][],draftClass,priorReports:{},archiveMode:true,gradeOverrides:grades,onSave:async()=>null,onAdd:()=>{}};
+  return <div className="historical-parity">
+    <div className="page-head"><div><span className="ey">{draftClass} Scouting Workspace</span><h1>{pos} Scouting</h1><p className="muted">2027 scouting-card parity using only values preserved in the {draftClass} workbook. Metrics that did not exist yet remain unavailable.</p></div><span className="status">● Historical · read-only</span></div>
     <div className="tabs scouting-position-tabs">{POSITIONS.map(x=><button key={x} className={`scouting-position-tab pos-${x.toLowerCase()} ${x===pos?"active":"ghost"}`} onClick={()=>setPos(x)}>{x} Scouting</button>)}</div>
     {error&&<div className="notice">{error}</div>}
-    {loading?<div className="card hist-empty">Loading historical workbook snapshot…</div>:!rows.length?<div className="card hist-empty"><h2>No stored scouting grades for {draftClass}</h2><p className="muted">{draftClass<=2021?"That workbook predates the graded scouting format. The player class remains available elsewhere in the year toggle, but no grades are being invented for it.":"No rows were found in this position's historical scouting sheet."}</p></div>:
-    <div className="hist-layout">
-      <aside className="card hist-player-list"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search player or college…"/><div className="hist-list-scroll">{visible.map(x=><button key={x.player.id} className={String(x.player.id)===String(selected?.player.id)?"active":""} onClick={()=>setSelectedId(String(x.player.id))}><b>{x.player.name}</b><span>{x.player.college||x.snapshot.college||"College unavailable"}</span></button>)}</div></aside>
-      {selected&&<main className="hist-detail">
-        <section className="card hist-hero" style={schoolStyle(selected.player.college||selected.snapshot.college)}>
-          <div className="hist-photo">{(selected.player.headshot_url||media[String(selected.player.id)])?<img src={selected.player.headshot_url||media[String(selected.player.id)]} alt=""/>:<span>{selected.player.name.split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</span>}</div>
-          <div><span className="ey">{pos} · {draftClass} CLASS</span><h2>{selected.player.name}</h2><p>{selected.player.college||selected.snapshot.college||"College unavailable"}</p></div>
-          <button className="ghost" onClick={()=>openPlayer(selected.player.id)}>Open profile</button>
-        </section>
-        <section className="hist-grade-grid">{gradeRows.map(([label,value])=><article className="card hist-grade" key={label}><span>{label.replace("Draft Adjusted ","").replace("Combine/Pro Day ","Combine ")}</span><strong>{grade(value)}</strong></article>)}</section>
-        {selected.snapshot.gameLabel&&<div className="notice"><b>Games watched:</b> {selected.snapshot.gameLabel}</div>}
-        {selected.snapshot.commentary&&<section className="card hist-notes"><span className="ey">SCOUTING NOTES</span><p>{selected.snapshot.commentary}</p></section>}
-        {groups.map(([group,fields])=><section className="card hist-group" key={group}><div className="hist-group-head"><span className="ey">{group}</span><b>{fields.length} stored fields</b></div><div className="hist-field-grid">{fields.map((f,i)=><div className="hist-field" key={f.label+"-"+i}><span>{f.label}</span><strong>{pct(f.label,f.value)}</strong></div>)}</div></section>)}
-      </main>}
-    </div>}
+    {loading?<div className="card historical-parity-loading">Loading {draftClass} {pos} scouting cards…</div>:pos==="QB"?<QBScoutingWorkspace {...props}/>:pos==="RB"?<RBScoutingWorkspace {...props}/>:pos==="WR"?<WRScoutingWorkspace {...props}/>:<TEScoutingWorkspace {...props}/>}
     <style jsx global>{`
-      .hist-scout{max-width:1540px;margin:0 auto}.hist-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:14px;align-items:start}.hist-player-list{padding:10px;position:sticky;top:12px}.hist-player-list input{width:100%;margin-bottom:8px}.hist-list-scroll{max-height:72vh;overflow:auto;display:grid;gap:4px}.hist-list-scroll button{text-align:left;background:#0d192b;border:1px solid #203754;border-radius:9px;padding:9px 10px;color:#dbe7f5}.hist-list-scroll button.active{border-color:#6385b3;background:#152944}.hist-list-scroll b,.hist-list-scroll span{display:block}.hist-list-scroll span{font-size:10px;color:#8298b5;margin-top:2px}.hist-detail{display:grid;gap:12px}.hist-hero{padding:16px;display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:14px;overflow:hidden}.hist-hero h2{margin:3px 0;font-size:24px}.hist-hero p{margin:0;font-size:11px}.hist-photo{width:62px;height:62px;border-radius:14px;background:rgba(4,9,17,.64);border:1px solid rgba(255,255,255,.2);display:grid;place-items:center;overflow:hidden;font-weight:950}.hist-photo img{width:100%;height:100%;object-fit:cover}.hist-grade-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.hist-grade{padding:12px}.hist-grade span{display:block;color:#7f96b6;font-size:9px;font-weight:900;text-transform:uppercase;line-height:1.3}.hist-grade strong{display:block;font-size:23px;margin-top:6px}.hist-notes,.hist-group{padding:15px}.hist-notes p{white-space:pre-wrap;line-height:1.58;color:#c4d3e6}.hist-group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.hist-group-head b{font-size:9px;color:#7189a8}.hist-field-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.hist-field{background:#0b1728;border:1px solid #203754;border-radius:9px;padding:9px}.hist-field span{display:block;color:#7790af;font-size:9px;min-height:22px}.hist-field strong{display:block;color:#e6effa;font-size:12px;margin-top:4px;word-break:break-word}.hist-empty{padding:24px}.hist-empty h2{margin-top:0}@media(max-width:1100px){.hist-grade-grid{grid-template-columns:repeat(3,1fr)}.hist-field-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:760px){.hist-layout{grid-template-columns:1fr}.hist-player-list{position:static}.hist-list-scroll{max-height:260px}.hist-hero{grid-template-columns:54px 1fr}.hist-hero button{grid-column:1/-1}.hist-grade-grid{grid-template-columns:repeat(2,1fr)}.hist-field-grid{grid-template-columns:repeat(2,1fr)}}`}</style>
+      .historical-parity-loading{padding:24px}
+      .historical-parity input,.historical-parity textarea,.historical-parity select{pointer-events:none}
+      .historical-parity .qb-game-log .ghost,.historical-parity .qb-game-note.new{display:none!important}
+      .historical-parity .qb-save-state{min-width:142px}
+    `}</style>
   </div>
 }

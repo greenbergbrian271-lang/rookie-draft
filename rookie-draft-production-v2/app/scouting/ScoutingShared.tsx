@@ -117,11 +117,19 @@ function rasFromData(data:any){
   const metrics=specs.map(([label,value,s])=>({label,value:value==null||value===""?"—":String(value),score:sharedNum(s)})).filter(x=>x.score!=null);
   return {score,url,metrics};
 }
-export function ScoutingPlayerHero({player,position,rank,style,age,classLabel,gamesWatched,draftTeam,draftAutomated,saveState,demoMode=false,onOpen,extraMeta}:{player:any,position:"QB"|"RB"|"WR"|"TE",rank:number,style?:React.CSSProperties,age?:any,classLabel?:any,gamesWatched:number,draftTeam?:string,draftAutomated?:boolean,saveState:"saved"|"saving"|"error",demoMode?:boolean,onOpen?:()=>void,extraMeta?:React.ReactNode}){
+export function ScoutingPlayerHero({player,position,rank,style,age,classLabel,gamesWatched,draftTeam,draftAutomated,saveState,demoMode=false,archiveMode=false,onOpen,extraMeta}:{player:any,position:"QB"|"RB"|"WR"|"TE",rank:number,style?:React.CSSProperties,age?:any,classLabel?:any,gamesWatched:number,draftTeam?:string,draftAutomated?:boolean,saveState:"saved"|"saving"|"error",demoMode?:boolean,archiveMode?:boolean,onOpen?:()=>void,extraMeta?:React.ReactNode}){
+  const [resolvedHeadshot,setResolvedHeadshot]=useState(String(player.headshot_url||""));
+  useEffect(()=>{
+    setResolvedHeadshot(String(player.headshot_url||""));
+    if(!archiveMode||player.headshot_url||!player.id)return;
+    let live=true;
+    fetch("/api/player-headshot?id="+encodeURIComponent(String(player.id)),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(live&&j?.url)setResolvedHeadshot(String(j.url))}).catch(()=>{});
+    return()=>{live=false};
+  },[archiveMode,player.id,player.headshot_url]);
   return <header className="qb-player-hero" style={style}>
-    <div className="qb-player-photo">{player.headshot_url?<img src={player.headshot_url} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{String(player.name||"").split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</span>}</div>
+    <div className="qb-player-photo">{resolvedHeadshot?<img src={resolvedHeadshot} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{String(player.name||"").split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</span>}</div>
     <div className="qb-player-title"><div className="qb-kicker">{position} {rank} · {player.college||"College TBD"}{player.jersey_number?" · #"+player.jersey_number:""}</div><h1>{onOpen?<PlayerName id={player.id}>{player.name}</PlayerName>:player.name}</h1><div className="qb-hero-meta"><span>{age?"Age "+age:"Age —"}</span><span>{classLabel||"Class —"}</span>{extraMeta}<span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span><span className="qb-draft-result-badge" title={draftAutomated?"Auto-filled from the NFL Draft feed":"Draft team will populate here after the NFL Draft"}><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png" alt="NFL"/><b>{draftTeam||"TBD"}</b></span></div></div>
-    <div className={"qb-save-state "+saveState}>{demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
+    <div className={"qb-save-state "+saveState}>{archiveMode?"Historical snapshot":demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
   </header>
 }
 export function CombineTestingSection({playerName,position,data,grade,children}:{playerName:string,position:"QB"|"RB"|"WR"|"TE",data:any,grade:number|null,children?:React.ReactNode}){

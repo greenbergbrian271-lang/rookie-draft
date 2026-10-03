@@ -38,7 +38,7 @@ type Props={
   glossary:any[][];
   onSave:(player:Player,category:string,value:any)=>Promise<any>;
   onAdd:()=>void;
-  demoMode?:boolean;draftClass?:number;priorReports?:Record<string,any>;
+  demoMode?:boolean;draftClass?:number;priorReports?:Record<string,any>;archiveMode?:boolean;gradeOverrides?:Record<string,any>;
 };
 type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft";
 type Mode="Evaluate"|"Compare";
@@ -115,7 +115,7 @@ function scoreLabel(n:number|null){
   return "Concern";
 }
 
-export default function QBScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false,draftClass=2027,priorReports={}}:Props){
+export default function QBScoutingWorkspace({players,vals,setVals,imports,glossary,onSave,onAdd,demoMode=false,draftClass=2027,priorReports={},archiveMode=false,gradeOverrides={}}:Props){
   const {openPlayer}=usePlayerProfile();
   const [selectedId,setSelectedId]=useState<string>("");
   const [search,setSearch]=useState("");
@@ -154,6 +154,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const imported=selected?importedFor(selected):{};
   const evalFor=(p:Player,cat:string)=>vals[p.id+"|"+cat];
   const evalValue=(cat:string)=>selected?evalFor(selected,cat):"";
+  const archivedGrade=(p:Player,key:string)=>archiveMode?(Object.prototype.hasOwnProperty.call(gradeOverrides[String(p.id)]||{},key)?(gradeOverrides[String(p.id)]?.[key]??null):null):undefined;
 
   useEffect(()=>{
     for(const p of players){
@@ -161,7 +162,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       if(sessions[id])continue;
       const legacy=String(evalFor(p,"__COMMENTARY__")||"").trim();
       const legacyLabel=String(evalFor(p,"__GAME_LABEL__")||"").trim();
-      if(demoMode){
+      if(demoMode||archiveMode){
         setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});
         continue;
       }
@@ -170,9 +171,9 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
         setSessions(x=>x[id]?x:{...x,[id]:live.length?live:fallback});
       }).catch(()=>setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]}));
     }
-  },[players,vals,demoMode]);
+  },[players,vals,demoMode,archiveMode]);
 
-  function gameCountFor(p:Player){return (sessions[String(p.id)]||[]).length}
+  function gameCountFor(p:Player){if(archiveMode){const n=Number(evalFor(p,"Games watched")??evalFor(p,"Games Watched"));if(Number.isFinite(n))return n}return (sessions[String(p.id)]||[]).length}
   function fieldsFor(p:Player){
     const out:Record<string,any>={...importedFor(p)};
     for(const cat of [...FILM,"Games watched","Expected Role","Archetype","Draft Projection","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){
@@ -183,6 +184,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return out;
   }
   function scoutingFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"scouting") as number|null;
     const grades=FILM.map(x=>num(evalFor(p,x))??NaN);
     return workbookScoutingGrade("QB",grades,fieldsFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
@@ -208,6 +210,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     });
   }
   function analyticalFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"analytical") as number|null;
     const scout=scoutingFor(p);
     if(scout==null)return null;
     const metrics=metricDataFor(p),imp=importedFor(p);
@@ -216,11 +219,12 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return qbAnalyticalGrade(scout,record,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
   function preDraftFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"pre") as number|null;
     const scout=scoutingFor(p);if(scout==null)return null;
     return preDraftGrade("QB",scout,null,analyticalFor(p),false,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
-  function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("QB",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
-  function finalGradeFor(p:Player){const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("QB",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
+  function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("QB",p.name,archiveMode?[]:draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
+  function finalGradeFor(p:Player){if(archiveMode)return archivedGrade(p,"final") as number|null;const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("QB",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
 
   function rankingGradeFor(p:Player){return preDraftFor(p)??scoutingFor(p)}
   const rankedPlayers=useMemo(()=>[...players].sort((a,b)=>{
@@ -241,15 +245,17 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     handSize:[],vertical:[],benchReps:[]
   }),[imports]);
   async function persist(p:Player,cat:string,value:any){
+    if(archiveMode)return null;
     setSaveState("saving");
     setVals(v=>({...v,[p.id+"|"+cat]:value}));
     if(demoMode){setTimeout(()=>setSaveState("saved"),120);return}
     try{await onSave(p,cat,value);setSaveState("saved")}
     catch{setSaveState("error")}
   }
-  function local(p:Player,cat:string,value:any){setVals(v=>({...v,[p.id+"|"+cat]:value}))}
+  function local(p:Player,cat:string,value:any){if(archiveMode)return;setVals(v=>({...v,[p.id+"|"+cat]:value}))}
 
   async function saveSession(p:Player,session:Session,patch:Partial<Session>){
+    if(archiveMode)return;
     const id=String(p.id),next={...session,...patch};
     setSessions(x=>({...x,[id]:(x[id]||[]).map(s=>String(s.id)===String(session.id)?next:s)}));
     if(session.legacy||demoMode){
@@ -260,6 +266,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     await fetch("/api/scouting-sessions",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:session.id,opponent:next.opponent,gameDate:next.game_date,rawNotes:next.raw_notes,overallWriteup:next.overall_writeup})});
   }
   async function addSession(p:Player){
+    if(archiveMode)return;
     const id=String(p.id),draft=newGame[id]||{opponent:"",notes:""};
     if(!draft.opponent.trim()&&!draft.notes.trim())return;
     if(demoMode){
@@ -291,13 +298,13 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   function renderPlayerSection(p:Player){
     const id=String(p.id),imp=importedFor(p),metrics=metricDataFor(p),productionMetrics=productionMetricDataFor(p),scouting=scoutingFor(p),analytical=analyticalFor(p),preDraft=preDraftFor(p),fields=fieldsFor(p),draftCtx=draftContextFor(p);
     const teamScore=draftCtx.teamScore,draftCapital=draftCtx.draftCapitalScore,g=(glossary.length?glossary:undefined) as GlossaryRows|undefined;
-    const teamAdj=preDraft==null?null:(teamScore-5)*2*glossaryNumber(23,g),capitalAdj=preDraft==null?null:(draftCapital-5)*2*glossaryNumber(24,g);
-    const finalGrade=preDraft==null?null:(draftCtx.finalized?draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,g):preDraft);
+    const teamAdj=archiveMode?null:(preDraft==null?null:(teamScore-5)*2*glossaryNumber(23,g)),capitalAdj=archiveMode?null:(preDraft==null?null:(draftCapital-5)*2*glossaryNumber(24,g));
+    const finalGrade=archiveMode?(archivedGrade(p,"final") as number|null):(preDraft==null?null:(draftCtx.finalized?draftAdjustedFinalGrade("QB",preDraft,teamScore,draftCapital,g):preDraft));
     const combineInput={bmi:num(imp?.BMI)??undefined,forty:num(imp?.["40 Yard Dash"])??undefined,speedScore:num(imp?.["Speed Score"])??undefined,broadJump:num(imp?.["Broad Jump"])??undefined};
-    const combine=Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,g):null;
+    const combine=archiveMode?(archivedGrade(p,"combine") as number|null):(Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,g):null);
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     return <article className="qb-evaluate-player" id={"qb-eval-"+p.id} data-player-id={p.id} key={p.id}>
-      <ScoutingPlayerHero player={p} position="QB" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
+      <ScoutingPlayerHero player={p} position="QB" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class} gamesWatched={gamesWatched} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip">
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>
