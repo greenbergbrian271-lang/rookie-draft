@@ -1,11 +1,13 @@
 import {workbookReference} from "./workbook-reference";
+import {getHistoricalScoutingRows} from "./historical-scouting";
+import {earlyHistoricalNflDraft} from "./historical-nfl-draft-early";
 
 export type NflDraftPosition="QB"|"RB"|"WR"|"TE";
-export type NflDraftPick={overall:number;pos:NflDraftPosition;name:string;team:string;college:string;teamScore:number;draftCapitalScore:number};
+export type NflDraftPick={overall:number;round?:number;result?:string;pos:NflDraftPosition;name:string;team:string;college:string;teamScore:number;draftCapitalScore:number};
 
 const teams=["49ers","Bears","Bengals","Bills","Broncos","Browns","Buccaneers","Cardinals","Chargers","Chiefs","Colts","Commanders","Cowboys","Dolphins","Eagles","Falcons","Giants","Jaguars","Jets","Lions","Packers","Panthers","Patriots","Raiders","Rams","Ravens","Saints","Seahawks","Steelers","Texans","Titans","Vikings"];
 const teamAliases:Record<string,string>={
-  SF:"49ers","SAN FRANCISCO 49ERS":"49ers",CHI:"Bears","CHICAGO BEARS":"Bears",CIN:"Bengals","CINCINNATI BENGALS":"Bengals",BUF:"Bills","BUFFALO BILLS":"Bills",DEN:"Broncos","DENVER BRONCOS":"Broncos",CLE:"Browns","CLEVELAND BROWNS":"Browns",TB:"Buccaneers","TAMPA BAY BUCCANEERS":"Buccaneers",ARI:"Cardinals","ARIZONA CARDINALS":"Cardinals",LAC:"Chargers","LOS ANGELES CHARGERS":"Chargers",KC:"Chiefs","KANSAS CITY CHIEFS":"Chiefs",IND:"Colts","INDIANAPOLIS COLTS":"Colts",WSH:"Commanders",WAS:"Commanders","WASHINGTON COMMANDERS":"Commanders",DAL:"Cowboys","DALLAS COWBOYS":"Cowboys",MIA:"Dolphins","MIAMI DOLPHINS":"Dolphins",PHI:"Eagles","PHILADELPHIA EAGLES":"Eagles",ATL:"Falcons","ATLANTA FALCONS":"Falcons",NYG:"Giants","NEW YORK GIANTS":"Giants",JAX:"Jaguars","JACKSONVILLE JAGUARS":"Jaguars",NYJ:"Jets","NEW YORK JETS":"Jets",DET:"Lions","DETROIT LIONS":"Lions",GB:"Packers","GREEN BAY PACKERS":"Packers",CAR:"Panthers","CAROLINA PANTHERS":"Panthers",NE:"Patriots","NEW ENGLAND PATRIOTS":"Patriots",LV:"Raiders","LAS VEGAS RAIDERS":"Raiders",LAR:"Rams","LOS ANGELES RAMS":"Rams",BAL:"Ravens","BALTIMORE RAVENS":"Ravens",NO:"Saints","NEW ORLEANS SAINTS":"Saints",SEA:"Seahawks","SEATTLE SEAHAWKS":"Seahawks",PIT:"Steelers","PITTSBURGH STEELERS":"Steelers",HOU:"Texans",HST:"Texans","HOUSTON TEXANS":"Texans",TEN:"Titans","TENNESSEE TITANS":"Titans",MIN:"Vikings","MINNESOTA VIKINGS":"Vikings"
+  SF:"49ers","SAN FRANCISCO 49ERS":"49ers","JAGS":"Jaguars","JAGUARS":"Jaguars","BUCS":"Buccaneers","BUCCANEERS":"Buccaneers","PATS":"Patriots","PATRIOTS":"Patriots","WFT":"Commanders","WASHINGTON FOOTBALL TEAM":"Commanders",CHI:"Bears","CHICAGO BEARS":"Bears",CIN:"Bengals","CINCINNATI BENGALS":"Bengals",BUF:"Bills","BUFFALO BILLS":"Bills",DEN:"Broncos","DENVER BRONCOS":"Broncos",CLE:"Browns","CLEVELAND BROWNS":"Browns",TB:"Buccaneers","TAMPA BAY BUCCANEERS":"Buccaneers",ARI:"Cardinals","ARIZONA CARDINALS":"Cardinals",LAC:"Chargers","LOS ANGELES CHARGERS":"Chargers",KC:"Chiefs","KANSAS CITY CHIEFS":"Chiefs",IND:"Colts","INDIANAPOLIS COLTS":"Colts",WSH:"Commanders",WAS:"Commanders","WASHINGTON COMMANDERS":"Commanders",DAL:"Cowboys","DALLAS COWBOYS":"Cowboys",MIA:"Dolphins","MIAMI DOLPHINS":"Dolphins",PHI:"Eagles","PHILADELPHIA EAGLES":"Eagles",ATL:"Falcons","ATLANTA FALCONS":"Falcons",NYG:"Giants","NEW YORK GIANTS":"Giants",JAX:"Jaguars","JACKSONVILLE JAGUARS":"Jaguars",NYJ:"Jets","NEW YORK JETS":"Jets",DET:"Lions","DETROIT LIONS":"Lions",GB:"Packers","GREEN BAY PACKERS":"Packers",CAR:"Panthers","CAROLINA PANTHERS":"Panthers",NE:"Patriots","NEW ENGLAND PATRIOTS":"Patriots",LV:"Raiders","LAS VEGAS RAIDERS":"Raiders",LAR:"Rams","LOS ANGELES RAMS":"Rams",BAL:"Ravens","BALTIMORE RAVENS":"Ravens",NO:"Saints","NEW ORLEANS SAINTS":"Saints",SEA:"Seahawks","SEATTLE SEAHAWKS":"Seahawks",PIT:"Steelers","PITTSBURGH STEELERS":"Steelers",HOU:"Texans",HST:"Texans","HOUSTON TEXANS":"Texans",TEN:"Titans","TENNESSEE TITANS":"Titans",MIN:"Vikings","MINNESOTA VIKINGS":"Vikings"
 };
 const norm=(s:any)=>String(s??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 const first=(...vals:any[])=>vals.find(v=>typeof v==="string"&&v.trim())||"";
@@ -36,6 +38,35 @@ function teamScore(pos:NflDraftPosition,team:string){
   const n=Number(row?.[teamIndex[pos]]);
   return Number.isFinite(n)?n:5;
 }
+function canonicalHistoricalTeam(value:any){
+  const raw=String(value??"").trim(),key=raw.toUpperCase();
+  if(teamAliases[key])return teamAliases[key];
+  const direct=teams.find(t=>norm(t)===norm(raw)||norm(raw).endsWith(norm(t))||norm(raw).includes(norm(t)));
+  return direct||raw;
+}
+function historicalWorkbookPicks(draftYear:number):NflDraftPick[]{
+  const out:NflDraftPick[]=[];
+  if(draftYear>=2022&&draftYear<=2026){
+    for(const pos of ["QB","RB","WR","TE"] as NflDraftPosition[]){
+      for(const row of getHistoricalScoutingRows(draftYear,pos)){
+        const raw=String(row.fields.find((f:any)=>String(f.label||"").trim()==="Draft Result")?.value??"").trim();
+        const m=raw.match(/^(\d+)\.(\d+)\s*,\s*([^,]+)$/);
+        if(!m)continue;
+        const round=Number(m[1]),overall=Number(m[2]),team=canonicalHistoricalTeam(m[3]);
+        if(!Number.isFinite(overall)||overall<1||!team)continue;
+        out.push({overall,round,result:raw,pos,name:row.name,team,college:row.college||"",teamScore:5,draftCapitalScore:5});
+      }
+    }
+  }else{
+    for(const row of earlyHistoricalNflDraft[draftYear]||[]){
+      const team=canonicalHistoricalTeam(row.team);
+      out.push({overall:row.overall,round:row.round,result:row.result,pos:row.pos,name:row.name,team,college:"",teamScore:5,draftCapitalScore:5});
+    }
+  }
+  const unique=[...new Map(out.map(p=>[p.overall+"|"+norm(p.name),p])).values()];
+  return unique.sort((a,b)=>a.overall-b.overall);
+}
+
 function extract(root:any){
   const out:any[]=[],seen=new Set<string>();
   function walk(node:any){
@@ -58,6 +89,8 @@ function extract(root:any){
 }
 
 export async function getNflDraftPicks(draftYear=2027):Promise<NflDraftPick[]>{
+  const archived=historicalWorkbookPicks(draftYear);
+  if(draftYear<2027&&archived.length)return archived;
   try{
     const calls=Array.from({length:7},(_,i)=>fetch("https://site.web.api.espn.com/apis/v2/scoreboard/header?draft_year="+draftYear+"&draft_round="+(i+1),{next:{revalidate:60}}).then(r=>r.ok?r.json():null).catch(()=>null));
     const payloads=(await Promise.all(calls)).filter(Boolean);

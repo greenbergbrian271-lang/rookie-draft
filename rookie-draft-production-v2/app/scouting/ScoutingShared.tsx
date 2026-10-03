@@ -4,7 +4,7 @@ import PlayerName from "@/components/PlayerName";
 
 export const DRAFT_PROJECTION_OPTIONS=["Top 5","Top 10","First Round","Day 2","Early Day 3","Late Day 3","UDFA"] as const;
 
-export type DraftPick={overall:number;pos:"QB"|"RB"|"WR"|"TE";name:string;team:string;college?:string;teamScore:number;draftCapitalScore:number};
+export type DraftPick={overall:number;round?:number;result?:string;pos:"QB"|"RB"|"WR"|"TE";name:string;team:string;college?:string;teamScore:number;draftCapitalScore:number};
 const norm=(v:any)=>String(v??"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 const NFL_LOGO_CODE:Record<string,string>={"49ers":"sf","bears":"chi","bengals":"cin","bills":"buf","broncos":"den","browns":"cle","buccaneers":"tb","bucs":"tb","cardinals":"ari","chargers":"lac","chiefs":"kc","colts":"ind","commanders":"wsh","cowboys":"dal","dolphins":"mia","eagles":"phi","falcons":"atl","giants":"nyg","jaguars":"jax","jets":"nyj","lions":"det","packers":"gb","panthers":"car","patriots":"ne","raiders":"lv","rams":"lar","ravens":"bal","saints":"no","seahawks":"sea","steelers":"pit","texans":"hou","titans":"ten","vikings":"min"};
 function nflTeamLogo(team:any){
@@ -27,9 +27,9 @@ export function useDraftFeed(draftClass=2027){
   return {picks,updatedAt};
 }
 export function useDraftPicks(){return useDraftFeed().picks}
-function nflPickLabel(overall:number,team:string){
-  const round=Math.floor((overall-1)/32)+1,slot=((overall-1)%32)+1;
-  return round+"."+String(slot).padStart(2,"0")+", "+team;
+function nflPickLabel(overall:number,team:string,round?:number){
+  const r=round||Math.floor((overall-1)/32)+1;
+  return r+"."+String(overall).padStart(2,"0")+", "+team;
 }
 function teamFromStoredResult(result:string){
   const comma=result.lastIndexOf(",");
@@ -43,7 +43,7 @@ export function resolveDraftContext(position:"QB"|"RB"|"WR"|"TE",playerName:stri
   const storedResult=String(fallback.result??"").trim(),storedTeam=number(fallback.teamScore),storedCapital=number(fallback.draftCapitalScore);
   const storedFinal=Boolean(storedResult&&!/^(pending|tbd|not drafted yet)$/i.test(storedResult)&&storedTeam!=null&&storedCapital!=null);
   return {
-    result:live?nflPickLabel(live.overall,live.team):(storedResult||"Pending"),
+    result:live?(live.result||nflPickLabel(live.overall,live.team,live.round)):(storedResult||"Pending"),
     team:live?.team||teamFromStoredResult(storedResult),
     teamScore:storedTeam??live?.teamScore??5,
     draftCapitalScore:storedCapital??live?.draftCapitalScore??5,
