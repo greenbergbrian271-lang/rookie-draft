@@ -77,7 +77,7 @@ export default function TEScoutingWorkspace({players,vals,setVals,imports,glossa
   const [compareIds,setCompareIds]=useState<string[]>([]),[saveState,setSaveState]=useState<"saved"|"saving"|"error">("saved");
   const [sessions,setSessions]=useState<Record<string,Session[]>>({}),[newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({}),[newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
   const [colleges,setColleges]=useState<any[]>([]);
-  const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed();
+  const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed(draftClass);
 
   useEffect(()=>{fetch("/api/college-stats",{cache:"no-store"}).then(r=>r.json()).then(j=>Array.isArray(j)&&setColleges(j)).catch(()=>{})},[]);
   useEffect(()=>{if(!players.length){setSelectedId("");return}if(!players.some(p=>String(p.id)===selectedId))setSelectedId(String(players[0].id));setCompareIds(cur=>{const valid=cur.filter(id=>players.some(p=>String(p.id)===id));return valid.length?valid:players.map(p=>String(p.id))})},[players,selectedId]);
@@ -136,7 +136,7 @@ export default function TEScoutingWorkspace({players,vals,setVals,imports,glossa
   function metricDataFor(p:Player){const r=importedFor(p);return ANALYTICS.map(m=>{const population=percentileImports.map(x=>num(enrichTE(x)[m.label],m.pct)).filter((v):v is number=>v!=null),raw=num(r[m.label],m.pct),preview=demoMode?num(evalFor(p,"__AN_PCT_"+m.sheet)):null,base=raw==null?null:percentRankInc(population,raw),percentile=preview??(base==null?null:(m.inverse?1-base:base));return {...m,raw,percentile}})}
   function analyticalFor(p:Player){if(archiveMode)return archivedGrade(p,"analytical") as number|null;const scouting=scoutingFor(p);if(scouting==null)return null;const rec=Object.fromEntries(metricDataFor(p).map(m=>[m.sheet,m.percentile])) as Record<string,number|null>;return teAnalyticalGrade(scouting,rec,(glossary.length?glossary:undefined) as GlossaryRows|undefined)}
   function preDraftFor(p:Player){if(archiveMode)return archivedGrade(p,"pre") as number|null;const s=scoutingFor(p);if(s==null)return null;return preDraftGrade("TE",s,productionFor(p),analyticalFor(p),earlyDeclareFor(p).yes,(glossary.length?glossary:undefined) as GlossaryRows|undefined)}
-  function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("TE",p.name,archiveMode?[]:draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
+  function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("TE",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
   function finalGradeFor(p:Player){if(archiveMode)return archivedGrade(p,"final") as number|null;const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("TE",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
   function rankingGradeFor(p:Player){return preDraftFor(p)??scoutingFor(p)}
   const rankedPlayers=useMemo(()=>[...players].sort((a,b)=>{const ga=rankingGradeFor(a),gb=rankingGradeFor(b);if(ga==null&&gb==null)return(a.watch_order||9999)-(b.watch_order||9999);if(ga==null)return 1;if(gb==null)return-1;return gb-ga||((a.watch_order||9999)-(b.watch_order||9999))}),[players,vals,imports,colleges,glossary,sessions]);
@@ -152,7 +152,7 @@ export default function TEScoutingWorkspace({players,vals,setVals,imports,glossa
 
   function renderPlayer(p:Player){const id=String(p.id),r=importedFor(p),c=collegeFor(p),metrics=metricDataFor(p),productionMetrics=productionMetricDataFor(p),rawProductionMetrics=rawProductionMetricDataFor(p),scouting=scoutingFor(p),production=productionFor(p),analytical=analyticalFor(p),pre=preDraftFor(p),fields=fieldsFor(p),combine=combineFor(p),draftCtx=draftContextFor(p),teamScore=draftCtx.teamScore,draftCap=draftCtx.draftCapitalScore,g=(glossary.length?glossary:undefined) as GlossaryRows|undefined,teamAdj=archiveMode?null:(pre==null?null:(teamScore-5)*2*glossaryNumber(32,g)),capitalAdj=archiveMode?null:(pre==null?null:(draftCap-5)*2*glossaryNumber(33,g)),final=archiveMode?(archivedGrade(p,"final") as number|null):(pre==null?null:(draftCtx.finalized?draftAdjustedFinalGrade("TE",pre,teamScore,draftCap,g):pre)),rank=rankedPlayers.indexOf(p)+1,complete=FILM.filter(x=>num(evalFor(p,x))!=null).length,games=gameCountFor(p),style=schoolStyle(p.college),d=newGame[id]||{opponent:"",notes:""},pm=prodMetrics(p);
     return <article className="qb-evaluate-player" id={"te-eval-"+p.id} data-player-id={p.id} key={p.id}>
-      <ScoutingPlayerHero player={p} position="TE" rank={rank} style={style} age={r.Age} classLabel={r.Class} gamesWatched={games} draftTeam={draftCtx.automated?draftCtx.team:"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
+      <ScoutingPlayerHero player={p} position="TE" rank={rank} style={style} age={r.Age} classLabel={r.Class} gamesWatched={games} draftTeam={draftCtx.team||"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip te-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}><GradeCard label="Scouting" value={scouting} hint={complete+"/7 traits"}/><GradeCard label="Production" value={production} hint="Workbook production model"/><GradeCard label="Analytical" value={analytical} hint="PFF percentile model"/><GradeCard label="Pre-Draft" value={pre} hint="Scout + prod + analytics"/><GradeCard label="Final" value={final} hint={pre==null?"Waiting for pre-draft grade":draftCtx.finalized?"Draft-adjusted":"Matches Pre-Draft until NFL Draft"}/></div>
 
       {tab==="Film"&&<div className="qb-tab-content"><div className="qb-section-head"><div><span className="ey">Scout Inputs</span><h2>Film Evaluation</h2></div><div className="qb-completion">{complete}/7 complete</div></div>
@@ -172,7 +172,7 @@ export default function TEScoutingWorkspace({players,vals,setVals,imports,glossa
 
       {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="TE" data={r} grade={combine}/>}
       
-      {tab==="Draft"&&<DraftAdjustmentPanel preDraft={pre} finalGrade={final} draftResult={draftCtx.result} teamScore={teamScore} draftCapital={draftCap} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true} updatedAt={draftUpdatedAt}/>}
+      {tab==="Draft"&&<DraftAdjustmentPanel preDraft={pre} finalGrade={final} draftResult={draftCtx.result} draftTeam={draftCtx.team} teamScore={teamScore} draftCapital={draftCap} teamAdj={teamAdj} capitalAdj={capitalAdj} production={true} updatedAt={draftUpdatedAt}/>}
       <PriorFilmReport report={priorReports?.[id]}/>
     </article>
   }

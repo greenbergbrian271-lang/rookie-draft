@@ -2,6 +2,7 @@
 import {useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
 import styles from "../home.module.css";
+import {useDraftClass} from "@/lib/use-draft-class";
 
 const ALIAS:Record<string,string>={"miami fl":"miami florida","miami hurricanes":"miami florida","mia":"miami florida","miami oh":"miami ohio","miami redhawks":"miami ohio","mizzou":"missouri","missouri tigers":"missouri","uconn":"connecticut","connecticut huskies":"connecticut","umass":"massachusetts","massachusetts minutemen":"massachusetts","nc state":"north carolina state","n c state":"north carolina state","north carolina state wolfpack":"north carolina state","usc":"southern california","usc trojans":"southern california","southern california trojans":"southern california","ole miss":"mississippi","ole miss rebels":"mississippi","mississippi rebels":"mississippi","sam houston":"sam houston state","sam houston bearkats":"sam houston state","ul monroe":"louisiana monroe","ulm":"louisiana monroe","louisiana monroe warhawks":"louisiana monroe","louisiana ragin cajuns":"louisiana","cal":"california","california golden bears":"california","byu cougars":"byu","smu mustangs":"smu","utep miners":"utep","utsa roadrunners":"utsa","fiu panthers":"fiu","uab blazers":"uab","ucf knights":"ucf","south florida bulls":"south florida","usf":"south florida","texas a and m":"texas aandm","texas a m":"texas aandm","texas aggies":"texas aandm","app state":"appalachian state","appalachian state mountaineers":"appalachian state","western kentucky hilltoppers":"western kentucky","wku":"western kentucky"};
 const norm=(s:any)=>{const x=String(s||"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");return ALIAS[x]||x};
@@ -14,6 +15,7 @@ function networkName(e:any){const comp=e.competitions?.[0]||{};const b=(comp.bro
 function dateKey(value:string){const d=new Date(value);return String(d.getFullYear())+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")}
 
 export default function Page(){
+ const draftClass=useDraftClass();
  const [rows,setRows]=useState<any[]>([]),[events,setEvents]=useState<any[]>([]),[players,setPlayers]=useState<any[]>([]),[rankings,setRankings]=useState<any[]>([]),[loading,setLoading]=useState(true);
 
  useEffect(()=>{(async()=>{
@@ -46,14 +48,14 @@ export default function Page(){
   const comp=e.competitions?.[0]||{};
   const sides=(comp.competitors||[]).map((c:any)=>{
    const keys=teamKeys(c);
-   const prospects=players.filter((p:any)=>p.draft_class===2027&&p.college&&keys.has(norm(p.college))).sort((a:any,b:any)=>(POS[a.position]??99)-(POS[b.position]??99)||String(a.name).localeCompare(String(b.name)));
+   const prospects=players.filter((p:any)=>p.draft_class===draftClass&&p.college&&keys.has(norm(p.college))).sort((a:any,b:any)=>(POS[a.position]??99)-(POS[b.position]??99)||String(a.name).localeCompare(String(b.name)));
    const rank=[...keys].map(k=>ranks[k]).find(Boolean);
    return {id:c.id||c.team?.id||c.team?.displayName,name:c.team?.displayName||c.team?.location||c.team?.name,logo:c.team?.logo||c.team?.logos?.[0]?.href||"",homeAway:c.homeAway,rank,prospects};
   });
   const rawSides=comp.competitors||[];
   const fbs=rawSides.some((c:any)=>[c.team?.location,c.team?.displayName,c.team?.shortDisplayName,c.team?.name].filter(Boolean).some((n:any)=>FBS_SCHOOLS.has(norm(String(n)))));
   return {...x,eventId:e.id||x.espn_event_id,title:e.shortName||e.name||x.away_team+" vs "+x.home_team,sides,network:networkName(e),level:fbs?"FBS":"Non-FBS"};
- }),[rows,events,players,ranks]);
+ }),[rows,events,players,ranks,draftClass]);
 
  async function remove(id:any){await fetch("/api/watch-list?id="+id,{method:"DELETE"});setRows(old=>old.filter(x=>x.id!==id))}
  async function watchNow(x:any){

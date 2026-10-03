@@ -109,6 +109,7 @@ export default function Page(){
   const [error,setError]=useState("");
 
   useEffect(()=>{
+    if(draftClass<2027){setLeagues([]);setViewKey("base");return}
     let live=true;
     (async()=>{
       try{
@@ -119,7 +120,7 @@ export default function Page(){
       }catch{}
     })();
     return()=>{live=false};
-  },[]);
+  },[draftClass]);
 
   useEffect(()=>{
     let live=true;
@@ -148,12 +149,13 @@ export default function Page(){
       tePremium:Boolean(x.tePremium),
       rosterKey:x.key
     }));
+    if(draftClass<2027)return [{key:"base",label:"Base",tePremium:false}];
     return [
       {key:"base",label:"Base",tePremium:false},
       {key:"tep",label:"TE Premium",tePremium:true},
       ...leagueViews
     ];
-  },[leagues]);
+  },[leagues,draftClass]);
   const activeView:BoardView=views.find(x=>x.key===viewKey)||{key:"base",label:"Base",tePremium:false};
   const visible=useMemo(()=>{
     const q=norm(search);
@@ -179,14 +181,13 @@ export default function Page(){
       <div>
         <div className="ey">{draftClass} Rookie Class</div>
         <h1>Final Draft Board</h1>
-        <p className="muted">Grade-driven board built only from prospects currently on the web Scouting tabs. Pre-Draft Grade drives the board until a true Final Draft Grade exists.</p>
+        <p className="muted">{draftClass<2027?"Historical board sorted by the exact archived Final Grade where one exists. No current-year formulas or roster adjustments are applied.":"Grade-driven board built only from prospects currently on the web Scouting tabs. Pre-Draft Grade drives the board until a true Final Draft Grade exists."}</p>
       </div>
       <span className="status cloud">● Scouting source of truth</span>
     </div>
 
     <div className="board-rule-strip">
-      <span><b>No manual ordering.</b> Overall and position ranks recalculate from the active board grade.</span>
-      <span><b>Formula:</b> current grade × positional multiplier + league handcuff adjustment. Multipliers stay behind the scenes.</span>
+      {draftClass<2027?<><span><b>Historical source of truth.</b> The archived Final Grade drives both overall and position rank.</span><span><b>No recalculation:</b> missing grades remain missing rather than being rebuilt with a newer model.</span></>:<><span><b>No manual ordering.</b> Overall and position ranks recalculate from the active board grade.</span><span><b>Formula:</b> current grade × positional multiplier + league handcuff adjustment. Multipliers stay behind the scenes.</span></>}
     </div>
 
     <div className="board-view-tabs" role="tablist" aria-label="Draft board view">

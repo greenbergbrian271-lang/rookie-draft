@@ -1,5 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
-import {ALL_STAR_GAMES,gameDefinition,gameKeyFromLegacy,safeHttpsUrl} from "@/lib/all-star-games";
+import {ALL_STAR_GAMES,gameDefinition,gameKeyFromLegacy,safeHttpsUrl,normalizePersonName} from "@/lib/all-star-games";
+import {historicalAllStarGames} from "@/lib/historical-all-star";
 
 export const dynamic="force-dynamic";
 const configFor=(g:any,row:any)=>({
@@ -26,6 +27,17 @@ async function migrateLegacy(q:any){
 export async function GET(req:Request){
   try{
     const q=await ensureTursoSchema(),u=new URL(req.url),draftClass=Number(u.searchParams.get("draftClass")||2027);
+    if(draftClass<2027){
+      const players=rows(await q.execute({sql:"select id,name,position,college,headshot_url from players where draft_class=?",args:[draftClass]}));
+      const playerMap=new Map(players.map((p:any)=>[normalizePersonName(p.name),p]));
+      const games=historicalAllStarGames(draftClass).map((g:any)=>({
+        key:g.key,name:g.name,date:null,dateLabel:g.header,location:g.location,tagline:g.tagline,logoUrl:g.logoUrl,accent:g.accent,accent2:g.accent2,
+        config:{gameKey:g.key,websiteUrl:"",twitterUrl:"",rosterAName:g.rosterAName,rosterAUrl:"",rosterBName:g.rosterBName,rosterBUrl:"",updatedAt:null},
+        invites:g.invites.map((x:any,i:number)=>{const p=playerMap.get(normalizePersonName(x.name)) as any;return {game_key:g.key,player_id:p?.id||("historical-"+draftClass+"-"+g.key+"-"+i),roster_key:x.rosterKey,source_kind:"historical",source_url:null,source_excerpt:"Imported from the "+draftClass+" rookie-draft workbook.",discovered_at:null,participation_status:x.participationStatus,name:p?.name||x.name,position:p?.position||x.position,college:p?.college||x.college,headshot_url:p?.headshot_url||null}}),
+        lastScan:null,historical:true
+      }));
+      return Response.json({draftClass,historical:true,games});
+    }
     if(draftClass===2027)await migrateLegacy(q);
     const settings=rows(await q.execute("select * from all_star_game_settings"));
     const inviteRows=rows(await q.execute({sql:"select a.game_key,a.player_id,a.roster_key,a.source_kind,a.source_url,a.source_excerpt,a.discovered_at,a.participation_status,p.name,p.position,p.college,p.headshot_url from all_star_invites a join players p on p.id=a.player_id where p.draft_class=? order by p.position,p.watch_order,p.name",args:[draftClass]}));

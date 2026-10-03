@@ -6,42 +6,60 @@ export const DRAFT_PROJECTION_OPTIONS=["Top 5","Top 10","First Round","Day 2","E
 
 export type DraftPick={overall:number;pos:"QB"|"RB"|"WR"|"TE";name:string;team:string;college?:string;teamScore:number;draftCapitalScore:number};
 const norm=(v:any)=>String(v??"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+const NFL_LOGO_CODE:Record<string,string>={"49ers":"sf","bears":"chi","bengals":"cin","bills":"buf","broncos":"den","browns":"cle","buccaneers":"tb","bucs":"tb","cardinals":"ari","chargers":"lac","chiefs":"kc","colts":"ind","commanders":"wsh","cowboys":"dal","dolphins":"mia","eagles":"phi","falcons":"atl","giants":"nyg","jaguars":"jax","jets":"nyj","lions":"det","packers":"gb","panthers":"car","patriots":"ne","raiders":"lv","rams":"lar","ravens":"bal","saints":"no","seahawks":"sea","steelers":"pit","texans":"hou","titans":"ten","vikings":"min"};
+function nflTeamLogo(team:any){
+  const raw=String(team??"").trim(),key=norm(raw);
+  const direct=Object.entries(NFL_LOGO_CODE).find(([name])=>{const n=norm(name);return key===n||key.endsWith(n)||key.includes(n)});
+  return direct?("https://a.espncdn.com/i/teamlogos/nfl/500/"+direct[1]+".png"):"https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png";
+}
 
-export function useDraftFeed(){
+
+export function useDraftFeed(draftClass=2027){
   const [picks,setPicks]=useState<DraftPick[]>([]);
   const [updatedAt,setUpdatedAt]=useState<string|null>(null);
   useEffect(()=>{
     let live=true;
-    const load=()=>fetch("/api/nfl-draft-results",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!live)return;if(Array.isArray(j?.picks))setPicks(j.picks);setUpdatedAt(String(j?.updatedAt||new Date().toISOString()))}).catch(()=>{});
-    load();const timer=setInterval(load,60000);
-    return()=>{live=false;clearInterval(timer)};
-  },[]);
+    const load=()=>fetch("/api/nfl-draft-results?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!live)return;if(Array.isArray(j?.picks))setPicks(j.picks);else setPicks([]);setUpdatedAt(String(j?.updatedAt||new Date().toISOString()))}).catch(()=>{if(live)setPicks([])});
+    load();
+    const timer=draftClass>=2027?setInterval(load,60000):null;
+    return()=>{live=false;if(timer)clearInterval(timer)};
+  },[draftClass]);
   return {picks,updatedAt};
 }
 export function useDraftPicks(){return useDraftFeed().picks}
+function nflPickLabel(overall:number,team:string){
+  const round=Math.floor((overall-1)/32)+1,slot=((overall-1)%32)+1;
+  return round+"."+String(slot).padStart(2,"0")+", "+team;
+}
+function teamFromStoredResult(result:string){
+  const comma=result.lastIndexOf(",");
+  if(comma>=0)return result.slice(comma+1).trim();
+  const m=result.match(/(?:to|—|-)\s+([A-Za-z .'-]+)$/);
+  return m?.[1]?.trim()||"";
+}
 export function resolveDraftContext(position:"QB"|"RB"|"WR"|"TE",playerName:string,picks:DraftPick[],fallback:{result?:any,teamScore?:any,draftCapitalScore?:any}={}){
   const live=picks.find(x=>x.pos===position&&norm(x.name)===norm(playerName));
   const number=(v:any)=>{if(v==null||v==="")return null;const n=Number(v);return Number.isFinite(n)?n:null};
   const storedResult=String(fallback.result??"").trim(),storedTeam=number(fallback.teamScore),storedCapital=number(fallback.draftCapitalScore);
-  const storedFinal=Boolean(storedResult&&!/^pending$/i.test(storedResult)&&storedTeam!=null&&storedCapital!=null);
+  const storedFinal=Boolean(storedResult&&!/^(pending|tbd|not drafted yet)$/i.test(storedResult)&&storedTeam!=null&&storedCapital!=null);
   return {
-    result:live?("Pick "+live.overall+", "+live.team):(storedResult||"Pending"),
-    team:live?.team||"",
-    teamScore:live?.teamScore??storedTeam??5,
-    draftCapitalScore:live?.draftCapitalScore??storedCapital??5,
+    result:live?nflPickLabel(live.overall,live.team):(storedResult||"Pending"),
+    team:live?.team||teamFromStoredResult(storedResult),
+    teamScore:storedTeam??live?.teamScore??5,
+    draftCapitalScore:storedCapital??live?.draftCapitalScore??5,
     automated:Boolean(live),
     finalized:Boolean(live)||storedFinal
   };
 }
 
-export function DraftAdjustmentPanel({preDraft,finalGrade,draftResult,teamScore,draftCapital,teamAdj,capitalAdj,production=true,updatedAt}:{preDraft:number|null,finalGrade:number|null,draftResult:string,teamScore:number,draftCapital:number,teamAdj:number|null,capitalAdj:number|null,production?:boolean,updatedAt?:string|null}){
+export function DraftAdjustmentPanel({preDraft,finalGrade,draftResult,draftTeam,teamScore,draftCapital,teamAdj,capitalAdj,production=true,updatedAt}:{preDraft:number|null,finalGrade:number|null,draftResult:string,draftTeam?:string,teamScore:number,draftCapital:number,teamAdj:number|null,capitalAdj:number|null,production?:boolean,updatedAt?:string|null}){
   const fmt=(v:number|null)=>v==null?"—":v.toFixed(2),finalized=Boolean(draftResult&&!/^(pending|tbd|not drafted yet)$/i.test(draftResult.trim()));
   return <div className="qb-tab-content">
     <div className="qb-section-head"><div><span className="ey">Projection → Actual</span><h2>Draft Adjustment</h2><p>See exactly how landing spot and draft capital move the pre-draft grade after the NFL Draft.</p></div>{updatedAt&&<DataFreshness label="Draft feed" value={updatedAt}/>}</div>
     <div className="qb-draft-grid">
       <div className="qb-draft-card current"><span>Pre-Draft Grade</span><strong>{fmt(preDraft)}</strong><small>{production?"Scouting + production + analytics":"Scouting + analytics"}</small></div>
       <div className="qb-draft-arrow">→</div>
-      <div className="qb-draft-card"><span>NFL Draft Result</span><strong>{draftResult}</strong><small>Auto-filled after the NFL Draft</small></div>
+      <div className="qb-draft-card"><span>NFL Draft Result</span><strong className="qb-draft-result-with-logo" style={{display:"flex",alignItems:"center",gap:8}}>{draftTeam&&<img src={nflTeamLogo(draftTeam)} alt="" style={{width:28,height:28,objectFit:"contain",flex:"0 0 auto"}}/>}{draftResult}</strong><small>Auto-filled from the selected draft class</small></div>
       <div className="qb-draft-arrow">→</div>
       <div className="qb-draft-card final"><span>Final Draft Grade</span><strong>{fmt(finalGrade)}</strong><small>{!finalized?"Matches Pre-Draft until the NFL Draft":preDraft!=null&&finalGrade!=null?((finalGrade-preDraft)>=0?"+":"")+(finalGrade-preDraft).toFixed(2)+" total adjustment":"Team fit + draft capital"}</small></div>
     </div>
@@ -128,7 +146,7 @@ export function ScoutingPlayerHero({player,position,rank,style,age,classLabel,ga
   },[archiveMode,player.id,player.headshot_url]);
   return <header className="qb-player-hero" style={style}>
     <div className="qb-player-photo">{resolvedHeadshot?<img src={resolvedHeadshot} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{String(player.name||"").split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</span>}</div>
-    <div className="qb-player-title"><div className="qb-kicker">{position} {rank} · {player.college||"College TBD"}{player.jersey_number?" · #"+player.jersey_number:""}</div><h1>{onOpen?<PlayerName id={player.id}>{player.name}</PlayerName>:player.name}</h1><div className="qb-hero-meta"><span>{age?"Age "+age:"Age —"}</span><span>{classLabel||"Class —"}</span>{extraMeta}<span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span><span className="qb-draft-result-badge" title={draftAutomated?"Auto-filled from the NFL Draft feed":"Draft team will populate here after the NFL Draft"}><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png" alt="NFL"/><b>{draftTeam||"TBD"}</b></span></div></div>
+    <div className="qb-player-title"><div className="qb-kicker">{position} {rank} · {player.college||"College TBD"}{player.jersey_number?" · #"+player.jersey_number:""}</div><h1>{onOpen?<PlayerName id={player.id}>{player.name}</PlayerName>:player.name}</h1><div className="qb-hero-meta"><span>{age?"Age "+age:"Age —"}</span><span>{classLabel||"Class —"}</span>{extraMeta}<span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span><span className="qb-draft-result-badge" title={draftAutomated?"Auto-filled from the NFL Draft feed":"NFL draft team"}><img src={nflTeamLogo(draftTeam)} alt=""/><b>{draftTeam||"TBD"}</b></span></div></div>
     <div className={"qb-save-state "+saveState}>{archiveMode?"Historical snapshot":demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
   </header>
 }

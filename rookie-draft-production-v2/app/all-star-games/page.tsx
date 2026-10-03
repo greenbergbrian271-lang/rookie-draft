@@ -4,24 +4,26 @@ import type {CSSProperties} from "react";
 import {AlertTriangle,Ban,CheckCircle2,Clock3,ExternalLink,Globe2,Link2,Play,RefreshCw,RotateCcw,Settings,Users,X} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
 import styles from "./all-star-games.module.css";
+import {useDraftClass} from "@/lib/use-draft-class";
 
 const POSITIONS=["QB","RB","WR","TE"];
 const isOut=(p:any)=>String(p.participation_status||"ACTIVE")==="OPTED_OUT";
 const sourceLabel=(kind:string)=>kind==="twitter"?"X":kind==="roster_a"?"Roster A":kind==="roster_b"?"Roster B":kind==="legacy"?"Legacy":"Website";
 
 export default function AllStarGamesPage(){
+  const draftClass=useDraftClass(),historical=draftClass<2027;
   const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[scanning,setScanning]=useState(false),[message,setMessage]=useState<any>(null),[editing,setEditing]=useState<any>(null),[form,setForm]=useState<any>(null),[saving,setSaving]=useState(false),[rosterView,setRosterView]=useState<any>(null),[participationBusy,setParticipationBusy]=useState<number|null>(null);
 
   async function load(){
     setLoading(true);
     try{
-      const r=await fetch("/api/all-star-games?draftClass=2027",{cache:"no-store"}),j=await r.json();
+      const r=await fetch("/api/all-star-games?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"}),j=await r.json();
       if(!r.ok)throw new Error(j.error||"Could not load all-star games.");
       setData(j);
     }catch(e:any){setMessage({type:"error",text:e?.message||"Could not load all-star games."})}
     finally{setLoading(false)}
   }
-  useEffect(()=>{load()},[]);
+  useEffect(()=>{load()},[draftClass]);
 
   const totalInvites=useMemo(()=>data?.games?.reduce((n:number,g:any)=>n+(g.invites?.length||0),0)||0,[data]);
   const viewGame=rosterView?data?.games?.find((g:any)=>g.key===rosterView.gameKey):null;
@@ -71,14 +73,14 @@ export default function AllStarGamesPage(){
     const cfg=game.config,active=game.invites.filter((p:any)=>!isOut(p)),out=game.invites.filter((p:any)=>isOut(p)),byRoster=(key:string)=>active.filter((p:any)=>p.roster_key===key),unassigned=active.filter((p:any)=>!p.roster_key);
     const section=(name:string,players:any[])=>name+"\n"+(players.length?players.map((p:any)=>"• "+p.position+" "+p.name+" — "+(p.college||"College TBD")+"\n  ◦ ").join("\n"):"• No tracked invites yet");
     const notes=[section(cfg.rosterAName,byRoster("A")),section(cfg.rosterBName,byRoster("B")),unassigned.length?section("Accepted Invites — Roster TBD",unassigned):"",out.length?section("Not Playing / Practice Only",out):""].filter(Boolean).join("\n\n");
-    const r=await fetch("/api/game-notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"all-star-"+game.key+"-2027",kickoff:game.date,homeTeam:cfg.rosterAName,awayTeam:cfg.rosterBName,title:game.name+" - "+game.dateLabel,notes,matchupSnapshot:{type:"all-star-game",gameKey:game.key,rosterA:cfg.rosterAName,rosterB:cfg.rosterBName}})});
+    const r=await fetch("/api/game-notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"all-star-"+game.key+"-"+draftClass,kickoff:game.date,homeTeam:cfg.rosterAName,awayTeam:cfg.rosterBName,title:game.name+" - "+game.dateLabel,notes,matchupSnapshot:{type:"all-star-game",gameKey:game.key,rosterA:cfg.rosterAName,rosterB:cfg.rosterBName}})});
     if(r.ok)location.href="/game-notes";else{const j=await r.json().catch(()=>({}));setMessage({type:"error",text:j.error||"Could not create the game note."})}
   }
 
   return <div className={styles.page}>
     <div className={styles.hero}>
-      <div><div className="ey">2027 draft cycle</div><h1>College All-Star Games</h1><p>Accepted-invite tracking for the Senior Bowl, East-West Bowl, Hula Bowl and American Bowl.</p></div>
-      <div className={styles.heroActions}><div className={styles.total}><Users size={17}/><strong>{totalInvites}</strong><span>tracked invites</span></div><button className={styles.scanButton} onClick={checkInvites} disabled={scanning}>{scanning?<><RefreshCw size={17} className={styles.spin}/>Checking sources…</>:<><RefreshCw size={17}/>Check for Invites</>}</button></div>
+      <div><div className="ey">{draftClass} draft cycle</div><h1>College All-Star Games</h1><p>{historical?"Participants preserved from the historical rookie-draft workbook.":"Accepted-invite tracking for the Senior Bowl, East-West Bowl, Hula Bowl and American Bowl."}</p></div>
+      <div className={styles.heroActions}><div className={styles.total}><Users size={17}/><strong>{totalInvites}</strong><span>{historical?"historical participants":"tracked invites"}</span></div>{!historical&&<button className={styles.scanButton} onClick={checkInvites} disabled={scanning}>{scanning?<><RefreshCw size={17} className={styles.spin}/>Checking sources…</>:<><RefreshCw size={17}/>Check for Invites</>}</button>}</div>
     </div>
 
     {message&&<div className={message.type==="error"?styles.error:message.type==="warn"?styles.warning:styles.successNotice}>{message.type==="error"?<AlertTriangle size={18}/>:<CheckCircle2 size={18}/>}<div><strong>{message.text}</strong>{message.detail&&<span>{message.detail}</span>}</div></div>}
@@ -91,16 +93,16 @@ export default function AllStarGamesPage(){
         <div className={styles.brandBar}/>
         <header className={styles.gameHeader}>
           <div className={styles.gameIdentity}><div className={styles.logoWrap}><img src={game.logoUrl} alt={game.name+" logo"} className={styles.gameLogo}/></div><div><div className={styles.dateLine}>{game.dateLabel} · {game.location}</div><h2>{game.name}</h2><p>{game.tagline}</p></div></div>
-          <div className={styles.cardActions}><button className={styles.watch} onClick={()=>watchNow(game)}><Play size={15}/>Watch Now</button><button className={styles.iconButton} aria-label={"Settings for "+game.name} onClick={()=>openSettings(game)}><Settings size={18}/></button></div>
+          <div className={styles.cardActions}>{!historical&&<><button className={styles.watch} onClick={()=>watchNow(game)}><Play size={15}/>Watch Now</button><button className={styles.iconButton} aria-label={"Settings for "+game.name} onClick={()=>openSettings(game)}><Settings size={18}/></button></>}</div>
         </header>
 
-        <div className={styles.sourceStrip}>
+        {!historical&&<div className={styles.sourceStrip}>
           <a href={cfg.websiteUrl} target="_blank" rel="noreferrer"><Globe2 size={14}/>Website<ExternalLink size={12}/></a>
           <a href={cfg.twitterUrl} target="_blank" rel="noreferrer"><strong>𝕏</strong>X feed<ExternalLink size={12}/></a>
           {cfg.rosterAUrl&&<a href={cfg.rosterAUrl} target="_blank" rel="noreferrer"><Link2 size={14}/>{cfg.rosterAName}<ExternalLink size={12}/></a>}
           {cfg.rosterBUrl&&<a href={cfg.rosterBUrl} target="_blank" rel="noreferrer"><Link2 size={14}/>{cfg.rosterBName}<ExternalLink size={12}/></a>}
           <span className={styles.lastCheck}><Clock3 size={13}/>{last?"Checked "+last.toLocaleString():"Not checked yet"}</span>
-        </div>
+        </div>}
 
         <div className={styles.rosterSummary}>
           <button onClick={()=>openRoster("A",cfg.rosterAName)}><span className={styles.rosterDot+" "+styles.rosterA}/><strong>{cfg.rosterAName}</strong><b>{active.filter((p:any)=>p.roster_key==="A").length}</b></button>
@@ -122,12 +124,12 @@ export default function AllStarGamesPage(){
         <div className={styles.rosterBody}>{POSITIONS.map(pos=>{
           const ps=viewPlayers.filter((p:any)=>p.position===pos);
           if(!ps.length)return null;
-          return <section className={styles.rosterPosition} key={pos}><div className={styles.rosterPositionHead+" "+styles["pos"+pos]}><strong>{pos}</strong><span>{ps.length}</span></div><div className={styles.rosterRows}>{ps.map((p:any)=><div className={styles.rosterRow} key={p.player_id}><button data-player-id={p.player_id} className={styles.rosterPlayer} style={schoolStyle(p.college)}><strong>{p.name}</strong><span>{p.college||"College TBD"}</span></button><span className={styles.rosterSource}>{p.roster_key==="A"?viewGame.config.rosterAName:p.roster_key==="B"?viewGame.config.rosterBName:sourceLabel(p.source_kind)}</span>{isOut(p)?<button className={styles.restoreButton} disabled={participationBusy===Number(p.player_id)} onClick={()=>setParticipation(viewGame.key,p,"ACTIVE")}><RotateCcw size={13}/>Restore</button>:<button className={styles.optOutButton} disabled={participationBusy===Number(p.player_id)} onClick={()=>setParticipation(viewGame.key,p,"OPTED_OUT")}><Ban size={13}/>Opt Out</button>}</div>)}</div></section>
+          return <section className={styles.rosterPosition} key={pos}><div className={styles.rosterPositionHead+" "+styles["pos"+pos]}><strong>{pos}</strong><span>{ps.length}</span></div><div className={styles.rosterRows}>{ps.map((p:any)=><div className={styles.rosterRow} key={p.player_id}><button data-player-id={p.player_id} className={styles.rosterPlayer} style={schoolStyle(p.college)}><strong>{p.name}</strong><span>{p.college||"College TBD"}</span></button><span className={styles.rosterSource}>{p.roster_key==="A"?viewGame.config.rosterAName:p.roster_key==="B"?viewGame.config.rosterBName:sourceLabel(p.source_kind)}</span>{!historical&&(isOut(p)?<button className={styles.restoreButton} disabled={participationBusy===Number(p.player_id)} onClick={()=>setParticipation(viewGame.key,p,"ACTIVE")}><RotateCcw size={13}/>Restore</button>:<button className={styles.optOutButton} disabled={participationBusy===Number(p.player_id)} onClick={()=>setParticipation(viewGame.key,p,"OPTED_OUT")}><Ban size={13}/>Opt Out</button>)}</div>)}</div></section>
         })}{!viewPlayers.length&&<div className={styles.rosterEmpty}>No players are assigned to this roster yet.</div>}</div>
       </div>
     </div>}
 
-    {editing&&form&&<div className={styles.modalBackdrop} onMouseDown={e=>e.target===e.currentTarget&&setEditing(null)}>
+    {!historical&&editing&&form&&<div className={styles.modalBackdrop} onMouseDown={e=>e.target===e.currentTarget&&setEditing(null)}>
       <div className={styles.modal}>
         <div className={styles.modalHead}><div><div className="ey">Invite Sources</div><h2>{editing.name}</h2><p>Update where Check for Invites looks and how the two game rosters are labeled.</p></div><button className={styles.closeButton} onClick={()=>setEditing(null)} aria-label="Close"><X size={20}/></button></div>
         <div className={styles.formGrid}>

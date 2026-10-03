@@ -5,6 +5,7 @@ import {useEffect,useMemo,useState} from "react";
 import {workbookReference as w} from "@/lib/workbook-reference";
 import {schoolStyle} from "@/lib/school-colors";
 import styles from "./colleges.module.css";
+import {useDraftClass} from "@/lib/use-draft-class";
 
 type Level="FBS"|"FCS";
 type ViewMode="overview"|"workbook";
@@ -78,8 +79,10 @@ function Metric({label,value,accent}:{label:string;value:any;accent?:"pass"|"rus
 }
 
 export default function Page(){
+  const draftClass=useDraftClass(),historical=draftClass<2027;
   const [level,setLevel]=useState<Level>("FBS");
   const [cloud,setCloud]=useState<any[]>([]);
+  const [historicalBase,setHistoricalBase]=useState<any[][]>([]);
   const [overrides,setOverrides]=useState<OverrideRow[]>([]);
   const [logos,setLogos]=useState<Record<string,string>>({});
   const [cloudLoading,setCloudLoading]=useState(true);
@@ -94,6 +97,17 @@ export default function Page(){
   async function loadData(){
     setCloudLoading(true);
     try{
+      if(historical){
+        const [histResponse,logoResponse]=await Promise.all([
+          fetch("/api/historical-colleges?draftClass="+encodeURIComponent(String(draftClass))+"&level="+level,{cache:"no-store"}),
+          fetch("/api/college-logos",{cache:"force-cache"})
+        ]);
+        const [histJson,logoJson]=await Promise.all([histResponse.json(),logoResponse.json()]);
+        if(histResponse.ok&&Array.isArray(histJson?.rows))setHistoricalBase(histJson.rows);else setHistoricalBase([]);
+        setCloud([]);setOverrides([]);
+        if(logoResponse.ok&&logoJson&&typeof logoJson==="object"&&!Array.isArray(logoJson))setLogos(logoJson);
+        return;
+      }
       const [statsResponse,overrideResponse,logoResponse]=await Promise.all([fetch("/api/college-stats",{cache:"no-store"}),fetch("/api/college-stats/overrides",{cache:"no-store"}),fetch("/api/college-logos",{cache:"force-cache"})]);
       const [statsJson,overrideJson,logoJson]=await Promise.all([statsResponse.json(),overrideResponse.json(),logoResponse.json()]);
       if(statsResponse.ok&&Array.isArray(statsJson))setCloud(statsJson);
@@ -102,9 +116,9 @@ export default function Page(){
     }finally{setCloudLoading(false)}
   }
 
-  useEffect(()=>{void loadData()},[]);
+  useEffect(()=>{void loadData()},[draftClass,level]);
 
-  const base:any[][]=level==="FBS"?w.colleges:w.nonFbs;
+  const base:any[][]=historical?historicalBase:(level==="FBS"?w.colleges:w.nonFbs);
   const cloudByTeam=useMemo(()=>new Map(cloud.filter(row=>row.subdivision===level).map(row=>[norm(row.team),row])),[cloud,level]);
   const overridesByTeam=useMemo(()=>{
     const map=new Map<string,Map<number,string>>();
@@ -117,7 +131,7 @@ export default function Page(){
     return map;
   },[overrides,level]);
   const rows=useMemo(()=>base.map((r:any[],i:number)=>{
-    if(i<2)return r;
+    if(i<2||historical)return r;
     let n=[...r];
     const c=cloudByTeam.get(norm(r[1]));
     if(c){
@@ -129,7 +143,7 @@ export default function Page(){
     n=deriveOffense(n);
     if(manual)for(const [idx,value] of manual)n[idx]=value;
     return n;
-  }),[base,cloudByTeam,overridesByTeam]);
+  }),[base,cloudByTeam,overridesByTeam,historical]);
 
   const teamRows=useMemo(()=>rows.slice(2).filter((r:any[])=>String(r?.[1]||"").trim()),[rows]);
   const totalProspects=useMemo(()=>teamRows.reduce((sum,r)=>sum+count(r[2]),0),[teamRows]);
@@ -158,7 +172,7 @@ export default function Page(){
   },""),[cloud]);
 
   async function refreshNcaa(){
-    if(level!=="FBS"||refreshState==="loading")return;
+    if(historical||level!=="FBS"||refreshState==="loading")return;
     setRefreshState("loading");
     setRefreshMessage("Fetching the current NCAA.com FBS passing and rushing tables…");
     try{
@@ -175,6 +189,7 @@ export default function Page(){
   }
 
   async function saveOverride(team:string,columnIndex:number,value:string){
+    if(historical)return;
     const key=`${level}|${team}|${columnIndex}`;
     setSavingCell(key);
     setOverrides(prev=>{
@@ -200,7 +215,7 @@ export default function Page(){
       <div className={styles.heroCopy}>
         <div className={styles.eyebrow}>College Data Center</div>
         <h1>{level==="FBS"?"Colleges · Players + Stats":"Non-FBS · Players + Stats"}</h1>
-        <p>Start with the programs that matter to the 2027 draft pool, then drill into passing, rushing, total offense and usage without living inside a giant spreadsheet.</p>
+        <p>{historical?`Historical ${draftClass-1} team offense and the ${draftClass} prospects attached to those programs.`:"Start with the programs that matter to the 2027 draft pool, then drill into passing, rushing, total offense and usage without living inside a giant spreadsheet."}</p>
       </div>
       <div className={styles.heroStats}>
         <div><span>Programs</span><strong>{teamRows.length}</strong></div>
@@ -236,9 +251,9 @@ export default function Page(){
         </select>
       </label>
 
-      <button className={[styles.refreshButton,refreshState==="loading"?styles.refreshing:""].filter(Boolean).join(" ")} onClick={refreshNcaa} disabled={level!=="FBS"||refreshState==="loading"} title={level!=="FBS"?"The original NCAA refresh script covers FBS teams.":"Refresh all FBS team stats from NCAA.com"}>
+      {!historical&&<button className={[styles.refreshButton,refreshState==="loading"?styles.refreshing:""].filter(Boolean).join(" ")} onClick={refreshNcaa} disabled={level!=="FBS"||refreshState==="loading"} title={level!=="FBS"?"The original NCAA refresh script covers FBS teams.":"Refresh all FBS team stats from NCAA.com"}>
         {refreshState==="loading"?"Refreshing…":"Refresh NCAA Stats"}
-      </button>
+      </button>}
 
       <div className={styles.segmented} aria-label="View mode">
         <button className={view==="overview"?styles.active:""} onClick={()=>setView("overview")}>Overview</button>
@@ -248,7 +263,7 @@ export default function Page(){
 
     <div className={styles.resultsMeta}>
       <div><strong>{visibleRows.length}</strong> of {teamRows.length} programs shown{prospectsOnly?" · players-to-scout filter on":""}</div>
-      <div className={styles.syncState}><i className={cloud.length?styles.live:cloudLoading?styles.loading:""}/>{cloudLoading?"Checking college stats…":cloud.length?`${cloud.length} cloud team records${latestUpdate?" · synced":""}`:"Workbook reference data"}</div>
+      <div className={styles.syncState}><i className={cloud.length?styles.live:cloudLoading?styles.loading:""}/>{historical?(cloudLoading?"Loading historical team stats…":`${draftClass-1} source workbook`):(cloudLoading?"Checking college stats…":cloud.length?`${cloud.length} cloud team records${latestUpdate?" · synced":""}`:"Workbook reference data")}</div>
     </div>
 
     {refreshMessage&&<div className={[styles.refreshNotice,refreshState==="error"?styles.refreshError:refreshState==="success"?styles.refreshSuccess:""].filter(Boolean).join(" ")}><span>{refreshMessage}</span>{latestUpdate&&refreshState!=="loading"?<time>{new Date(latestUpdate).toLocaleString()}</time>:null}</div>}
@@ -282,8 +297,8 @@ export default function Page(){
 
           <div className={styles.teamBody}>
             <div className={styles.prospectPanel}>
-              <div className={styles.panelLabel}>2027 players to scout</div>
-              {prospects.length?<div className={styles.prospectChips}>{prospects.map(name=><span key={name}>{name}</span>)}</div>:<div className={styles.noProspects}>No current 2027 prospects attached to this program.</div>}
+              <div className={styles.panelLabel}>{draftClass} players to scout</div>
+              {prospects.length?<div className={styles.prospectChips}>{prospects.map(name=><span key={name}>{name}</span>)}</div>:<div className={styles.noProspects}>No {draftClass} prospects attached to this program.</div>}
             </div>
             <div className={styles.offenseSnapshot}>
               <div className={styles.snapshotGroup}>
@@ -311,8 +326,8 @@ export default function Page(){
       {!visibleRows.length&&<div className={styles.emptyState}><strong>No programs match these filters.</strong><span>Clear the search or turn off Has Players to Scout.</span></div>}
     </section>:<section className={styles.workbookShell}>
       <div className={styles.workbookNote}>
-        <div><strong>Editable workbook view</strong><span>Rank is removed. Click any non-team cell to edit; changes save automatically.</span></div>
-        <small>NCAA refresh replaces NCAA-driven offense fields. Manual fields such as YAC, Air Yards, and prospect notes remain yours.</small>
+        <div><strong>{historical?"Historical workbook view":"Editable workbook view"}</strong><span>{historical?`Read-only ${draftClass-1} team data preserved from the ${draftClass} draft workbook.`:"Rank is removed. Click any non-team cell to edit; changes save automatically."}</span></div>
+        <small>{historical?"Historical values are never replaced by current NCAA data.":"NCAA refresh replaces NCAA-driven offense fields. Manual fields such as YAC, Air Yards, and prospect notes remain yours."}</small>
       </div>
       <div className={styles.tableWrap}>
         <table className={styles.workbookTable}>
@@ -324,7 +339,7 @@ export default function Page(){
             const team=String(r[1]);
             return <tr key={team+"-"+ri}>{WORKBOOK_COLUMNS.map(ci=>{
               const cellKey=`${level}|${team}|${ci}`,isTeam=ci===1;
-              return <td key={ci} className={[isTeam?styles.stickyTeam:styles.editableCell,ci===3?styles.playersCell:"",savingCell===cellKey?styles.savingCell:""].filter(Boolean).join(" ")} style={isTeam?schoolStyle(team):undefined} contentEditable={!isTeam} suppressContentEditableWarning onBlur={isTeam?undefined:e=>{const value=e.currentTarget.textContent||"";if(value!==display(r[ci]))void saveOverride(team,ci,value)}} onKeyDown={isTeam?undefined:e=>{if(e.key==="Enter"){e.preventDefault();e.currentTarget.blur()}if(e.key==="Escape"){e.preventDefault();e.currentTarget.textContent=display(r[ci]);e.currentTarget.blur()}}}>{display(r?.[ci])}</td>;
+              return <td key={ci} className={[isTeam?styles.stickyTeam:styles.editableCell,ci===3?styles.playersCell:"",savingCell===cellKey?styles.savingCell:""].filter(Boolean).join(" ")} style={isTeam?schoolStyle(team):undefined} contentEditable={!isTeam&&!historical} suppressContentEditableWarning onBlur={isTeam||historical?undefined:e=>{const value=e.currentTarget.textContent||"";if(value!==display(r[ci]))void saveOverride(team,ci,value)}} onKeyDown={isTeam||historical?undefined:e=>{if(e.key==="Enter"){e.preventDefault();e.currentTarget.blur()}if(e.key==="Escape"){e.preventDefault();e.currentTarget.textContent=display(r[ci]);e.currentTarget.blur()}}}>{display(r?.[ci])}</td>;
             })}</tr>;
           })}</tbody>
         </table>

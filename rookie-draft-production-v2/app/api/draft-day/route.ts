@@ -1,4 +1,6 @@
-import {ensureTursoSchema} from "@/lib/turso";
+import {ensureTursoSchema,rows} from "@/lib/turso";
+import {historicalLeagueDraft,historicalLeagueDrafts} from "@/lib/historical-draft-day";
+import {getNflDraftPicks,normalizeDraftName} from "@/lib/nfl-draft-results";
 import {getIntegrations} from "@/lib/integrations";
 
 const LEAGUE_VIEWS=[
@@ -7,6 +9,20 @@ const LEAGUE_VIEWS=[
   {slug:"last-minute",boardKey:"last-minute-dynasty",name:"Last Minute",fallbackRounds:3,fallbackTeams:10,superflex:true},
   {slug:"dr",boardKey:"drew-ross",name:"D+R",fallbackRounds:3,fallbackTeams:12,superflex:true}
 ];
+
+async function historicalDraftResult(draftClass:number,slug:string){
+  const source=historicalLeagueDraft(draftClass,slug);
+  if(!source)return null;
+  const db=await ensureTursoSchema();
+  const playerRows=rows(await db.execute({sql:"select id,name,position,college from players where draft_class=?",args:[draftClass]}));
+  const playerMap=new Map(playerRows.map((p:any)=>[normalizeDraftName(p.name),p]));
+  const nfl=await getNflDraftPicks(draftClass),nflMap=new Map(nfl.map(p=>[normalizeDraftName(p.name),p]));
+  const picks=source.picks.map(p=>{
+    const player=playerMap.get(normalizeDraftName(p.player)) as any,nflPick=nflMap.get(normalizeDraftName(p.player));
+    return {round:p.round,pickNo:p.pickNo,slot:p.slot,rosterId:null,team:p.team,isMine:/^me$/i.test(p.team),playerId:player?.id?String(player.id):null,player:p.player,position:player?.position||nflPick?.pos||null,proTeam:nflPick?.team||null};
+  });
+  return {draftClass,historical:true,exists:source.exists,league:source.name,slug:source.slug,boardKey:source.slug==="dr"?"drew-ross":source.slug==="last-minute"?"last-minute-dynasty":source.slug,status:source.status,total:source.total,teams:source.teams,rounds:source.rounds,picks,slots:picks,sourceSheet:source.sourceSheet};
+}
 
 async function j(url:string){
   const r=await fetch(url,{cache:"no-store"});
@@ -118,8 +134,17 @@ async function leaguePicks(l:any){
 
 export async function GET(req:Request){
   try{
+    const u=new URL(req.url),draftClass=Number(u.searchParams.get("draftClass")||2027),slug=u.searchParams.get("slug");
+    if(draftClass<2027){
+      if(slug){
+        const result=await historicalDraftResult(draftClass,slug);
+        if(!result)return Response.json({error:"Draft league not found"},{status:404});
+        return Response.json(result);
+      }
+      const leagues=historicalLeagueDrafts(draftClass).map(x=>({slug:x.slug,boardKey:x.slug==="dr"?"drew-ross":x.slug==="last-minute"?"last-minute-dynasty":x.slug,name:x.name,rounds:x.rounds,teams:x.teams,tePremium:x.slug==="last-man-standing"||x.slug==="last-minute",exists:x.exists,status:x.status,historical:true}));
+      return Response.json({draftClass,historical:true,leagues});
+    }
     const leagues=await leagueConfigs();
-    const slug=new URL(req.url).searchParams.get("slug");
     if(slug){
       const league=leagues.find(x=>x.slug===slug);
       if(!league)return Response.json({error:"Draft league not found"},{status:404});
@@ -133,6 +158,8 @@ export async function GET(req:Request){
 
 export async function POST(req:Request){
   try{
+    const u=new URL(req.url),draftClass=Number(u.searchParams.get("draftClass")||2027);
+    if(draftClass<2027)return Response.json({error:"Historical drafts are read-only."},{status:409});
     const {action}=await req.json(),q=await ensureTursoSchema(),now=new Date().toISOString(),leagues=await leagueConfigs();
     if(action==="adp"||action==="force-adp"){
       const base=await adp();

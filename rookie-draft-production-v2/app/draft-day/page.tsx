@@ -4,6 +4,7 @@ import {useEffect,useMemo,useState} from "react";
 import Image from "next/image";
 import PlayerName from "@/components/PlayerName";
 import {FINAL_BOARD_POSITIONS,type FinalBoardScoredRow} from "@/lib/final-board";
+import {useDraftClass} from "@/lib/use-draft-class";
 
 type Pick={
   round:number;
@@ -32,7 +33,7 @@ type LeagueResult={
 };
 type AdpPlayer={name:string;position:string;team:string;college:string;adp:number;playerId:string;adjustedADP:number};
 type AdpLeague={league:string;slug:string;top75:AdpPlayer[]};
-type LeagueMeta={slug:string;boardKey:string;name:string;rounds:number;teams:number;tePremium?:boolean};
+type LeagueMeta={slug:string;boardKey:string;name:string;rounds:number;teams:number;tePremium?:boolean;exists?:boolean;status?:string;historical?:boolean};
 type IntelRow=FinalBoardScoredRow&{adpRank:number|null;delta:number|null};
 type BoardPayload={view?:{key:string;label:string;tePremium:boolean;rosterKey?:string};rows?:FinalBoardScoredRow[]};
 type TradeAsset={name:string;position?:string;value:number;source?:string};
@@ -56,10 +57,10 @@ const ESPN_TEAM:Record<string,string>={
   HOU:"hou",IND:"ind",JAX:"jax",KC:"kc",LAC:"lac",LAR:"lar",LV:"lv",MIA:"mia",MIN:"min",NE:"ne",NO:"no",NYG:"nyg",NYJ:"nyj",
   PHI:"phi",PIT:"pit",SEA:"sea",SF:"sf",TB:"tb",TEN:"ten",WAS:"wsh"
 };
-const nflLogo=(team?:string|null)=>team&&ESPN_TEAM[team]?`https://a.espncdn.com/i/teamlogos/nfl/500/${ESPN_TEAM[team]}.png`:null;
-const PREVIEW_CLEAR_ONE_LEAGUE=true;
-
+const NFL_NAME_CODE:Record<string,string>={Cardinals:"ari",Falcons:"atl",Ravens:"bal",Bills:"buf",Panthers:"car",Bears:"chi",Bengals:"cin",Browns:"cle",Cowboys:"dal",Broncos:"den",Lions:"det",Packers:"gb",Texans:"hou",Colts:"ind",Jaguars:"jax",Chiefs:"kc",Raiders:"lv",Chargers:"lac",Rams:"lar",Dolphins:"mia",Vikings:"min",Patriots:"ne",Saints:"no",Giants:"nyg",Jets:"nyj",Eagles:"phi",Steelers:"pit",Seahawks:"sea","49ers":"sf",Buccaneers:"tb",Titans:"ten",Commanders:"wsh"};
+const nflLogo=(team?:string|null)=>{if(!team)return null;const code=ESPN_TEAM[team]||NFL_NAME_CODE[team]||Object.entries(NFL_NAME_CODE).find(([name])=>String(team).toLowerCase().includes(name.toLowerCase()))?.[1];return code?"https://a.espncdn.com/i/teamlogos/nfl/500/"+code+".png":null};
 export default function DraftDayPage(){
+  const draftClass=useDraftClass(),historical=draftClass<2027;
   const [leagues,setLeagues]=useState<LeagueMeta[]>([]);
   const [results,setResults]=useState<LeagueResult[]>([]);
   const [adpLists,setAdpLists]=useState<AdpLeague[]>([]);
@@ -82,15 +83,16 @@ export default function DraftDayPage(){
   const [tradeError,setTradeError]=useState("");
 
   async function loadMeta(){
-    const r=await fetch("/api/draft-day",{cache:"no-store"});
+    const r=await fetch("/api/draft-day?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"});
     const j=await r.json();
     const next=Array.isArray(j.leagues)?j.leagues:[];
     setLeagues(next);
-    if(!slug&&next.length)setSlug(next[0].slug);
+    if(next.length&&!next.some((x:LeagueMeta)=>x.slug===slug))setSlug(next[0].slug);
   }
 
   async function loadStatus(){
     setError("");
+    if(historical){setResults([]);setAdpLists([]);setUpdatedAt(null);setArchivedNames(new Set());setLoading(false);return}
     try{
       const [statusRes,archiveRes]=await Promise.all([
         fetch("/api/draft-day/status",{cache:"no-store"}),
@@ -114,7 +116,7 @@ export default function DraftDayPage(){
 
   async function loadLiveDraft(nextSlug:string){
     try{
-      const r=await fetch("/api/draft-day?slug="+encodeURIComponent(nextSlug),{cache:"no-store"});
+      const r=await fetch("/api/draft-day?draftClass="+encodeURIComponent(String(draftClass))+"&slug="+encodeURIComponent(nextSlug),{cache:"no-store"});
       const data=await r.json();
       if(!r.ok)throw new Error(data?.error||"Could not load live draft");
       setLiveDraft(data);
@@ -126,7 +128,7 @@ export default function DraftDayPage(){
   async function loadBoard(boardKey:string){
     setBoardLoading(true);
     try{
-      const r=await fetch("/api/final-board/live?view="+encodeURIComponent("league:"+boardKey),{cache:"no-store"});
+      const r=await fetch("/api/final-board/live?view="+encodeURIComponent(historical?"base":"league:"+boardKey)+"&draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"});
       const data:BoardPayload&{error?:string}=await r.json();
       if(!r.ok)throw new Error(data?.error||"Could not load league Final Draft Board");
       setBoardRows(Array.isArray(data.rows)?data.rows:[]);
@@ -140,6 +142,7 @@ export default function DraftDayPage(){
   }
 
   useEffect(()=>{
+    setLoading(true);setLiveDraft(null);setBoardRows([]);setError("");
     loadMeta();
     loadStatus();
     const refresh=()=>loadStatus();
@@ -149,19 +152,19 @@ export default function DraftDayPage(){
       window.removeEventListener("rookie-draft:archives-changed",refresh);
       window.removeEventListener("rookie-draft:players-changed",refresh);
     };
-  },[]);
+  },[draftClass]);
 
   const activeMeta=leagues.find(x=>x.slug===slug);
   useEffect(()=>{
     if(activeMeta?.boardKey)loadBoard(activeMeta.boardKey);
     if(activeMeta?.slug)loadLiveDraft(activeMeta.slug);
-  },[activeMeta?.boardKey,activeMeta?.slug]);
+  },[activeMeta?.boardKey,activeMeta?.slug,draftClass]);
 
   async function sync(kind:"picks"|"adp"){
     setSyncing(kind);
     setError("");
     try{
-      const r=await fetch("/api/draft-day",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:kind==="adp"?"adp":"sync"})});
+      const r=await fetch("/api/draft-day?draftClass="+encodeURIComponent(String(draftClass)),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:kind==="adp"?"adp":"sync"})});
       const j=await r.json();
       if(!r.ok)throw new Error(j.error||"Sync failed");
       await loadStatus();
@@ -175,15 +178,7 @@ export default function DraftDayPage(){
 
   const savedActive=results.find(x=>x.slug===slug);
   const activeBase=liveDraft?.slug===slug?liveDraft:savedActive;
-  const active=useMemo<LeagueResult|undefined>(()=>{
-    if(!activeBase)return undefined;
-    if(activeBase.slots?.length){
-      const rows=activeBase.slots.map(p=>slug==="one-league"&&PREVIEW_CLEAR_ONE_LEAGUE?{...p,playerId:null,player:null,position:null,proTeam:null}:p);
-      return {...activeBase,picks:rows};
-    }
-    if(slug==="one-league"&&PREVIEW_CLEAR_ONE_LEAGUE)return {...activeBase,picks:[]};
-    return activeBase;
-  },[activeBase,slug]);
+  const active=useMemo<LeagueResult|undefined>(()=>activeBase||undefined,[activeBase]);
   const activeAdp=adpLists.find(x=>x.slug===slug);
   const q=query.trim().toLowerCase();
 
@@ -288,7 +283,7 @@ export default function DraftDayPage(){
       <div>
         <div className="ey">Draft Day</div>
         <h1>Rookie Draft Command Center</h1>
-        <p>Live Sleeper picks on the left. The <b>same league-specific Final Draft Board output</b> used by the Final Draft Board page—or Sleeper ADP—on the right.</p>
+        <p>{historical?<>Archived {draftClass} rookie-draft results from the source workbook on the left, with the historical Final Draft Board on the right.</>:<>Live Sleeper picks on the left. The <b>same league-specific Final Draft Board output</b> used by the Final Draft Board page—or Sleeper ADP—on the right.</>}</p>
       </div>
       <span className={"status "+(error?"":loading?"":"cloud")}>{loading?"Connecting…":error?"● Data issue":updatedAt?"● Live · "+new Date(updatedAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"● Ready"}</span>
     </section>
@@ -300,15 +295,15 @@ export default function DraftDayPage(){
         {leagues.map(l=><button key={l.slug} className={slug===l.slug?"active":""} onClick={()=>{setSlug(l.slug);setQuery("");setIntelTab("board")}}>{l.name}</button>)}
       </div>
       <div className="dd-inline-status">
-        {slug==="one-league"&&PREVIEW_CLEAR_ONE_LEAGUE?<span className="test">Preview test · picks cleared</span>:<span>{active?.status||"Waiting for Sleeper"}</span>}
+        <span>{active?.status||(historical?"Historical draft unavailable":"Waiting for Sleeper")}</span>
         <b>{madeCount} / {totalPicks||"—"} picks</b>
       </div>
     </section>
 
     <section className="dd-controls">
       <div className="dd-search"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search player, team, college or position…"/></div>
-      <button className="ghost" disabled={syncing!==""} onClick={()=>sync("picks")}>{syncing==="picks"?"Syncing picks…":"↻ Sync picks"}</button>
-      <button className="ghost" disabled={syncing!==""} onClick={()=>sync("adp")}>{syncing==="adp"?"Syncing ADP…":"↻ Sync ADP"}</button>
+      {!historical&&<><button className="ghost" disabled={syncing!==""} onClick={()=>sync("picks")}>{syncing==="picks"?"Syncing picks…":"↻ Sync picks"}</button>
+      <button className="ghost" disabled={syncing!==""} onClick={()=>sync("adp")}>{syncing==="adp"?"Syncing ADP…":"↻ Sync ADP"}</button></>}
     </section>
 
     <section className="dd-best">
@@ -339,7 +334,7 @@ export default function DraftDayPage(){
     <section className="dd-command-grid">
       <article className="dd-panel dd-live-panel">
         <header>
-          <div><span>Live Sleeper draft</span><h2>Draft feed</h2></div>
+          <div><span>{historical?"Historical rookie draft":"Live Sleeper draft"}</span><h2>Draft feed</h2></div>
           <div className="dd-live-count"><b>{madeCount}</b><small>picks</small></div>
         </header>
         {active?.error&&<div className="dd-inline-error">{active.error}</div>}
@@ -359,7 +354,7 @@ export default function DraftDayPage(){
                 {!p.player&&(p.isMine?<span className="dd-own-pick">YOUR PICK</span>:<button type="button" onClick={()=>openTradeIdeas(p)}>Trade ideas</button>)}
               </div>
             </div>;
-          }):<div className="dd-empty">{active?.picks?.length?"No picks match this search.":"No Sleeper draft slots are available yet."}</div>}
+          }):<div className="dd-empty">{active?.picks?.length?"No picks match this search.":historical?(active?.status||"No archived draft results are available for this league."):"No Sleeper draft slots are available yet."}</div>}
         </div>
       </article>
 
@@ -369,7 +364,7 @@ export default function DraftDayPage(){
           <div className="dd-intel-actions">
             <div className="dd-intel-tabs">
               <button className={intelTab==="board"?"active":""} onClick={()=>setIntelTab("board")}>My Board</button>
-              <button className={intelTab==="adp"?"active":""} onClick={()=>setIntelTab("adp")}>Sleeper ADP</button>
+              {!historical&&<button className={intelTab==="adp"?"active":""} onClick={()=>setIntelTab("adp")}>Sleeper ADP</button>}
             </div>
             <label className={"dd-hide-selected "+(hideSelected?"active":"")}>
               <input type="checkbox" checked={hideSelected} onChange={e=>setHideSelected(e.target.checked)}/>
