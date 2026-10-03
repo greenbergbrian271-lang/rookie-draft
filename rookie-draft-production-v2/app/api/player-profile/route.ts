@@ -1,5 +1,5 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
-import {findCollegeTeam,teamScheduleWithPlayerStats} from "@/lib/college-team";
+import {findCollegeTeam,teamScheduleWithPlayerStats,resolvePlayerMedia} from "@/lib/college-team";
 import {draftAdjustedFinalGrade,preDraftGrade,workbookScoutingGrade} from "@/lib/scouting-formulas";
 import {loadScoutingGlossary} from "@/lib/scouting-glossary-store";
 import {findHistoricalScoutingSnapshot,historicalEvaluations,historicalGradeData} from "@/lib/historical-scouting";
@@ -11,9 +11,20 @@ export async function GET(req:Request){
   try{
     const id=new URL(req.url).searchParams.get("id");
     if(!id)return Response.json({error:"id required"},{status:400});
-    const q=await ensureTursoSchema(),glossary=await loadScoutingGlossary(q),p:any=rows(await q.execute({sql:"select * from players where id=?",args:[id]}))[0];
+    const q=await ensureTursoSchema(),glossary=await loadScoutingGlossary(q);let p:any=rows(await q.execute({sql:"select * from players where id=?",args:[id]}))[0];
     if(!p)return Response.json({error:"Player not found"},{status:404});
-    const historical=Number(p.draft_class)<2027,snapshot=historical?findHistoricalScoutingSnapshot(Number(p.draft_class),String(p.position),String(p.name)):null;
+    const historical=Number(p.draft_class)<2027;
+    if(historical&&(!p.espn_athlete_id||!p.headshot_url)){
+      try{
+        const m=await resolvePlayerMedia(String(p.name),String(p.college||""));
+        if(m.espnId||m.url||m.jersey){
+          const now=new Date().toISOString();
+          p={...p,espn_athlete_id:m.espnId||p.espn_athlete_id||null,espn_source:m.espnId?m.source:p.espn_source,headshot_url:m.url||p.headshot_url||null,headshot_source:m.url?m.source:p.headshot_source,jersey_number:m.jersey||p.jersey_number||null};
+          await q.execute({sql:"update players set espn_athlete_id=?,espn_source=?,headshot_url=?,headshot_source=?,jersey_number=?,updated_at=? where id=?",args:[p.espn_athlete_id,p.espn_source,p.headshot_url,p.headshot_source,p.jersey_number,now,p.id]});
+        }
+      }catch{}
+    }
+    const snapshot=historical?findHistoricalScoutingSnapshot(Number(p.draft_class),String(p.position),String(p.name)):null;
     const es=historical?historicalEvaluations(snapshot):rows(await q.execute({sql:"select category,value,commentary from evaluations where player_id=? order by category",args:[id]}));
     const g=historical?historicalGradeData(snapshot):gradeData(p,es,glossary),rankMap=await appBoardRanks(q,Number(p.draft_class));
     const teamPlayersRaw=p.college?rows(await q.execute({sql:"select id,name,position,college,scouting_status,headshot_url,jersey_number from players where draft_class=? and lower(coalesce(college,''))=lower(?) and id<>? order by position,watch_order,name",args:[p.draft_class,p.college,p.id]})):[];
