@@ -25,31 +25,52 @@ export async function playerGameStatLine(eventId:string,teamId:string,athleteId:
 export async function teamScheduleWithPlayerStats(teamId:string,athleteId:string,position:string){const events=await teamSchedule(teamId);return Promise.all(events.map(async(e:any)=>{const comp=e?.competitions?.[0]||{},competitors=comp.competitors||[],me=competitors.find((x:any)=>String(x?.id)===String(teamId)||String(x?.team?.id)===String(teamId)),opp=competitors.find((x:any)=>x!==me),completed=Boolean(comp?.status?.type?.completed),neutral=Boolean(comp?.neutralSite),relation=neutral?"vs":me?.homeAway==="away"?"@":"vs",teamScore=scoreValue(me?.score),opponentScore=scoreValue(opp?.score),wl=completed?(me?.winner===true?"W":me?.winner===false?"L":"T"):"",statusText=comp?.status?.type?.shortDetail||comp?.status?.type?.description||"",resultLine=completed?`Final ${wl} ${teamScore}-${opponentScore} ${relation} ${opp?.team?.abbreviation||opp?.team?.shortDisplayName||"Opponent"}`:`${statusText||"Scheduled"} ${relation} ${opp?.team?.abbreviation||opp?.team?.shortDisplayName||"Opponent"}`,playerStats=completed?await playerGameStatLine(String(e.id),teamId,athleteId,position):"";return {id:String(e.id),date:e.date,name:e.name,shortName:e.shortName,completed,resultLine,playerStats,opponent:opp?.team?.displayName||"",opponentAbbr:opp?.team?.abbreviation||"",teamScore,opponentScore,status:statusText}}))}
 export type PlayerMediaResult={espnId:string;url:string;jersey:string|null;logo:string;source:string;reason:string};
 function athleteMedia(a:any,source:string,fallbackLogo=""):PlayerMediaResult{const espnId=String(a?.id||a?.uid||"").match(/(?:a:)?(\d+)$/)?.[1]||"",url=String(a?.headshot?.href||a?.headshot||a?.image?.default||(espnId?`https://a.espncdn.com/i/headshots/college-football/players/full/${espnId}.png`:"")),jersey=String(a?.jersey||"").trim()||null,logo=String(logoOf(a?.team)||fallbackLogo||"");return {espnId,url,jersey,logo,source,reason:""}}
+function espnSearchImage(value:any):string{
+  const candidates=[value?.image?.default?.href,value?.image?.default,value?.image?.href,value?.headshot?.href,value?.headshot,value?.thumbnail?.href];
+  for(const item of candidates)if(typeof item==="string"&&/^https?:\/\//.test(item))return item;
+  return "";
+}
+function espnSearchLink(value:any):string{
+  const candidates=[value?.link?.web,value?.web,value?.href,value?.url,value?.links?.web?.href];
+  for(const item of candidates)if(typeof item==="string")return item;
+  return "";
+}
+function espnSearchId(value:any):string{
+  const link=espnSearchLink(value),image=espnSearchImage(value),uid=String(value?.uid||"");
+  return link.match(/\/id\/(\d+)/)?.[1]||image.match(/\/full\/(\d+)(?:\.|\/)/)?.[1]||uid.match(/~a:(\d+)/)?.[1]||(String(value?.id||"").match(/^\d{4,}$/)?.[0]||"");
+}
 function collectEspnSearchCandidates(value:any,out:any[]=[],depth=0):any[]{
   if(value==null||depth>7)return out;
   if(Array.isArray(value)){for(const item of value)collectEspnSearchCandidates(item,out,depth+1);return out}
   if(typeof value!=="object")return out;
-  const name=String(value.displayName||value.fullName||value.name||"").trim();
-  const id=String(value.id||value.uid||"").match(/(?:a:)?(\d+)$/)?.[1]||String(value.link?.web||value.web||value.href||"").match(/\/id\/(\d+)/)?.[1]||"";
-  if(name&&id&&samePlayerName(name,name))out.push(value);
+  const name=String(value.displayName||value.fullName||value.name||"").trim(),id=espnSearchId(value);
+  if(name&&id)out.push(value);
   for(const child of Object.values(value))if(child&&typeof child==="object")collectEspnSearchCandidates(child,out,depth+1);
   return out;
 }
 async function searchEspnPlayer(name:string,college:string){
-  const u=new URL("https://site.web.api.espn.com/apis/search/v2");u.search=new URLSearchParams({query:name,sport:"football",limit:"20"}).toString();
+  const u=new URL("https://site.web.api.espn.com/apis/search/v2");u.search=new URLSearchParams({query:name,sport:"football",limit:"30"}).toString();
   const r=await fetch(u,{next:{revalidate:604800}});if(!r.ok)return null;
   const j=await r.json(),candidates=collectEspnSearchCandidates(j).filter((x:any)=>samePlayerName(x.displayName||x.fullName||x.name||"",name));
   if(!candidates.length)return null;
-  const unique=new Map<string,any>();for(const x of candidates){const id=String(x.id||x.uid||"").match(/(?:a:)?(\d+)$/)?.[1]||String(x.link?.web||x.web||x.href||"").match(/\/id\/(\d+)/)?.[1]||"";if(id&&!unique.has(id))unique.set(id,x)}
-  const pool=[...unique.values()],ck=collegeKey(college),score=(x:any)=>{let n=0;const text=[x.subtitle,x.description,x.defaultLeagueSlug,x.sport,x.team?.displayName,x.team?.shortDisplayName].filter(Boolean).join(" ");if(/college|ncaaf/i.test(text))n+=2;if(/nfl/i.test(text))n+=1;if(ck){const sk=collegeKey(text);if(sk===ck||sk.includes(ck)||ck.includes(sk))n+=6}return n};
-  pool.sort((a,b)=>score(b)-score(a));
+  const unique=new Map<string,any>();for(const x of candidates){const id=espnSearchId(x);if(id&&!unique.has(id))unique.set(id,x)}
+  const ck=collegeKey(college),score=(x:any)=>{let n=0;const link=espnSearchLink(x),image=espnSearchImage(x),text=[link,image,x.subtitle,x.description,x.defaultLeagueSlug,x.sport,x.type,x.team?.displayName,x.team?.shortDisplayName].filter(Boolean).join(" ");if(/football|nfl|college-football|ncaaf/i.test(text))n+=20;if(/basketball|baseball|soccer|hockey|golf/i.test(text))n-=40;if(/player|athlete/i.test(String(x.type||"")))n+=3;if(ck){const sk=collegeKey(text);if(sk===ck||sk.includes(ck)||ck.includes(sk))n+=8}return n};
+  const pool=[...unique.values()].sort((a,b)=>score(b)-score(a));
   for(const hit of pool){
-    const espnId=String(hit.id||hit.uid||"").match(/(?:a:)?(\d+)$/)?.[1]||String(hit.link?.web||hit.web||hit.href||"").match(/\/id\/(\d+)/)?.[1]||"";if(!espnId)continue;
+    if(score(hit)<0)continue;
+    const espnId=espnSearchId(hit);if(!espnId)continue;
     for(const league of ["college-football","nfl"]){
-      try{const d=await fetch(`https://site.web.api.espn.com/apis/common/v3/sports/football/${league}/athletes/${espnId}`,{next:{revalidate:604800}});if(d.ok){const athlete=(await d.json())?.athlete;if(athlete&&samePlayerName(athlete.displayName||athlete.fullName||"",name)){const m=athleteMedia(athlete,league==="nfl"?"ESPN NFL profile":"ESPN college profile",hit.image?.default||"");return m}}}catch{}
+      try{
+        const d=await fetch(`https://site.web.api.espn.com/apis/common/v3/sports/football/${league}/athletes/${espnId}`,{next:{revalidate:604800}});
+        if(!d.ok)continue;
+        const athlete=(await d.json())?.athlete;
+        if(athlete&&samePlayerName(athlete.displayName||athlete.fullName||"",name)){
+          return athleteMedia(athlete,league==="nfl"?"ESPN NFL profile":"ESPN college profile",espnSearchImage(hit));
+        }
+      }catch{}
     }
-    const image=hit.image?.default||hit.image?.href||hit.headshot?.href||"";
-    return athleteMedia({...hit,id:espnId,headshot:{href:image}},"ESPN search");
+    const image=espnSearchImage(hit),text=[espnSearchLink(hit),image,hit.subtitle,hit.description,hit.defaultLeagueSlug,hit.sport].filter(Boolean).join(" ");
+    if(image&&/football|nfl|college-football|ncaaf/i.test(text))return athleteMedia({...hit,id:espnId,headshot:{href:image}},"ESPN football search");
   }
   return null;
 }
