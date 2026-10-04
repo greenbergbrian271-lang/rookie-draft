@@ -226,13 +226,13 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("QB",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
   function finalGradeFor(p:Player){if(archiveMode)return archivedGrade(p,"final") as number|null;const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("QB",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
 
-  function rankingGradeFor(p:Player){return preDraftFor(p)??scoutingFor(p)}
+  function rankingGradeFor(p:Player){return finalGradeFor(p)}
   const rankedPlayers=useMemo(()=>[...players].sort((a,b)=>{
     const ga=rankingGradeFor(a),gb=rankingGradeFor(b);
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
     if(ga==null)return 1;if(gb==null)return -1;
     return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
-  }),[players,vals,imports,glossary,sessions]);
+  }),[players,vals,imports,glossary,sessions,draftPicks,gradeOverrides,archiveMode]);
   const filtered=useMemo(()=>{
     const q=norm(search);
     return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q));

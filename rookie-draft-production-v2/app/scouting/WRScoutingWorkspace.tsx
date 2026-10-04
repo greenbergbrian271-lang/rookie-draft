@@ -284,12 +284,12 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     const early=earlyDeclareFor(p).yes;
     return preDraftGrade("WR",scout,productionFor(p),analyticalFor(p),early,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
-  function rankingGradeFor(p:Player){return preDraftFor(p)??analyticalFor(p)??productionFor(p)??scoutingFor(p)}
+  function rankingGradeFor(p:Player){return finalGradeFor(p)}
   const rankedPlayers=useMemo(()=>[...players].sort((a,b)=>{
     const ga=rankingGradeFor(a),gb=rankingGradeFor(b);
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
     if(ga==null)return 1;if(gb==null)return -1;return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
-  }),[players,vals,imports,colleges,glossary,sessions]);
+  }),[players,vals,imports,colleges,glossary,sessions,draftPicks,gradeOverrides,archiveMode]);
   const filtered=useMemo(()=>{const q=norm(search);return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[rankedPlayers,search]);
 
   async function persist(p:Player,cat:string,value:any){if(archiveMode)return null;

@@ -16,7 +16,14 @@ export async function collegeTeams(){const cached=await cacheGet<any[]>("cfb:tea
 export async function findCollegeTeam(college:string){const k=collegeKey(college),teams=await collegeTeams();return teams.find((t:any)=>[t.location,t.displayName,t.shortDisplayName,t.name,t.abbreviation].filter(Boolean).some((n:string)=>collegeKey(n)===k))||null}
 function collectAthletes(x:any,out:any[]=[]){if(!x||typeof x!=="object")return out;if((x.id||x.uid)&&(x.fullName||x.displayName||x.name)&&((x.position?.abbreviation)||x.jersey||x.headshot))out.push(x);if(Array.isArray(x))for(const v of x)collectAthletes(v,out);else for(const v of Object.values(x))collectAthletes(v,out);return out}
 export async function teamRoster(teamId:string){const key="cfb:roster:"+teamId,cached=await cacheGet<any[]>(key);if(cached?.length)return cached;const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${teamId}/roster`,{next:{revalidate:21600}});if(!r.ok)return[];const roster=collectAthletes(await r.json());await cacheSet(key,roster,86400);return roster}
-export async function teamSchedule(teamId:string,season=2026){const key="cfb:team-schedule:"+season+":"+teamId,cached=await cacheGet<any[]>(key);if(cached)return cached;const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${teamId}/schedule?season=${season}`,{next:{revalidate:21600}});if(!r.ok)return[];const j=await r.json(),events=Array.isArray(j.events)?j.events:[];await cacheSet(key,events,21600);return events}
+export async function teamSchedule(teamId:string,season=2026){
+  const key="cfb:team-schedule:v2:"+season+":"+teamId,cached=await cacheGet<any[]>(key);if(cached)return cached;
+  const urls=[2,3].map(seasonType=>`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${teamId}/schedule?season=${season}&seasontype=${seasonType}`);
+  const payloads=await Promise.all(urls.map(async url=>{try{const r=await fetch(url,{next:{revalidate:21600}});if(!r.ok)return[];const j=await r.json();return Array.isArray(j.events)?j.events:[]}catch{return[]}}));
+  const map=new Map<string,any>();for(const e of payloads.flat()){const id=String(e?.id||"");if(id&&!map.has(id))map.set(id,e)}
+  const events=[...map.values()].sort((a:any,b:any)=>String(a?.date||"").localeCompare(String(b?.date||"")));
+  await cacheSet(key,events,21600);return events
+}
 function scoreValue(x:any){return String(x?.displayValue??x?.value??x??"")}
 function categoryForPlayer(box:any,teamId:string,athleteId:string,name:string){const t=(box?.players||[]).find((x:any)=>String(x?.team?.id)===String(teamId));if(!t)return null;const c=(t.statistics||[]).find((x:any)=>x?.name===name);if(!c)return null;const a=(c.athletes||[]).find((x:any)=>String(x?.athlete?.id)===String(athleteId));if(!a)return null;return {labels:Array.isArray(c.labels)?c.labels:[],stats:Array.isArray(a.stats)?a.stats:[]}}
 function statValue(cat:any,label:string){const i=cat?.labels?.indexOf(label);return i>=0?cat.stats?.[i]:null}

@@ -15,6 +15,15 @@ import {useDraftClass} from "@/lib/use-draft-class";
 type Item={label:string,id:string};
 const groups=[{label:"GM Tools",items:[["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["Maybe Scout Player","maybe"],["Archive Player","archive"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Refresh Combine Data","combine-refresh"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
 const playerActions:Record<string,{status?:string,draftClass?:number}>={finished:{status:"FINISHED"}};
+const HISTORICAL_SHEET_URLS:Record<number,string>={
+  2020:"https://docs.google.com/spreadsheets/d/144uriskf0hTwx41uiAGGQ_mxMgXVUXoBLUQEibh6HV0/edit",
+  2021:"https://docs.google.com/spreadsheets/d/15miPJ14LrsSKAyejFFvyrN5HgNHGNcUPRm3zJSFh6CA/edit",
+  2022:"https://docs.google.com/spreadsheets/d/1FHa7cCT-yY7ipgnrYHflBO2BALcn_WLaWPFbzRI-iCM/edit",
+  2023:"https://docs.google.com/spreadsheets/d/1lGPbwC48QHW5X2trTrHFBybmqq37JbCGvfjMINUUweg/edit",
+  2024:"https://docs.google.com/spreadsheets/d/1_EYqUgP8U6ySwPlwqIcciLr8zNmYO_W82ox6-_Uv7UA/edit",
+  2025:"https://docs.google.com/spreadsheets/d/1rAcmv1PIlD2t_dGuUrTO5bZhQSnQWnF3nTN9W07F1X4/edit",
+  2026:"https://docs.google.com/spreadsheets/d/1uAgs4mZD4XtFj5Lk_7FAG7sGEQ4ZWzlNt5v1qh6Fjm8/edit"
+};
 export default function ToolMenus(){const draftClass=useDraftClass();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[compareOpen,setCompareOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);
 useEffect(()=>{if(tool){fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{});if(tool.id==="combine-refresh")fetch("/api/combine-refresh",{cache:"no-store"}).then(r=>r.json()).then(setCombineStatus).catch(()=>{})}},[tool,draftClass]);
 function close(){setTool(null);setMsg("");setPlayerId("");setChoice("");setPlayerId2("")}
@@ -25,7 +34,7 @@ async function combineRefreshRun(){setMsg(`Refreshing ${draftClass} NFL Combine 
 async function auditRun(){setMsg("Checking player colleges against workbook school formatting…");const r=await fetch("/api/format-audit",{cache:"no-store"}),j=await r.json();setMsg(r.ok?(j.unknown?.length?`${j.unknown.length} college name(s) need review: ${j.unknown.join(", ")}`:"All player colleges resolve to workbook school formatting."):(j.error||"Formatting audit failed."))}
 async function moveRun(direction:"up"|"down"){if(!playerId)return setMsg("Select a player.");const r=await fetch("/api/players/move",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:Number(playerId),direction})}),j=await r.json();if(r.ok){setMsg(`${j.player} moved ${direction}.`);fetch("/api/players",{cache:"no-store"}).then(x=>x.json()).then(x=>Array.isArray(x)&&setPlayers(x))}else setMsg(j.error||"Move failed.")}
 async function simpleRun(endpoint:string,label:string){setMsg(label+"…");const r=await fetch(endpoint,{method:"POST"}),j=await r.json();setMsg(r.ok?`${label}: ${j.updated??j.count??"complete"}.`:(j.error||`${label} failed.`))}
-if(draftClass<2027)return <div className="tool-menubar" style={{gap:7,padding:"8px 18px"}}><span className="status" style={{margin:0}}>Historical {draftClass} · read-only archive</span></div>;
+if(draftClass<2027){const sourceUrl=HISTORICAL_SHEET_URLS[draftClass];return <div className="tool-menubar" style={{gap:9,padding:"8px 18px",alignItems:"center"}}><span className="status" style={{margin:0}}>Historical {draftClass} · read-only archive</span>{sourceUrl&&<a className="ghost" href={sourceUrl} target="_blank" rel="noreferrer" style={{padding:"6px 10px",fontSize:11,textDecoration:"none"}}>Link to original Google Sheet ↗</a>}</div>;}
 return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{gap:7,padding:"8px 18px"}}>
 {groups.map((g,groupIndex)=><div className="tool-menu" key={g.label}>
   <button

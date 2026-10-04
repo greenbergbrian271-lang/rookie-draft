@@ -10,7 +10,7 @@ import {schoolStyle} from "@/lib/school-colors";
 type Pos="QB"|"RB"|"WR"|"TE";
 type SnapshotField={group:string;label:string;value:any};
 type Snapshot={name:string;college:string|null;grades:Record<string,any>;fields:SnapshotField[];commentary?:string|null;gameLabel?:string|null};
-type HistoricalRow={player:any;snapshot:Snapshot};
+type HistoricalRow={player:any;snapshot:Snapshot;priorReport?:any};
 const POSITIONS:Pos[]=["QB","RB","WR","TE"];
 
 function asNumber(v:any){const n=Number(v);return v==null||v===""||!Number.isFinite(n)?null:n}
@@ -109,8 +109,9 @@ export default function HistoricalScoutingWorkspace({draftClass}:{draftClass:num
     return()=>{live=false};
   },[draftClass,pos]);
   const players=useMemo(()=>adaptRows(pos,rows).players,[rows,pos]);
+  const priorReports=useMemo(()=>Object.fromEntries(rows.filter(r=>r.priorReport&&r.player?.id).map(r=>[String(r.player.id),r.priorReport])),[rows]);
   if(draftClass<=2021)return <EarlyArchive draftClass={draftClass}/>;
-  const props={players,vals,setVals,imports,glossary:[] as any[][],draftClass,priorReports:{},archiveMode:true,gradeOverrides:grades,onSave:async()=>null,onAdd:()=>{}};
+  const props={players,vals,setVals,imports,glossary:[] as any[][],draftClass,priorReports,archiveMode:true,gradeOverrides:grades,onSave:async()=>null,onAdd:()=>{}};
   return <div className="historical-parity">
     <div className="page-head"><div><span className="ey">{draftClass} Scouting Workspace</span><h1>{pos} Scouting</h1><p className="muted">2027 scouting-card parity using only values preserved in the {draftClass} workbook. Metrics that did not exist yet remain unavailable.</p></div><span className="status">● Historical · read-only</span></div>
     <div className="tabs scouting-position-tabs">{POSITIONS.map(x=><button key={x} className={`scouting-position-tab pos-${x.toLowerCase()} ${x===pos?"active":"ghost"}`} onClick={()=>setPos(x)}>{x} Scouting</button>)}</div>
