@@ -162,7 +162,13 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       if(sessions[id])continue;
       const legacy=String(evalFor(p,"__COMMENTARY__")||"").trim();
       const legacyLabel=String(evalFor(p,"__GAME_LABEL__")||"").trim();
-      if(demoMode||archiveMode){
+      const historical=evalFor(p,"__HISTORICAL_SESSIONS__");
+      if(archiveMode){
+        const archived=Array.isArray(historical)?historical:[];
+        setSessions(x=>x[id]?x:{...x,[id]:archived.length?archived:(legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[])});
+        continue;
+      }
+      if(demoMode){
         setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});
         continue;
       }
@@ -304,7 +310,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     const combine=archiveMode?(archivedGrade(p,"combine") as number|null):(Object.values(combineInput).some(v=>v!=null)?combineGrade("QB",combineInput,combinePopulation,g):null);
     const filmComplete=FILM.filter(x=>num(evalFor(p,x))!=null).length,gamesWatched=gameCountFor(p),rank=rankedPlayers.indexOf(p)+1,style=schoolStyle(p.college),draft=newGame[id]||{opponent:"",notes:""};
     return <article className="qb-evaluate-player" id={"qb-eval-"+p.id} data-player-id={p.id} key={p.id}>
-      <ScoutingPlayerHero player={p} position="QB" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class} gamesWatched={gamesWatched} draftTeam={draftCtx.team||"TBD"} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
+      <ScoutingPlayerHero player={p} position="QB" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class} gamesWatched={gamesWatched} draftTeam={draftCtx.team||"TBD"} draftResult={draftCtx.result} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip">
         <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>

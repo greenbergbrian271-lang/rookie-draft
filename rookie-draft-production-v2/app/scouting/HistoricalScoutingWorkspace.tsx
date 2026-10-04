@@ -56,6 +56,24 @@ function normalizeField(pos:Pos,field:SnapshotField,seen:Record<string,number>){
   }
   return {label,value,group:field.group};
 }
+function historicalGameSessions(snapshot:Snapshot,playerId:string|number){
+  const commentary=String(snapshot.commentary||"").replace(/\r\n/g,"\n").trim();
+  if(!commentary)return [];
+  const blocks=commentary.split(/\n\s*\n+/).map(x=>x.trim()).filter(Boolean);
+  const sessions:any[]=[];
+  for(const block of blocks){
+    const match=block.match(/^([^:\n]{1,100}):\s*([\s\S]*)$/);
+    if(match){
+      const label=match[1].trim().replace(/^Post\s+/i,"");
+      sessions.push({id:"historical-"+playerId+"-"+sessions.length,opponent:label||"Scouting note",raw_notes:match[2].trim(),legacy:true});
+    }else if(sessions.length){
+      sessions[sessions.length-1].raw_notes=(sessions[sessions.length-1].raw_notes+"\n\n"+block).trim();
+    }else{
+      sessions.push({id:"historical-"+playerId+"-0",opponent:String(snapshot.gameLabel||"Legacy scouting note").trim()||"Legacy scouting note",raw_notes:block,legacy:true});
+    }
+  }
+  return sessions;
+}
 function adaptRows(pos:Pos,rows:HistoricalRow[]){
   const vals:Record<string,any>={},imports:any[]=[],grades:Record<string,any>={};
   const players=rows.map((row,index)=>{
@@ -82,6 +100,7 @@ function adaptRows(pos:Pos,rows:HistoricalRow[]){
     if(Object.keys(team).length)imp["Team Context"]=team;
     if(row.snapshot.commentary)vals[String(p.id)+"|__COMMENTARY__"]=row.snapshot.commentary;
     if(row.snapshot.gameLabel)vals[String(p.id)+"|__GAME_LABEL__"]=row.snapshot.gameLabel;
+    vals[String(p.id)+"|__HISTORICAL_SESSIONS__"]=historicalGameSessions(row.snapshot,p.id);
     grades[String(p.id)]=gradeMap(row.snapshot);
     imports.push(imp);
     return p;

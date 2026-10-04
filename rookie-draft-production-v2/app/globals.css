@@ -256,7 +256,7 @@
 /* QB scouting v3: dynamic ranks, matrix comparison, heat formatting */
 .qb-prospect-row{grid-template-columns:minmax(0,1fr)}
 .qb-prospect-row .qb-prospect-item{border-radius:10px!important}
-.qb-draft-result-badge{border-color:#435873!important;background:#10233a!important;color:#c8d7eb!important}
+.qb-draft-result-badge{border-color:var(--nfl-secondary,#435873)!important;background:var(--nfl-primary,#10233a)!important;color:var(--nfl-text,#fff)!important;display:inline-flex!important;align-items:center!important;gap:7px!important;padding:5px 9px!important;font-weight:900!important;white-space:nowrap}.qb-draft-result-badge img{order:2;width:21px!important;height:21px!important;object-fit:contain!important;flex:0 0 auto}.qb-draft-result-badge b{order:1;font-variant-numeric:tabular-nums}
 .qb-grade-slider.heat{background:linear-gradient(90deg,hsl(0 72% 48%),hsl(58 82% 52%),hsl(120 60% 42%));height:7px;border-radius:999px}
 .qb-grade-slider.heat::-webkit-slider-runnable-track{background:transparent}
 .qb-grade-slider.heat::-moz-range-track{background:transparent}
@@ -539,3 +539,5 @@
   .prior-year-lookback-toggle{align-items:flex-start}
   .prior-year-lookback-toggle>b{white-space:normal;text-align:right}
 }
+
+.historical-source-pill{padding:0!important;overflow:hidden;background:#09182a}.historical-source-pill>span{padding:7px 10px}.historical-source-pill>a{padding:7px 10px;border-left:1px solid #304555;color:#b9cae0;font-size:11px;font-weight:850;transition:background .15s,color .15s}.historical-source-pill>a:hover{background:#142844;color:#fff}
