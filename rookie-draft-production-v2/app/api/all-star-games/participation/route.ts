@@ -1,5 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {gameDefinition} from "@/lib/all-star-games";
+import {markPlayerDeclaredFromSignal} from "@/lib/draft-status-signals";
 
 export async function PATCH(req:Request){
   try{
@@ -11,6 +12,11 @@ export async function PATCH(req:Request){
     const existing=rows(await q.execute({sql:"select player_id from all_star_invites where game_key=? and player_id=?",args:[gameKey,playerId]}));
     if(!existing.length)return Response.json({error:"This player is not currently tracked for that game."},{status:404});
     await q.execute({sql:"update all_star_invites set participation_status=?,updated_at=? where game_key=? and player_id=?",args:[status,now,gameKey,playerId]});
+    if(status==="ACTIVE"){
+      const player:any=rows(await q.execute({sql:"select draft_class from players where id=?",args:[playerId]}))[0];
+      const invite:any=rows(await q.execute({sql:"select source_url from all_star_invites where game_key=? and player_id=?",args:[gameKey,playerId]}))[0];
+      if(player?.draft_class)await markPlayerDeclaredFromSignal(q,playerId,Number(player.draft_class),"ALL_STAR_GAME",{url:invite?.source_url||null,title:gameDefinition(gameKey)?.name||"College All-Star Game"});
+    }
     return Response.json(rows(await q.execute({sql:"select game_key,player_id,roster_key,participation_status,updated_at from all_star_invites where game_key=? and player_id=?",args:[gameKey,playerId]}))[0]);
   }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not update all-star participation."},{status:500})}
 }
