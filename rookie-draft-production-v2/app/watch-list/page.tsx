@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
 import styles from "../home.module.css";
-import {useDraftClass} from "@/lib/use-draft-class";
+import {useDraftClassState} from "@/lib/use-draft-class";
 
 const ALIAS:Record<string,string>={"miami fl":"miami florida","miami hurricanes":"miami florida","mia":"miami florida","miami oh":"miami ohio","miami redhawks":"miami ohio","mizzou":"missouri","missouri tigers":"missouri","uconn":"connecticut","connecticut huskies":"connecticut","umass":"massachusetts","massachusetts minutemen":"massachusetts","nc state":"north carolina state","n c state":"north carolina state","north carolina state wolfpack":"north carolina state","usc":"southern california","usc trojans":"southern california","southern california trojans":"southern california","ole miss":"mississippi","ole miss rebels":"mississippi","mississippi rebels":"mississippi","sam houston":"sam houston state","sam houston bearkats":"sam houston state","ul monroe":"louisiana monroe","ulm":"louisiana monroe","louisiana monroe warhawks":"louisiana monroe","louisiana ragin cajuns":"louisiana","cal":"california","california golden bears":"california","byu cougars":"byu","smu mustangs":"smu","utep miners":"utep","utsa roadrunners":"utsa","fiu panthers":"fiu","uab blazers":"uab","ucf knights":"ucf","south florida bulls":"south florida","usf":"south florida","texas a and m":"texas aandm","texas a m":"texas aandm","texas aggies":"texas aandm","app state":"appalachian state","appalachian state mountaineers":"appalachian state","western kentucky hilltoppers":"western kentucky","wku":"western kentucky"};
 const norm=(s:any)=>{const x=String(s||"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");return ALIAS[x]||x};
@@ -15,13 +15,13 @@ function networkName(e:any){const comp=e.competitions?.[0]||{};const b=(comp.bro
 function dateKey(value:string){const d=new Date(value);return String(d.getFullYear())+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")}
 
 export default function Page(){
- const draftClass=useDraftClass();
+ const {draftClass,isLocked}=useDraftClassState();
  const [rows,setRows]=useState<any[]>([]),[events,setEvents]=useState<any[]>([]),[players,setPlayers]=useState<any[]>([]),[rankings,setRankings]=useState<any[]>([]),[loading,setLoading]=useState(true);
 
  useEffect(()=>{(async()=>{
   setLoading(true);
   try{
-   const list=await fetch("/api/watch-list",{cache:"no-store"}).then(r=>r.json());
+   const list=await fetch(`/api/watch-list?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json());
    const saved=Array.isArray(list)?list:[];
    setRows(saved);
    const days=Array.from(new Set(saved.map((x:any)=>dateKey(x.kickoff))));
@@ -39,7 +39,7 @@ export default function Page(){
    setEvents(Array.from(eventMap.values()));
    setRankings(allRankings);
   }finally{setLoading(false)}
- })()},[]);
+ })()},[draftClass]);
 
  const ranks=useMemo(()=>rankMap(rankings),[rankings]);
  const enriched=useMemo(()=>rows.map(x=>{
@@ -57,14 +57,14 @@ export default function Page(){
   return {...x,eventId:e.id||x.espn_event_id,title:e.shortName||e.name||x.away_team+" vs "+x.home_team,sides,network:networkName(e),level:fbs?"FBS":"Non-FBS"};
  }),[rows,events,players,ranks,draftClass]);
 
- async function remove(id:any){await fetch("/api/watch-list?id="+id,{method:"DELETE"});setRows(old=>old.filter(x=>x.id!==id))}
- async function watchNow(x:any){
+ async function remove(id:any){if(isLocked)return;await fetch("/api/watch-list?id="+id,{method:"DELETE"});setRows(old=>old.filter(x=>x.id!==id))}
+ async function watchNow(x:any){if(isLocked)return;
   const home=x.sides.find((s:any)=>s.homeAway==="home")||{name:x.home_team,prospects:[]};
   const away=x.sides.find((s:any)=>s.homeAway==="away")||{name:x.away_team,prospects:[]};
   const date=new Date(x.kickoff).toLocaleDateString([],{month:"long",day:"numeric",year:"numeric"});
   const section=(s:any)=>s.name+"\n"+(s.prospects.length?s.prospects.map((p:any)=>"• "+(p.jersey_number?"#"+p.jersey_number+" ":"")+p.position+" "+p.name+"\n  ◦ ").join("\n"):"• No Draft Eligible Players");
   const title=(away?.name||x.away_team)+" vs "+(home?.name||x.home_team)+" - "+date;
-  await fetch("/api/game-notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:x.eventId||x.espn_event_id,kickoff:x.kickoff,homeTeam:home?.name||x.home_team,awayTeam:away?.name||x.away_team,title,notes:section(away)+"\n\n"+section(home)})});
+  await fetch("/api/game-notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:x.eventId||x.espn_event_id,kickoff:x.kickoff,homeTeam:home?.name||x.home_team,awayTeam:away?.name||x.away_team,title,notes:section(away)+"\n\n"+section(home),draftClass})});
   location.href="/game-notes";
  }
 
@@ -74,7 +74,7 @@ export default function Page(){
    <div className="ey">{new Date(x.kickoff).toLocaleString([],{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>
    <h2>{x.title}</h2>
    <div className={styles.broadcast}>Watch on <strong>{x.network}</strong> · {x.level}</div>
-  </div><div className={styles.gameActions}><button className="success" onClick={()=>watchNow(x)}>Watch Now</button><button className="ghost" onClick={()=>remove(x.id)}>Remove</button></div></header>
+  </div><div className={styles.gameActions}>{isLocked?<span className="status">Read-only archive</span>:<><button className="success" onClick={()=>watchNow(x)}>Watch Now</button><button className="ghost" onClick={()=>remove(x.id)}>Remove</button></>}</div></header>
   <div className={styles.matchup}>{x.sides.map((s:any)=><section className={styles.team} key={s.id||s.name}>
    <div className={styles.teamHead}><div className={styles.teamIdentity}>{s.logo&&<img src={s.logo} alt="" />}<strong>{s.rank?"#"+s.rank+" ":""}{s.name}</strong></div><span>{s.prospects.length} prospect{s.prospects.length===1?"":"s"}</span></div>
    {s.prospects.length?<div className={styles.prospects}>{s.prospects.map((p:any)=><span key={p.id} data-player-id={p.id} className="player-badge" style={schoolStyle(p.college)}>{p.jersey_number&&<>#{p.jersey_number} · </>}{p.position} · {p.name}</span>)}</div>:<div className={styles.none}>No Draft Eligible Players</div>}
