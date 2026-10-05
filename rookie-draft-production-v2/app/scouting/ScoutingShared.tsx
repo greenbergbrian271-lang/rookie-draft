@@ -22,7 +22,7 @@ function nflTeamBadgeStyle(team:any):React.CSSProperties{
     boxShadow:"inset 0 0 0 1px "+hit.secondary+"55"
   } as React.CSSProperties):{};
 }
-function nflTeamLogo(team:any){
+export function nflTeamLogo(team:any){
   const raw=String(team??"").trim(),key=norm(raw);
   const direct=Object.entries(NFL_LOGO_CODE).find(([name])=>{const n=norm(name);return key===n||key.endsWith(n)||key.includes(n)});
   return direct?("https://a.espncdn.com/i/teamlogos/nfl/500/"+direct[1]+".png"):"https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png";
