@@ -205,7 +205,7 @@ async function loadFinalBoardProspects(){
   const r=await fetch('/api/final-board/live?view=base&draftClass='+encodeURIComponent(String(draftClass)),{cache:'no-store'});
   if(!r.ok)throw new Error('Final Draft Board unavailable');
   const data=await r.json(),rows=Array.isArray(data&&data.rows)?data.rows:[];
-  prospects=rows.filter(p=>['QB','RB','WR','TE'].includes(p.position)).map((p,i)=>{const boardRank=Number(p.overallRank),boardGrade=Number(p.boardGrade??p.finalGrade??p.preDraftGrade);return {id:String(p.id),pos:p.position,rank:Number.isFinite(boardRank)&&boardRank>0?boardRank:i+1,name:p.name,college:p.college||'',grade:Number.isFinite(boardGrade)?boardGrade:null}});
+  prospects=rows.filter(p=>['QB','RB','WR','TE'].includes(p.position)).map((p,i)=>{const boardRank=Number(p.overallRank),rawGrade=p.boardGrade??p.finalGrade??p.preDraftGrade??null,boardGrade=rawGrade==null||rawGrade===''?null:Number(rawGrade);return {id:String(p.id),pos:p.position,rank:Number.isFinite(boardRank)&&boardRank>0?boardRank:i+1,name:p.name,college:p.college||'',grade:boardGrade!=null&&Number.isFinite(boardGrade)?boardGrade:null}});
   renderDraft();renderUdfa();
  }catch(err){prospects=[];renderDraft();renderUdfa();toast('Final Draft Board could not be loaded')}
 }
