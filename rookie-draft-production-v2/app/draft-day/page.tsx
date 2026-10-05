@@ -311,7 +311,7 @@ export default function DraftDayPage(){
       </div>
     </section>
 
-    {!historical&&<section className="dd-context-strip">
+    {!historical&&!loading&&activeMeta&&<section className="dd-context-strip">
       <div className="dd-context-block"><div className="dd-context-title"><span>My roster needs</span><small>{activeRoster?"Live dynasty roster depth":"Roster snapshot unavailable"}</small></div><div className="dd-need-pills">{rosterNeeds.map(n=><span key={n.pos} className={n.label.toLowerCase()}><b>{n.pos}</b><em>{n.count}/{n.target}</em><small>{n.label}</small></span>)}</div></div>
       <div className="dd-context-block"><div className="dd-context-title"><span>Draft alerts</span><small>Tier cliffs + recent position runs</small></div><div className="dd-alert-pills">{run&&<span className="run"><b>{run.pos} run</b> · {run.count} of last {recent.length} picks</span>}{tierAlerts.slice(0,3).map(a=><span key={a.pos}><b>{a.pos} Tier {a.tier??"—"}</b> · {a.count} left · {a.names.join(", ")}</span>)}{!run&&!tierAlerts.length&&<span className="quiet">No immediate tier or position-run alerts.</span>}</div></div>
     </section>}
