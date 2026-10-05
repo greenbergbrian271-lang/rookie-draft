@@ -15,7 +15,11 @@ function nflTeamBadgeStyle(team:any):React.CSSProperties{
   return hit?({
     "--nfl-primary":hit.primary,
     "--nfl-secondary":hit.secondary,
-    "--nfl-text":hit.color||"#fff"
+    "--nfl-text":hit.color||"#fff",
+    backgroundColor:hit.primary,
+    borderColor:hit.secondary,
+    color:hit.color||"#fff",
+    boxShadow:"inset 0 0 0 1px "+hit.secondary+"55"
   } as React.CSSProperties):{};
 }
 function nflTeamLogo(team:any){
@@ -157,7 +161,7 @@ export function ScoutingPlayerHero({player,position,rank,style,age,classLabel,ga
   },[archiveMode,player.id,player.headshot_url]);
   return <header className="qb-player-hero" style={style}>
     <div className="qb-player-photo">{resolvedHeadshot?<img src={resolvedHeadshot} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{String(player.name||"").split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</span>}</div>
-    <div className="qb-player-title"><div className="qb-kicker">{position} {rank} · {player.college||"College TBD"}{player.jersey_number?" · #"+player.jersey_number:""}</div><h1>{onOpen?<PlayerName id={player.id}>{player.name}</PlayerName>:player.name}</h1><div className="qb-hero-meta"><span>{age?"Age "+age:"Age —"}</span><span>{classLabel||"Class —"}</span>{extraMeta}<span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span><span className="qb-draft-result-badge" style={nflTeamBadgeStyle(draftTeam)} title={draftAutomated?"Auto-filled from the NFL Draft feed":"NFL draft team"}><b>{draftResult&&draftResult!=="Pending"?draftResult:(draftTeam||"TBD")}</b><img src={nflTeamLogo(draftTeam)} alt=""/></span></div></div>
+    <div className="qb-player-title"><div className="qb-kicker">{position} {rank} · {player.college||"College TBD"}{player.jersey_number?" · #"+player.jersey_number:""}</div><h1>{onOpen?<PlayerName id={player.id}>{player.name}</PlayerName>:player.name}</h1><div className="qb-hero-meta"><span>{age?"Age "+age:"Age —"}</span><span>{classLabel||"Class —"}</span>{extraMeta}<span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span><span className="qb-draft-result-badge qb-draft-result-badge-v2" style={nflTeamBadgeStyle(draftTeam)} title={draftAutomated?"Auto-filled from the NFL Draft feed":"NFL draft team"}><b>{draftResult&&draftResult!=="Pending"?String(draftResult).trim():(draftTeam||"TBD")}</b><img src={nflTeamLogo(draftTeam)} alt="" aria-hidden="true"/></span></div></div>
     <div className={"qb-save-state "+saveState}>{archiveMode?"Historical snapshot":demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
   </header>
 }

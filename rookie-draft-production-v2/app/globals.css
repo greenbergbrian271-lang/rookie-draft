@@ -256,7 +256,7 @@
 /* QB scouting v3: dynamic ranks, matrix comparison, heat formatting */
 .qb-prospect-row{grid-template-columns:minmax(0,1fr)}
 .qb-prospect-row .qb-prospect-item{border-radius:10px!important}
-.qb-draft-result-badge{border-color:var(--nfl-secondary,#435873)!important;background:var(--nfl-primary,#10233a)!important;color:var(--nfl-text,#fff)!important;display:inline-flex!important;align-items:center!important;gap:7px!important;padding:5px 9px!important;font-weight:900!important;white-space:nowrap}.qb-draft-result-badge img{order:2;width:21px!important;height:21px!important;object-fit:contain!important;flex:0 0 auto}.qb-draft-result-badge b{order:1;font-variant-numeric:tabular-nums}
+.qb-draft-result-badge.qb-draft-result-badge-v2{border-color:var(--nfl-secondary,#435873)!important;background:var(--nfl-primary,#10233a)!important;color:var(--nfl-text,#fff)!important;display:inline-flex!important;align-items:center!important;gap:7px!important;padding:5px 9px!important;font-weight:900!important;white-space:nowrap;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)!important}.qb-draft-result-badge.qb-draft-result-badge-v2 b{order:1;font-variant-numeric:tabular-nums}.qb-draft-result-badge.qb-draft-result-badge-v2 img{order:2;width:21px!important;height:21px!important;object-fit:contain!important;flex:0 0 auto}
 .qb-grade-slider.heat{background:linear-gradient(90deg,hsl(0 72% 48%),hsl(58 82% 52%),hsl(120 60% 42%));height:7px;border-radius:999px}
 .qb-grade-slider.heat::-webkit-slider-runnable-track{background:transparent}
 .qb-grade-slider.heat::-moz-range-track{background:transparent}
@@ -540,4 +540,19 @@
   .prior-year-lookback-toggle>b{white-space:normal;text-align:right}
 }
 
-.historical-source-pill{padding:0!important;overflow:hidden;background:#09182a}.historical-source-pill>span{padding:7px 10px}.historical-source-pill>a{padding:7px 10px;border-left:1px solid #304555;color:#b9cae0;font-size:11px;font-weight:850;transition:background .15s,color .15s}.historical-source-pill>a:hover{background:#142844;color:#fff}
+.historical-source-bar{gap:0!important}.historical-source-control{display:inline-flex;align-items:stretch;overflow:hidden;border:1px solid #304e74;border-radius:999px;background:#09182a;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}.historical-source-label,.historical-source-link{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;font-size:11px;font-weight:850;line-height:1}.historical-source-label{color:#d6e4f6}.historical-source-link{border-left:1px solid #304e74;color:#9fc4ee;text-decoration:none;transition:background .15s,color .15s}.historical-source-link:hover{background:#142844;color:#fff}@media(max-width:620px){.historical-source-control{max-width:100%;border-radius:12px;flex-wrap:wrap}.historical-source-label,.historical-source-link{min-height:30px}.historical-source-link{border-left:0;border-top:1px solid #304e74;width:100%}}
+
+
+/* Universal scouting game-log minimization */
+.qb-game-log-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.qb-game-log-toggle-collapsed{display:none}
+.qb-game-log.collapsed>.qb-section-head{margin-bottom:0}
+.qb-game-log.collapsed>.qb-section-head~*{display:none!important}
+.qb-game-log.collapsed .qb-game-log-toggle-expanded{display:none}
+.qb-game-log.collapsed .qb-game-log-toggle-collapsed{display:inline}
+.qb-game-log-global-toggle{margin-left:auto!important;border:1px solid #31527f!important;background:#0b1b30!important;color:#b9cae0!important;border-radius:8px!important;padding:7px 10px!important;font-size:10px!important;font-weight:900!important;white-space:nowrap}
+.qb-game-log-global-toggle:hover{background:#142844!important;color:#fff!important}
+.qb-game-log-global-expand{display:none}
+.qb-game-log-global-toggle[aria-pressed="true"] .qb-game-log-global-collapse{display:none}
+.qb-game-log-global-toggle[aria-pressed="true"] .qb-game-log-global-expand{display:inline}
+@media(max-width:780px){.qb-game-log-global-toggle{margin-left:0!important}.qb-game-log-actions{width:100%;justify-content:flex-start}}
