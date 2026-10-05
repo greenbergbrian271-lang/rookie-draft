@@ -27,6 +27,8 @@ type RankedRow=GradeRow&{
   sourceGrade:number|null;
   poolRank:number|null;
   positionRank:number|null;
+  classOverallRank:number|null;
+  classPositionRank:number|null;
   tier:number|null;
   tierGapBefore:number|null;
 };
@@ -111,21 +113,40 @@ export default function Page(){
     setLoading(true);
     setError("");
     Promise.all(sourceYears.map(async year=>{
-      const r=await fetch("/api/grades?draftClass="+year,{cache:"no-store"});
-      const data=await r.json();
-      if(!r.ok)throw new Error(data?.error||("Could not load "+year+" grades"));
-      return {year,rows:Array.isArray(data)?data:[]};
+      const [gradesResponse,boardResponse]=await Promise.all([
+        fetch("/api/grades?draftClass="+year,{cache:"no-store"}),
+        fetch("/api/final-board/live?view=base&draftClass="+year,{cache:"no-store"})
+      ]);
+      const gradesData=await gradesResponse.json();
+      const boardData=await boardResponse.json();
+      if(!gradesResponse.ok)throw new Error(gradesData?.error||("Could not load "+year+" grades"));
+      if(!boardResponse.ok)throw new Error(boardData?.error||("Could not load "+year+" Final Draft Board"));
+      return {year,rows:Array.isArray(gradesData)?gradesData:[],boardRows:Array.isArray(boardData?.rows)?boardData.rows:[]};
     })).then(groups=>{
       if(!live)return;
-      const combined:(GradeRow&{sourceYear:number;sourceGrade:number|null})[]=[];
+      const combined:(GradeRow&{sourceYear:number;sourceGrade:number|null;classOverallRank:number|null;classPositionRank:number|null})[]=[];
       for(const group of groups){
+        const boardRanks=new Map<string,{overallRank:number|null;positionRank:number|null}>();
+        for(const boardRow of group.boardRows){
+          boardRanks.set(String(boardRow.id),{
+            overallRank:asNum(boardRow.overallRank),
+            positionRank:asNum(boardRow.positionRank)
+          });
+        }
         for(const raw of group.rows){
           if(!POSITIONS.includes(raw.position))continue;
           const row=raw as GradeRow;
           const authoritative=asNum(row.authoritativeGrade);
           const final=asNum(row.finalGrade);
           const pre=asNum(row.preDraftGrade);
-          combined.push({...row,sourceYear:group.year,sourceGrade:authoritative??final??pre});
+          const classRanks=boardRanks.get(String(row.id));
+          combined.push({
+            ...row,
+            sourceYear:group.year,
+            sourceGrade:authoritative??final??pre,
+            classOverallRank:classRanks?.overallRank??null,
+            classPositionRank:classRanks?.positionRank??null
+          });
         }
       }
       setRows(rankRows(combined));
@@ -148,9 +169,9 @@ export default function Page(){
   const gradedCount=rows.filter(row=>row.sourceGrade!=null).length;
 
   function exportBoard(){
-    const header=["Pool Rank","Class","Position Rank","Position","Player","College","Grade Source","Pre-Draft Grade","Final Grade","Historical Grade","Draft Result"];
+    const header=["OVR Rank","Class OVR Rank","Class","Pos Rank","Class Pos Rank","Position","Player","College","Grade Source","Pre-Draft Grade","Final Grade","Historical Grade","Draft Result"];
     const csv=[header,...rows.map(row=>[
-      row.poolRank??"",row.sourceYear,row.positionRank?row.position+" "+row.positionRank:"",row.position,row.name,row.college||"",row.gradeSource||"",
+      row.poolRank??"",row.classOverallRank??"",row.sourceYear,row.positionRank?row.position+" "+row.positionRank:"",row.classPositionRank?row.position+" "+row.classPositionRank:"",row.position,row.name,row.college||"",row.gradeSource||"",
       row.preDraftGrade==null?"":Number(row.preDraftGrade).toFixed(2),row.finalGrade==null?"":Number(row.finalGrade).toFixed(2),
       row.sourceGrade==null?"":row.sourceGrade.toFixed(2),row.draftResult||""
     ])].map(cols=>cols.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
@@ -240,9 +261,11 @@ export default function Page(){
       {loading?<div className="history-loading">Building cross-class board…</div>:<div className="history-table-wrap">
         <table className="historical-board-table">
           <thead><tr>
-            <th className="rank-col">#</th>
+            <th className="rank-col">OVR Rank</th>
+            <th className="class-rank-col">Class OVR Rank</th>
             <th>Class</th>
             <th>Pos Rank</th>
+            <th className="class-pos-rank-col">Class Pos Rank</th>
             <th>Prospect</th>
             {showGradeDetails&&<><th>Pre-Draft</th><th>Final</th><th>Source</th></>}
             <th className="history-grade-col">Historical Grade</th>
@@ -253,7 +276,7 @@ export default function Page(){
               const startsTier=row.tier!=null&&(index===0||previous?.tier!==row.tier);
               const tone=gradeTone(row.sourceGrade);
               return <Fragment key={row.sourceYear+":"+row.id}>
-                {startsTier&&<tr className={"history-tier-row "+(compactTiers?"compact":"")}><td colSpan={showGradeDetails?8:5}>
+                {startsTier&&<tr className={"history-tier-row "+(compactTiers?"compact":"")}><td colSpan={showGradeDetails?10:7}>
                   <div className={"history-tier-break "+(compactTiers?"compact":"")} title={row.tier===1?"Tier 1 · Top historical grade cluster":"Tier "+row.tier+(row.tierGapBefore!=null?" · "+fmt(row.tierGapBefore)+" point drop":"")}>
                     <strong>{compactTiers?"T"+row.tier:"Tier "+row.tier}</strong>
                     {compactTiers?<i/>:<span>{row.tier===1?"Top historical grade cluster":row.tierGapBefore!=null?fmt(row.tierGapBefore)+" point drop from the previous prospect":"Automatic grade tier"}</span>}
@@ -261,8 +284,10 @@ export default function Page(){
                 </td></tr>}
                 <tr>
                   <td className="history-overall-rank">{row.poolRank??"—"}</td>
+                  <td className="history-class-overall-rank"><span>{row.classOverallRank??"—"}</span></td>
                   <td><span className={"history-year year-"+row.sourceYear+(row.sourceYear===draftClass?" focal":"")}>{row.sourceYear}{row.sourceYear===draftClass&&<small>FOCAL</small>}</span></td>
                   <td><span className={posClass(row.position)}>{row.position}{row.positionRank??"—"}</span></td>
+                  <td><span className={"history-class-pos-rank "+posClass(row.position)}>{row.position}{row.classPositionRank??"—"}</span></td>
                   <td>
                     <div className="history-player">
                       <div className="history-player-main"><PlayerName id={row.id} className="history-player-name">{row.name}</PlayerName><span className="history-college" style={schoolStyle(row.college)}>{row.college||"—"}</span></div>
@@ -328,9 +353,10 @@ const historyStyles=`
   .history-auto-stack{display:grid;justify-items:end;gap:4px;color:#7f98ba;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.065em}
   .history-auto-stack small{color:#58a7ff;font-size:9px;font-weight:850;text-transform:none;letter-spacing:0}
   .history-table-wrap{overflow:auto;max-height:calc(100vh - 365px)}
-  .historical-board-table{width:100%;min-width:940px;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+  .historical-board-table{width:100%;min-width:1120px;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
   .historical-board-table th{position:sticky;top:0;z-index:8;background:#10223d;color:#8fa7c8;padding:10px 12px;border-bottom:1px solid #31527f;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.075em}
-  .historical-board-table th.rank-col,.historical-board-table td.history-overall-rank{text-align:center;width:62px}
+  .historical-board-table th.rank-col,.historical-board-table td.history-overall-rank{text-align:center;width:72px;white-space:nowrap}
+  .historical-board-table th.class-rank-col,.historical-board-table th.class-pos-rank-col{min-width:86px;white-space:nowrap}
   .historical-board-table th.history-grade-col{min-width:175px}
   .historical-board-table td{padding:10px 12px;border-bottom:1px solid #172d4d;background:#09172a;color:#dce7f6;vertical-align:middle}
   .historical-board-table tbody tr:not(.history-tier-row):nth-child(even) td{background:#0b1b31}
@@ -345,11 +371,15 @@ const historyStyles=`
   .history-tier-break.compact strong{display:inline-grid;place-items:center;min-width:24px;height:14px;padding:0 4px;border:1px solid #416b98;border-radius:999px;background:#102743;color:#9ccaff;font-size:7px;letter-spacing:.04em}
   .history-tier-break.compact i{display:block;flex:1;height:1px;background:linear-gradient(90deg,#4d82b9,rgba(32,226,221,.32),rgba(49,82,127,.2));border-radius:999px}
   .history-overall-rank{font-size:20px;font-weight:950;color:#eef5ff!important}
+  .history-class-overall-rank{text-align:center}
+  .history-class-overall-rank span{display:inline-grid;place-items:center;min-width:31px;height:25px;padding:0 7px;border:1px solid #36587e;border-radius:7px;background:#0e2139;color:#b9cbe0;font-size:11px;font-weight:950}
   .history-pos{display:inline-flex;align-items:center;justify-content:center;min-width:52px;padding:5px 8px;border-radius:6px;color:#06101e;font-size:11px;font-weight:950}
   .history-pos-qb{background:#fc2b6d;color:#fff!important}
   .history-pos-rb{background:#20ceb7}
   .history-pos-wr{background:#58a7ff}
   .history-pos-te{background:#fead58}
+  .history-class-pos-rank.history-pos{background:transparent!important;border:1px solid currentColor;box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)}
+  .history-class-pos-rank.history-pos-qb{color:#ff7ba3!important}.history-class-pos-rank.history-pos-rb{color:#69e6d4!important}.history-class-pos-rank.history-pos-wr{color:#8bc4ff!important}.history-class-pos-rank.history-pos-te{color:#ffc98d!important}
   .history-year{display:inline-flex;align-items:center;gap:5px;min-width:58px;justify-content:center;padding:5px 8px;border:1px solid #345273;border-radius:999px;background:#0e223c;color:#c9d9ed;font-size:10px;font-weight:950}
   .history-year small{padding:2px 4px;border-radius:999px;background:#704fc1;color:#f0eaff;font-size:6px;letter-spacing:.05em}
   .history-year.year-2022{border-color:#516276;background:#172333}.history-year.year-2023{border-color:#55528a;background:#1c1d3c}.history-year.year-2024{border-color:#2e6c86;background:#0c2936}.history-year.year-2025{border-color:#337258;background:#102c25}.history-year.year-2026{border-color:#8a6439;background:#332414}.history-year.year-2027{border-color:#6d4e8e;background:#281a39}
