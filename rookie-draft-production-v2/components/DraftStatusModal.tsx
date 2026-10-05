@@ -7,7 +7,8 @@ type Status="ENTERING_DRAFT"|"RETURNING_TO_SCHOOL"|"TRANSFER_PORTAL";
 type Player={playerId:string|number;name:string;position:"QB"|"RB"|"WR"|"TE"|string;college?:string;status?:Status;sourceUrl?:string;sourceTitle?:string};
 type Finding={playerId:string;playerName:string;status:Status;sourceUrl:string;sourceTitle:string;sourceType?:string;announcementDate?:string;evidence?:string};
 type Data={players:Player[];unannounced:Player[];counts:{total:number;announced:number;unannounced:number}};
-type QueuedDecision={playerId:string;status:Status};
+type ManualStatus="ENTERING_DRAFT"|"RETURNING_TO_SCHOOL";
+type QueuedDecision={playerId:string;status:ManualStatus};
 const LABEL:Record<Status,string>={ENTERING_DRAFT:"Entering NFL Draft",RETURNING_TO_SCHOOL:"Returning to School",TRANSFER_PORTAL:"Transfer Portal"};
 const norm=(s:unknown)=>String(s??"").trim().toLowerCase();
 
@@ -27,7 +28,7 @@ export default function DraftStatusModal({open,onClose,onDone}:{open:boolean;onC
  async function apply(payload:any){const r=await fetch("/api/draft-status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}),j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not apply status.");return j}
  async function applyVerified(){const picked=findings.filter(f=>verified.has(String(f.playerId)));if(!picked.length)return setError("Verify at least one source first.");setBusy(true);setError("");try{let n=0;for(const f of picked){setProgress(`Applying… ${n+1} / ${picked.length}`);await apply({playerId:f.playerId,draftClass,status:f.status,sourceUrl:f.sourceUrl,sourceTitle:f.sourceTitle,sourceType:f.sourceType,announcementDate:f.announcementDate,note:f.evidence,setMethod:"WEB"});n++}setMessage(`${n} verified decision${n===1?"":"s"} applied.`);setFindings(v=>v.filter(f=>!verified.has(String(f.playerId))));setVerified(new Set());await load();window.dispatchEvent(new Event("rookie-draft:players-changed"));onDone?.()}catch(e:any){setError(e?.message||"Could not apply decisions.");await load().catch(()=>{})}finally{setProgress("");setBusy(false)}}
  function toggleVerified(id:string){setVerified(v=>{const n=new Set(v);n.has(id)?n.delete(id):n.add(id);return n})}
- function addToQueue(ids:string[],status:Status){setQueue(q=>{const map=new Map(q.map(x=>[x.playerId,x.status]));for(const id of ids)map.set(id,status);return [...map].map(([playerId,nextStatus])=>({playerId,status:nextStatus}))});setSelected([])}
+ function addToQueue(ids:string[],status:ManualStatus){setQueue(q=>{const map=new Map(q.map(x=>[x.playerId,x.status]));for(const id of ids)map.set(id,status);return [...map].map(([playerId,nextStatus])=>({playerId,status:nextStatus}))});setSelected([])}
  async function processQueue(){if(!queue.length)return;setBusy(true);setError("");setMessage("");try{let n=0;for(const item of queue){const p=byId(item.playerId);if(!p)continue;setProgress(`Applying manual decisions… ${n+1} / ${queue.length}`);await apply({playerId:item.playerId,draftClass,status:item.status,note:"Manual Draft Status Check",setMethod:"MANUAL"});n++}setMessage(`${n} manual decision${n===1?"":"s"} applied.`);setQueue([]);setSelected([]);await load();window.dispatchEvent(new Event("rookie-draft:players-changed"));onDone?.()}catch(e:any){setError(e?.message||"Could not process manual decisions.");await load().catch(()=>{})}finally{setProgress("");setBusy(false)}}
  if(!open)return null;
  return <div className="watched-modal-backdrop" role="dialog" aria-modal="true" aria-label="Draft Status Check" onMouseDown={e=>e.target===e.currentTarget&&!busy&&onClose()}>
@@ -51,13 +52,12 @@ export default function DraftStatusModal({open,onClose,onDone}:{open:boolean;onC
     <div className="watched-player-list">
       {busy&&!data?<div className="watched-empty">Loading players…</div>:shown.length?shown.map(p=>{const id=String(p.playerId),checked=selected.includes(id),queued=queueMap.get(id);return <label key={id} className={"school-coded "+(queued?"queued":"")} style={schoolStyle(p.college)} onClick={e=>e.stopPropagation()}>
         <input type="checkbox" checked={checked} onChange={e=>setSelected(v=>e.target.checked?[...v,id]:v.filter(x=>x!==id))}/>
-        <span className="pos">{p.position}</span><span className="name">{p.name}</span><span className="college">{p.college||"College TBD"}</span>{queued&&<b>{queued==="ENTERING_DRAFT"?"Draft":queued==="RETURNING_TO_SCHOOL"?"Return":"Portal"}</b>}
+        <span className="pos">{p.position}</span><span className="name">{p.name}</span><span className="college">{p.college||"College TBD"}</span>{queued&&<b>{queued==="ENTERING_DRAFT"?"Draft":"Return"}</b>}
       </label>}):<div className="watched-empty">No matching unannounced players.</div>}
     </div>
-    <div className="watched-add-actions" style={{gridTemplateColumns:"repeat(3,minmax(0,1fr))"}}>
+    <div className="watched-add-actions">
       <button disabled={!selected.length} onClick={()=>addToQueue(selected,"ENTERING_DRAFT")}>Selected → NFL Draft</button>
-      <button className="purple" disabled={!selected.length} onClick={()=>addToQueue(selected,"RETURNING_TO_SCHOOL")}>Selected → Returning</button>
-      <button style={{background:"#8b5a21"}} disabled={!selected.length} onClick={()=>addToQueue(selected,"TRANSFER_PORTAL")}>Selected → Portal</button>
+      <button className="purple" disabled={!selected.length} onClick={()=>addToQueue(selected,"RETURNING_TO_SCHOOL")}>Selected → Returning to School</button>
     </div>
     <div className="watched-add-actions">
       <button disabled={!shown.length} onClick={()=>addToQueue(shown.map(p=>String(p.playerId)),"ENTERING_DRAFT")}>All Shown → NFL Draft</button>
