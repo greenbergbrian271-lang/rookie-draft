@@ -1,4 +1,5 @@
 import {rows} from "@/lib/turso";
+import {markPlayerDeclaredFromSignal} from "@/lib/draft-status-signals";
 
 export type CombineLookupPlayer={
   id:number|string;
@@ -39,6 +40,10 @@ async function saveEvaluation(q:any,playerId:number|string,invited:boolean){
     sql:"insert into workflow_tags(player_id,tag,detail,created_at,updated_at) values(?,?,?,?,?) on conflict(player_id,tag) do update set detail=excluded.detail,updated_at=excluded.updated_at",
     args:[playerId,"COMBINE",detail,now,now]
   });
+  if(invited){
+    const player:any=rows(await q.execute({sql:"select draft_class from players where id=?",args:[Number(playerId)]}))[0];
+    if(player?.draft_class)await markPlayerDeclaredFromSignal(q,playerId,Number(player.draft_class),"COMBINE_INVITE");
+  }
 }
 
 export async function combineInviteStatusForPlayer(q:any,player:CombineLookupPlayer):Promise<boolean|null>{
