@@ -3,8 +3,8 @@ import {useEffect,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
 
 type Pos="QB"|"RB"|"WR"|"TE";
-type Player={id:string|number;name:string;position:Pos;college?:string;draft_class:number;scouting_status:string;watch_order?:number};
-type NextGame={kickoff:string;opponent:string;venue:string;network:string};
+type Player={id:string|number;name:string;position:Pos;college?:string;draft_class:number;scouting_status:string;watch_order?:number;headshot_url?:string};
+type NextGame={id:string;kickoff:string;opponent:string;venue:string;network:string;homeTeam:string;awayTeam:string};
 const POSITIONS:Pos[]=["QB","RB","WR","TE"];
 const ALIAS:Record<string,string>={
   "miami fl":"miami florida","miami hurricanes":"miami florida","mia":"miami florida","miami oh":"miami ohio","miami redhawks":"miami ohio",
@@ -30,11 +30,13 @@ function findGame(events:any[],college:string,after:number):NextGame|null{
     const competitors=e?.competitions?.[0]?.competitors||[];
     const mine=competitors.find((c:any)=>teamKeys(c).has(target));if(!mine)continue;
     const opponent=competitors.find((c:any)=>c!==mine);
-    return {kickoff:e.date,opponent:teamName(opponent),venue:mine.homeAway==="away"?"at":"vs",network:networkName(e)};
+    const home=competitors.find((c:any)=>c.homeAway==="home"),away=competitors.find((c:any)=>c.homeAway==="away");
+    return {id:String(e.id),kickoff:e.date,opponent:teamName(opponent),venue:mine.homeAway==="away"?"at":"vs",network:networkName(e),homeTeam:teamName(home),awayTeam:teamName(away)};
   }
   return null;
 }
 function kickoffLabel(value:string){return new Intl.DateTimeFormat(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}).format(new Date(value))}
+function PlayerHeadshot({player}:{player:Player}){const [failed,setFailed]=useState(false),initials=player.name.split(/\\s+/).filter(Boolean).map(x=>x[0]).slice(0,2).join("");return player.headshot_url&&!failed?<img src={player.headshot_url} alt="" onError={()=>setFailed(true)} style={{width:78,height:78,borderRadius:14,objectFit:"cover",objectPosition:"center top",background:"rgba(3,14,30,.24)",border:"1px solid rgba(255,255,255,.28)",flex:"0 0 auto"}}/>:<div aria-hidden="true" style={{width:78,height:78,borderRadius:14,display:"grid",placeItems:"center",fontSize:22,fontWeight:900,background:"rgba(3,14,30,.2)",border:"1px solid rgba(255,255,255,.22)",flex:"0 0 auto"}}>{initials}</div>}
 
 export default function BestUnwatchedPlayerModal({open,onClose,draftClass=2027}:{open:boolean;onClose:()=>void;draftClass?:number}){
   const [best,setBest]=useState<Record<Pos,Player|null>>({QB:null,RB:null,WR:null,TE:null});
@@ -65,16 +67,17 @@ export default function BestUnwatchedPlayerModal({open,onClose,draftClass=2027}:
     return()=>{cancelled=true};
   },[open,draftClass]);
 
+  async function watchLater(game:NextGame){await fetch("/api/watch-list",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:game.id,kickoff:game.kickoff,homeTeam:game.homeTeam,awayTeam:game.awayTeam})})}
+
   if(!open)return null;
   return <div className="watched-modal-backdrop" role="dialog" aria-modal="true" aria-label="Best Unwatched Player" onMouseDown={e=>e.target===e.currentTarget&&!loading&&onClose()}>
     <div className="watched-modal" style={{maxWidth:900}} onMouseDown={e=>e.stopPropagation()}>
       <div className="watched-modal-head"><div><span className="ey">{draftClass} · Scouting Tools</span><h2>Best Unwatched Player</h2><p>The first player in each Players to Scout position column who is not already on the active Scouting tab.</p></div><button className="small ghost" disabled={loading} onClick={onClose}>Close</button></div>
-      <div className="watched-exclusion">Top-to-bottom queue order · one player each at QB, RB, WR and TE</div>
       {error&&<div className="notice">{error}</div>}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,padding:"14px 0 4px"}}>
         {POSITIONS.map(pos=>{const p=best[pos],game=p?games[String(p.id)]:undefined;return <section key={pos} className="school-coded" style={{...(p?schoolStyle(p.college):{}),borderRadius:14,padding:16,border:"1px solid rgba(255,255,255,.14)",minHeight:178}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}><span className="pos">{pos}</span><span style={{fontSize:10,fontWeight:900,opacity:.72}}>{p?.watch_order!=null?`QUEUE #${p.watch_order}`:"QUEUE"}</span></div>
-          {loading&&!p?<div className="watched-empty" style={{padding:"34px 0"}}>Finding best unwatched {pos}…</div>:p?<><h3 style={{fontSize:18,margin:"14px 0 3px"}}>{p.name}</h3><div style={{fontSize:12,opacity:.8}}>{p.college||"College not set"}</div><div style={{marginTop:16,paddingTop:13,borderTop:"1px solid rgba(255,255,255,.14)"}}><div className="ey" style={{marginBottom:5}}>NEXT GAME</div>{game?<><strong style={{display:"block",fontSize:14}}>{kickoffLabel(game.kickoff)}</strong><span style={{display:"block",marginTop:4,fontSize:12}}>{game.venue} {game.opponent}{game.network&&game.network!=="TBD"?` · ${game.network}`:""}</span></>:game===null?<span style={{fontSize:12,opacity:.75}}>No future game found on the available schedule.</span>:<span style={{fontSize:12,opacity:.75}}>Checking schedule…</span>}</div></>:<div className="watched-empty" style={{padding:"34px 0"}}>No unwatched {pos} remains in this column.</div>}
+          {loading&&!p?<div className="watched-empty" style={{padding:"34px 0"}}>Finding best unwatched {pos}…</div>:p?<><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,marginTop:14}}><div style={{minWidth:0}}><h3 style={{fontSize:18,margin:"0 0 3px"}}>{p.name}</h3><div style={{fontSize:12,opacity:.8}}>{p.college||"College not set"}</div></div><PlayerHeadshot player={p}/></div><div style={{marginTop:16,paddingTop:13,borderTop:"1px solid rgba(255,255,255,.14)"}}><div className="ey" style={{marginBottom:5}}>NEXT GAME</div>{game?<div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:12}}><div style={{minWidth:0}}><strong style={{display:"block",fontSize:14}}>{kickoffLabel(game.kickoff)}</strong><span style={{display:"block",marginTop:4,fontSize:12}}>{game.venue} {game.opponent}{game.network&&game.network!=="TBD"?` · ${game.network}`:""}</span></div><button type="button" className="ghost small" style={{flex:"0 0 auto"}} onClick={()=>watchLater(game)}>Watch Later</button></div>:game===null?<span style={{fontSize:12,opacity:.75}}>No future game found on the available schedule.</span>:<span style={{fontSize:12,opacity:.75}}>Checking schedule…</span>}</div></>:<div className="watched-empty" style={{padding:"34px 0"}}>No unwatched {pos} remains in this column.</div>}
         </section>})}
       </div>
       <div className="watched-footer" style={{marginTop:14}}><button className="success" disabled={loading} onClick={onClose}>{loading?"Loading schedules…":"Done"}</button></div>
