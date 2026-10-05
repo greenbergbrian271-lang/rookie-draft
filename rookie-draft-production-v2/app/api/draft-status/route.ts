@@ -1,5 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {movePlayerToNextDraftClass,ReturningPlayerError} from "@/lib/returning-player";
+import {reconcileAutomaticDraftDeclarations} from "@/lib/draft-status-signals";
 
 const STATUSES=["ENTERING_DRAFT","RETURNING_TO_SCHOOL","TRANSFER_PORTAL"] as const;
 type DraftStatus=(typeof STATUSES)[number];
@@ -11,6 +12,7 @@ export async function GET(req:Request){
     const draftClass=Number(new URL(req.url).searchParams.get("draftClass")||0);
     if(!draftClass)return Response.json({error:"draftClass required"},{status:400});
     const c=await ensureTursoSchema();
+    await reconcileAutomaticDraftDeclarations(c,draftClass);
     const players=rows(await c.execute({
       sql:`select p.id as playerId,p.name,p.position,p.college,p.draft_class as draftClass,p.scouting_status as scoutingStatus,
         d.status,d.source_url as sourceUrl,d.source_title as sourceTitle,d.source_type as sourceType,
