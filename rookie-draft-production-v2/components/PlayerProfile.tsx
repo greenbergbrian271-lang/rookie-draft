@@ -1,5 +1,5 @@
 "use client";
-import {createContext,useContext,useEffect,useRef,useState} from "react";
+import {createContext,useContext,useEffect,useState} from "react";
 import {nflTeamLogo} from "@/app/scouting/ScoutingShared";
 
 type Ctx={openPlayer:(id:string|number)=>void};
@@ -9,7 +9,7 @@ const fmt=(x:any)=>x==null||!Number.isFinite(Number(x))?"—":Number(x).toFixed(
 export function usePlayerProfile(){return useContext(C)}
 
 export function PlayerProfileProvider({children}:{children:React.ReactNode}){
-  const [id,setId]=useState<string|null>(null),[data,setData]=useState<any>(null),[tab,setTab]=useState("Summary"),[loading,setLoading]=useState(false),[status,setStatus]=useState<{kind:"success"|"warning",text:string}|null>(null),playersRef=useRef<{id:string,key:string}[]>([]);
+  const [id,setId]=useState<string|null>(null),[data,setData]=useState<any>(null),[tab,setTab]=useState("Summary"),[loading,setLoading]=useState(false),[status,setStatus]=useState<{kind:"success"|"warning",text:string}|null>(null);
   const openPlayer=(x:string|number)=>{setId(String(x));setTab("Summary");setStatus(null)};
   const loadProfile=async(playerId:string,clear=false)=>{
     setLoading(true);
@@ -30,23 +30,6 @@ export function PlayerProfileProvider({children}:{children:React.ReactNode}){
     const synced=id?await loadProfile(id):false;
     setStatus(synced?{kind:"success",text:`Transfer saved: ${result.transfer.from_college||"Unknown"} → ${result.transfer.to_college}.`}:{kind:"warning",text:"Transfer saved, but the latest team details could not refresh automatically. The saved school change is preserved."});
   };
-  useEffect(()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then((ps:any[])=>{if(Array.isArray(ps))playersRef.current=ps.filter(p=>p?.id&&p?.name).map(p=>({id:String(p.id),key:String(p.name).toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ")})).sort((a,b)=>b.key.length-a.key.length)}).catch(()=>{})},[]);
-  useEffect(()=>{
-    const norm=(v:string)=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
-    const onClick=(e:MouseEvent)=>{
-      const target=e.target as HTMLElement|null;if(!target)return;
-      if(target.closest("[data-player-profile-ignore],button,a,input,select,textarea,option,[role=button]"))return;
-      const explicit=target.closest<HTMLElement>("[data-player-id]");
-      if(explicit?.dataset.playerId){openPlayer(explicit.dataset.playerId);return}
-      let el:HTMLElement|null=target;
-      for(let depth=0;el&&depth<5&&!el.matches("main,body");depth++,el=el.parentElement){
-        const t=norm(el.innerText||el.textContent||"");if(!t||t.length>260)continue;
-        const padded=" "+t+" ",ids=[...new Set(playersRef.current.filter(p=>p.key&&padded.includes(" "+p.key+" ")).map(p=>p.id))];
-        if(ids.length===1){openPlayer(ids[0]);return}
-      }
-    };
-    document.addEventListener("click",onClick);return()=>document.removeEventListener("click",onClick)
-  },[]);
   useEffect(()=>{if(id)void loadProfile(id,true)},[id]);
   return <C.Provider value={{openPlayer}}>{children}{id&&<div className="player-profile-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setId(null)}><div className="player-profile-modal"><button className="player-profile-close" onClick={()=>setId(null)}>×</button>{loading&&!data?<div className="empty">Loading player profile…</div>:data?.player?<><Profile d={data} tab={tab} setTab={setTab} open={openPlayer} applyTransfer={applyTransfer} reload={()=>id?loadProfile(id):Promise.resolve(false)} setProfileStatus={setStatus}/>{status&&<div className={"profile-save-status "+status.kind}>{status.text}</div>}</>:<div className="empty">Could not load player profile.</div>}</div></div>}</C.Provider>
 }
