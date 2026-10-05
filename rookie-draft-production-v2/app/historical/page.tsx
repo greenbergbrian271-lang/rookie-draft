@@ -169,7 +169,7 @@ export default function Page(){
   const gradedCount=rows.filter(row=>row.sourceGrade!=null).length;
 
   function exportBoard(){
-    const header=["OVR Rank","Class OVR Rank","Class","Pos Rank","Class Pos Rank","Position","Player","College","Grade Source","Pre-Draft Grade","Final Grade","Historical Grade","Draft Result"];
+    const header=["Rank","Class Rank","Class","Pos Rank","Class Pos Rank","Position","Player","College","Grade Source","Pre-Draft Grade","Final Grade","Historical Grade","Draft Result"];
     const csv=[header,...rows.map(row=>[
       row.poolRank??"",row.classOverallRank??"",row.sourceYear,row.positionRank?row.position+" "+row.positionRank:"",row.classPositionRank?row.position+" "+row.classPositionRank:"",row.position,row.name,row.college||"",row.gradeSource||"",
       row.preDraftGrade==null?"":Number(row.preDraftGrade).toFixed(2),row.finalGrade==null?"":Number(row.finalGrade).toFixed(2),
@@ -261,8 +261,8 @@ export default function Page(){
       {loading?<div className="history-loading">Building cross-class board…</div>:<div className="history-table-wrap">
         <table className="historical-board-table">
           <thead><tr>
-            <th className="rank-col">OVR Rank</th>
-            <th className="class-rank-col">Class OVR Rank</th>
+            <th className="rank-col">Rank</th>
+            <th className="class-rank-col">Class Rank</th>
             <th>Class</th>
             <th>Pos Rank</th>
             <th className="class-pos-rank-col">Class Pos Rank</th>
