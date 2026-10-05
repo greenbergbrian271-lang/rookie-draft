@@ -111,7 +111,7 @@ const activeClassMarker=await c.execute({sql:"select value from settings where k
 if(!activeClassMarker.rows.length){
   const now=new Date().toISOString(),active=2027;
   await c.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?)",args:["active_draft_class",String(active),now]});
-  await c.execute({sql:"insert into draft_class_state(draft_class,is_locked,locked_at) select distinct draft_class,case when draft_class<? then 1 else 0 end,case when draft_class<? then ? else null end from players on conflict(draft_class) do nothing",args:[active,active,now]});
+  await c.execute({sql:"insert into draft_class_state(draft_class,is_locked,locked_at) select distinct draft_class,case when draft_class<? then 1 else 0 end,case when draft_class<? then ? else null end from players where 1=1 on conflict(draft_class) do nothing",args:[active,active,now]});
   await c.execute({sql:"insert into draft_class_state(draft_class,is_locked,locked_at) values(?,0,null) on conflict(draft_class) do nothing",args:[active]});
 }
 for(const sql of [
