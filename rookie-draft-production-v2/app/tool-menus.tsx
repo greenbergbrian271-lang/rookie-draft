@@ -9,11 +9,12 @@ import MaybeScoutModal from "@/components/MaybeScoutModal";
 import ArchivePlayerModal from "@/components/ArchivePlayerModal";
 import CombineStatusModal from "@/components/CombineStatusModal";
 import ReturningPlayerModal from "@/components/ReturningPlayerModal";
+import DraftStatusModal from "@/components/DraftStatusModal";
 import MockDraftModal from "@/components/MockDraftModal";
 import ComparePlayersModal from "@/components/ComparePlayersModal";
 import {useDraftClass} from "@/lib/use-draft-class";
 type Item={label:string,id:string};
-const groups=[{label:"GM Tools",items:[["Returning Player","returning-player"],["Draft Declarations","declarations"],["Combine Status","combine-status"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["Maybe Scout Player","maybe"],["Archive Player","archive"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Refresh Combine Data","combine-refresh"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
+const groups=[{label:"GM Tools",items:[["Returning Player","returning-player"],["Draft Status Check","draft-status"],["Combine Status","combine-status"],["Compare Players","compare"],["Mock Draft Simulator","mock-draft"]]},{label:"Scouting Tools",items:[["Add Player","add-player"],["New Player Watched","new-player-watched"],["Reorder Players","reorder"],["Maybe Scout Player","maybe"],["Archive Player","archive"],["Finished Scouting Player","finished"]]},{label:"Sheet Tools",items:[["Refresh NCAA Stats","ncaa-stats"],["Refresh Combine Data","combine-refresh"]]}].map(g=>({...g,items:g.items.map(([label,id])=>({label,id}))}));
 const playerActions:Record<string,{status?:string,draftClass?:number}>={finished:{status:"FINISHED"}};
 const HISTORICAL_SHEET_URLS:Record<number,string>={
   2020:"https://docs.google.com/spreadsheets/d/144uriskf0hTwx41uiAGGQ_mxMgXVUXoBLUQEibh6HV0/edit",
@@ -24,7 +25,7 @@ const HISTORICAL_SHEET_URLS:Record<number,string>={
   2025:"https://docs.google.com/spreadsheets/d/1rAcmv1PIlD2t_dGuUrTO5bZhQSnQWnF3nTN9W07F1X4/edit",
   2026:"https://docs.google.com/spreadsheets/d/1uAgs4mZD4XtFj5Lk_7FAG7sGEQ4ZWzlNt5v1qh6Fjm8/edit"
 };
-export default function ToolMenus(){const draftClass=useDraftClass();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[compareOpen,setCompareOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);
+export default function ToolMenus(){const draftClass=useDraftClass();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[draftStatusOpen,setDraftStatusOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[compareOpen,setCompareOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);
 useEffect(()=>{if(tool){fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{});if(tool.id==="combine-refresh")fetch("/api/combine-refresh",{cache:"no-store"}).then(r=>r.json()).then(setCombineStatus).catch(()=>{})}},[tool,draftClass]);
 function close(){setTool(null);setMsg("");setPlayerId("");setChoice("");setPlayerId2("")}
 async function playerRun(){const p=players.find(x=>String(x.id)===playerId);if(!p)return setMsg("Select a player.");const a=playerActions[tool!.id];const r=await fetch("/api/players",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:p.id,status:a.status,draftClass:a.draftClass})});setMsg(r.ok?`${p.name} updated successfully.`:"The player update failed.")}
@@ -97,6 +98,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
       else if(i.id==="maybe"){setMaybeOpen(true);setTool(null)}
       else if(i.id==="archive"){setArchiveOpen(true);setTool(null)}
       else if(i.id==="returning-player"){setReturningOpen(true);setTool(null)}
+      else if(i.id==="draft-status"){setDraftStatusOpen(true);setTool(null)}
       else if(i.id==="combine-status"){setCombineOpen(true);setTool(null)}
       else if(i.id==="compare"){setCompareOpen(true);setTool(null)}
       else if(i.id==="mock-draft"){setMockOpen(true);setTool(null)}
@@ -112,6 +114,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
 <MaybeScoutModal open={maybeOpen} onClose={()=>setMaybeOpen(false)} onDone={()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setPlayers(x)}).catch(()=>{})}}/>
 <ArchivePlayerModal open={archiveOpen} onClose={()=>setArchiveOpen(false)} onDone={()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setPlayers(x)}).catch(()=>{})}}/>
 <ReturningPlayerModal open={returningOpen} onClose={()=>setReturningOpen(false)} onDone={()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setPlayers(x)}).catch(()=>{})}}/>
+<DraftStatusModal open={draftStatusOpen} onClose={()=>setDraftStatusOpen(false)} onDone={()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setPlayers(x)}).catch(()=>{})}}/>
 <CombineStatusModal open={combineOpen} onClose={()=>setCombineOpen(false)}/>
 <ComparePlayersModal open={compareOpen} onClose={()=>setCompareOpen(false)}/>
 <MockDraftModal open={mockOpen} draftClass={draftClass} onClose={()=>setMockOpen(false)}/>
