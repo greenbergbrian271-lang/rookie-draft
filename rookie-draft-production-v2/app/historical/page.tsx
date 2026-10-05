@@ -60,7 +60,7 @@ function heatColor(ratio:number){
   const r=Math.max(0,Math.min(1,ratio));
   return `hsl(${Math.round(r*120)} 72% 48%)`;
 }
-function rankRows(rows:(GradeRow&{sourceYear:number;sourceGrade:number|null})[]):RankedRow[]{
+function rankRows(rows:(GradeRow&{sourceYear:number;sourceGrade:number|null;classOverallRank:number|null;classPositionRank:number|null})[]):RankedRow[]{
   const positionRanks=new Map<string,number>();
   for(const pos of POSITIONS){
     rows.filter(row=>row.position===pos&&row.sourceGrade!=null)
