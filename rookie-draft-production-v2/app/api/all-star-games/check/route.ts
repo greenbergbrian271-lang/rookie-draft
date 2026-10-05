@@ -1,5 +1,6 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {ALL_STAR_GAMES,fetchAllStarSource,gameDefinition,sourceHasPlayer,excerptAround} from "@/lib/all-star-games";
+import {markPlayerDeclaredFromSignal} from "@/lib/draft-status-signals";
 
 export const dynamic="force-dynamic";
 type Source={kind:"website"|"twitter"|"roster_a"|"roster_b";url:string;rosterKey:"A"|"B"|null};
@@ -36,6 +37,7 @@ export async function POST(req:Request){
         if(existingSet.has(Number(hit.player.id)))updated++;else added++;
         await q.execute({sql:"insert into all_star_invites(game_key,player_id,roster_key,source_kind,source_url,source_excerpt,discovered_at,updated_at) values(?,?,?,?,?,?,?,?) on conflict(game_key,player_id) do update set roster_key=coalesce(excluded.roster_key,all_star_invites.roster_key),source_kind=excluded.source_kind,source_url=excluded.source_url,source_excerpt=excluded.source_excerpt,updated_at=excluded.updated_at",args:[g.key,hit.player.id,hit.rosterKey,hit.kind,hit.url,hit.excerpt||null,now,now]});
         await q.execute({sql:"insert into workflow_tags(player_id,tag,detail,updated_at) values(?,?,?,?) on conflict(player_id,tag) do update set detail=excluded.detail,updated_at=excluded.updated_at",args:[hit.player.id,"ALL_STAR",g.legacyName,now]});
+        await markPlayerDeclaredFromSignal(q,hit.player.id,2027,"ALL_STAR_GAME",{url:hit.url,title:g.name});
       }
       const sourceSummary=fetched.map(f=>({kind:f.source.kind,url:f.url,ok:!f.error,error:f.error}));
       const scan={checkedAt:now,matched:found.size,added,updated,sourceSummary};
