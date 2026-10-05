@@ -12,6 +12,6 @@ export default function Brand(){
         {year}{lockedDraftClasses.includes(year)?" · Locked":year===activeDraftClass?" · Active":""}
       </option>)}
     </select>
-    <small>Scouting Command Center</small>
+    <small>Scouting & Draft Command Center</small>
   </div>;
 }

@@ -33,7 +33,7 @@ type LeagueResult={
 };
 type AdpPlayer={name:string;position:string;team:string;college:string;adp:number;playerId:string;adjustedADP:number};
 type AdpLeague={league:string;slug:string;top75:AdpPlayer[]};
-type LeagueMeta={slug:string;boardKey:string;name:string;rounds:number;teams:number;tePremium?:boolean;exists?:boolean;status?:string;historical?:boolean};
+type LeagueMeta={slug:string;boardKey:string;name:string;rounds:number;teams:number;tePremium?:boolean;superflex?:boolean;exists?:boolean;status?:string;historical?:boolean};
 type IntelRow=FinalBoardScoredRow&{adpRank:number|null;delta:number|null};
 type BoardPayload={view?:{key:string;label:string;tePremium:boolean;rosterKey?:string};rows?:FinalBoardScoredRow[]};
 type TradeAsset={name:string;position?:string;value:number;source?:string};
@@ -81,6 +81,8 @@ export default function DraftDayPage(){
   const [tradeData,setTradeData]=useState<TradeResponse|null>(null);
   const [tradeLoading,setTradeLoading]=useState(false);
   const [tradeError,setTradeError]=useState("");
+  const [rosterViews,setRosterViews]=useState<any[]>([]);
+  const [checkedAt,setCheckedAt]=useState<string|null>(null);
 
   async function loadMeta(){
     const r=await fetch("/api/draft-day?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"});
@@ -92,21 +94,24 @@ export default function DraftDayPage(){
 
   async function loadStatus(){
     setError("");
-    if(historical){setResults([]);setAdpLists([]);setUpdatedAt(null);setArchivedNames(new Set());setLoading(false);return}
+    if(historical){setResults([]);setAdpLists([]);setUpdatedAt(null);setArchivedNames(new Set());setRosterViews([]);setLoading(false);return}
     try{
-      const [statusRes,archiveRes]=await Promise.all([
+      const [statusRes,archiveRes,rosterRes]=await Promise.all([
         fetch("/api/draft-day/status",{cache:"no-store"}),
-        fetch("/api/players/archive",{cache:"no-store"})
+        fetch("/api/players/archive",{cache:"no-store"}),
+        fetch("/api/dynasty-rosters",{cache:"no-store"})
       ]);
       if(!statusRes.ok)throw new Error("Draft status endpoint returned "+statusRes.status);
-      const [status,archiveData]=await Promise.all([
+      const [status,archiveData,rosterData]=await Promise.all([
         statusRes.json(),
-        archiveRes.ok?archiveRes.json():[]
+        archiveRes.ok?archiveRes.json():[],
+        rosterRes.ok?rosterRes.json():{rosters:[]}
       ]);
       setResults(status.draft_day_status?.results||[]);
       setAdpLists(status.sleeper_adp?.lists||[]);
       setUpdatedAt(status.draft_day_status?.updatedAt||status.sleeper_adp?.updatedAt||null);
       setArchivedNames(new Set(Array.isArray(archiveData)?archiveData.map((p:any)=>normName(p.player_name)):[]));
+      setRosterViews(Array.isArray(rosterData?.rosters)?rosterData.rosters:[]);
     }catch(e:any){
       setError(e?.message||"Could not load draft-day data");
     }finally{
@@ -120,6 +125,7 @@ export default function DraftDayPage(){
       const data=await r.json();
       if(!r.ok)throw new Error(data?.error||"Could not load live draft");
       setLiveDraft(data);
+      setCheckedAt(new Date().toISOString());
     }catch(e:any){
       setError(e?.message||"Could not load live draft");
     }
@@ -242,6 +248,11 @@ export default function DraftDayPage(){
 
   const madeCount=active?.picks.filter(p=>p.player&&!archivedNames.has(normName(p.player))).length||0;
   const totalPicks=active?.total||((activeMeta?.rounds||0)*(activeMeta?.teams||0));
+  const activeRoster=rosterViews.find((r:any)=>r.key===activeMeta?.boardKey);
+  const rosterTargets:Record<string,number>={QB:activeMeta?.superflex?3:2,RB:4,WR:5,TE:2};
+  const rosterNeeds=FINAL_BOARD_POSITIONS.map(pos=>{const count=(activeRoster?.players||[]).filter((p:any)=>p.position===pos).length,target=rosterTargets[pos];return {pos,count,target,label:count===0?"Critical":count<target?"Need":"Covered"}});
+  const tierAlerts=FINAL_BOARD_POSITIONS.map(pos=>{const remaining=intelRows.filter(p=>p.position===pos&&p.boardGrade!=null&&!draftedNames.has(normName(p.name)));if(!remaining.length)return null;const tier=remaining[0].tier,same=remaining.filter(p=>p.tier===tier);return same.length<=2?{pos,tier,count:same.length,names:same.map(p=>p.name)}:null}).filter(Boolean) as {pos:string;tier:number|null;count:number;names:string[]}[];
+  const recent=[...(active?.picks||[])].filter(p=>p.position).sort((a,b)=>b.pickNo-a.pickNo).slice(0,5),run=FINAL_BOARD_POSITIONS.map(pos=>({pos,count:recent.filter(p=>p.position===pos).length})).find(x=>x.count>=3);
 
   function selectionClass(name:string){
     const pick=pickByName.get(normName(name));
@@ -285,7 +296,7 @@ export default function DraftDayPage(){
         <h1>Rookie Draft Command Center</h1>
         <p>{historical?<>Archived {draftClass} rookie-draft results from the source workbook on the left, with the historical Final Draft Board on the right.</>:<>Live Sleeper picks on the left. The <b>same league-specific Final Draft Board output</b> used by the Final Draft Board page—or Sleeper ADP—on the right.</>}</p>
       </div>
-      <span className={"status "+(error?"":loading?"":"cloud")}>{loading?"Connecting…":error?"● Data issue":updatedAt?"● Live · "+new Date(updatedAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"● Ready"}</span>
+      <span className={"status "+(error?"":loading?"":"cloud")}>{loading?"Connecting…":error?"● Data issue":checkedAt?"● Sleeper checked · "+new Date(checkedAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):updatedAt?"● Synced · "+new Date(updatedAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"● Ready"}</span>
     </section>
 
     {error&&<div className="notice"><b>Data status:</b> {error} <button className="small ghost" onClick={()=>{loadStatus();if(activeMeta?.boardKey)loadBoard(activeMeta.boardKey)}}>Retry</button></div>}
@@ -299,6 +310,11 @@ export default function DraftDayPage(){
         <b>{madeCount} / {totalPicks||"—"} picks</b>
       </div>
     </section>
+
+    {!historical&&<section className="dd-context-strip">
+      <div className="dd-context-block"><div className="dd-context-title"><span>My roster needs</span><small>{activeRoster?"Live dynasty roster depth":"Roster snapshot unavailable"}</small></div><div className="dd-need-pills">{rosterNeeds.map(n=><span key={n.pos} className={n.label.toLowerCase()}><b>{n.pos}</b><em>{n.count}/{n.target}</em><small>{n.label}</small></span>)}</div></div>
+      <div className="dd-context-block"><div className="dd-context-title"><span>Draft alerts</span><small>Tier cliffs + recent position runs</small></div><div className="dd-alert-pills">{run&&<span className="run"><b>{run.pos} run</b> · {run.count} of last {recent.length} picks</span>}{tierAlerts.slice(0,3).map(a=><span key={a.pos}><b>{a.pos} Tier {a.tier??"—"}</b> · {a.count} left · {a.names.join(", ")}</span>)}{!run&&!tierAlerts.length&&<span className="quiet">No immediate tier or position-run alerts.</span>}</div></div>
+    </section>}
 
     <section className="dd-controls">
       <div className="dd-search"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search player, team, college or position…"/></div>

@@ -89,7 +89,9 @@ export default function Page(){
   const [query,setQuery]=useState("");
   const [sortKey,setSortKey]=useState<SortKey>("prospects");
   const [view,setView]=useState<ViewMode>("overview");
-  const [prospectsOnly,setProspectsOnly]=useState(false);
+  const [prospectsOnly,setProspectsOnly]=useState(true);
+  const [limit,setLimit]=useState(36);
+  const [openDetails,setOpenDetails]=useState<Set<string>>(new Set());
   const [refreshState,setRefreshState]=useState<RefreshState>("idle");
   const [refreshMessage,setRefreshMessage]=useState("");
   const [savingCell,setSavingCell]=useState("");
@@ -135,8 +137,11 @@ export default function Page(){
     let n=[...r];
     const c=cloudByTeam.get(norm(r[1]));
     if(c){
-      const map:[number,string][]=[[2,"playersToScout"],[3,"players"],[4,"games"],[5,"completions"],[6,"passAttempts"],[7,"passYards"],[8,"passYardsPerAttempt"],[9,"passYardsPerCompletion"],[10,"passTDs"],[11,"passInterceptions"],[14,"rushes"],[15,"rushYards"],[16,"yardsPerRush"],[17,"rushTDs"],[25,"yac"],[26,"airYards"]];
-      for(const [idx,k] of map)if(c[k]!=null)n[idx]=c[k];
+      const map:[number,string][]=[[2,"playersToScout"],[3,"players"],[4,"games"],[5,"completions"],[6,"passAttempts"],[7,"passYards"],[8,"passYardsPerAttempt"],[9,"passYardsPerCompletion"],[10,"passTDs"],[11,"passInterceptions"],[14,"rushes"],[15,"rushYards"],[16,"yardsPerRush"],[17,"rushTDs"],[21,"totalPlays"],[25,"yac"],[26,"airYards"]];
+      for(const [idx,k] of map)n[idx]=c[k]??null;
+      for(const idx of [12,13,18,19,20,22,23,24,27,28])n[idx]=null;
+    }else if(!historical){
+      for(const idx of [4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28])n[idx]=null;
     }
     const manual=overridesByTeam.get(norm(r[1]));
     if(manual)for(const [idx,value] of manual)n[idx]=value;
@@ -148,7 +153,7 @@ export default function Page(){
   const teamRows=useMemo(()=>rows.slice(2).filter((r:any[])=>String(r?.[1]||"").trim()),[rows]);
   const totalProspects=useMemo(()=>teamRows.reduce((sum,r)=>sum+count(r[2]),0),[teamRows]);
   const programsWithProspects=useMemo(()=>teamRows.filter(r=>count(r[2])>0).length,[teamRows]);
-  const statCoverage=useMemo(()=>teamRows.filter(r=>numeric(r[4])!=null).length,[teamRows]);
+  const statCoverage=useMemo(()=>historical?teamRows.filter(r=>numeric(r[4])!=null).length:cloud.filter(r=>r.subdivision===level&&r.games!=null).length,[historical,teamRows,cloud,level]);
 
   const visibleRows=useMemo(()=>{
     const needle=norm(query);
@@ -165,6 +170,8 @@ export default function Page(){
       return bv-av||teamCompare;
     });
   },[teamRows,query,prospectsOnly,sortKey]);
+  useEffect(()=>setLimit(36),[query,prospectsOnly,sortKey,level,draftClass]);
+  const renderedRows=view==="overview"?visibleRows.slice(0,limit):visibleRows;
 
   const latestUpdate=useMemo(()=>cloud.reduce((latest,row)=>{
     const value=String(row.updatedAt||"");
@@ -215,13 +222,13 @@ export default function Page(){
       <div className={styles.heroCopy}>
         <div className={styles.eyebrow}>College Data Center</div>
         <h1>{level==="FBS"?"Colleges · Players + Stats":"Non-FBS · Players + Stats"}</h1>
-        <p>{historical?`Historical ${draftClass-1} team offense and the ${draftClass} prospects attached to those programs.`:"Start with the programs that matter to the 2027 draft pool, then drill into passing, rushing, total offense and usage without living inside a giant spreadsheet."}</p>
+        <p>{historical?`Historical ${draftClass-1} team offense and the ${draftClass} prospects attached to those programs.`:"Start with the programs that matter to the 2027 draft pool, then compare passing, rushing, total offense and usage alongside your scouting pool."}</p>
       </div>
       <div className={styles.heroStats}>
         <div><span>Programs</span><strong>{teamRows.length}</strong></div>
         <div><span>Prospects</span><strong>{totalProspects}</strong></div>
         <div><span>Draft programs</span><strong>{programsWithProspects}</strong></div>
-        <div><span>Stat coverage</span><strong>{statCoverage}</strong></div>
+        <div><span>Current stat coverage</span><strong>{cloudLoading&&!historical?"—":statCoverage+"/"+teamRows.length}</strong></div>
       </div>
     </section>
 
@@ -262,14 +269,14 @@ export default function Page(){
     </section>
 
     <div className={styles.resultsMeta}>
-      <div><strong>{visibleRows.length}</strong> of {teamRows.length} programs shown{prospectsOnly?" · players-to-scout filter on":""}</div>
+      <div><strong>{view==="overview"?Math.min(renderedRows.length,visibleRows.length):visibleRows.length}</strong> of {visibleRows.length} matching programs loaded{prospectsOnly?" · players-to-scout filter on":""}</div>
       <div className={styles.syncState}><i className={cloud.length?styles.live:cloudLoading?styles.loading:""}/>{historical?(cloudLoading?"Loading historical team stats…":`${draftClass-1} source workbook`):(cloudLoading?"Checking college stats…":cloud.length?`${cloud.length} cloud team records${latestUpdate?" · synced":""}`:"Workbook reference data")}</div>
     </div>
 
     {refreshMessage&&<div className={[styles.refreshNotice,refreshState==="error"?styles.refreshError:refreshState==="success"?styles.refreshSuccess:""].filter(Boolean).join(" ")}><span>{refreshMessage}</span>{latestUpdate&&refreshState!=="loading"?<time>{new Date(latestUpdate).toLocaleString()}</time>:null}</div>}
 
     {view==="overview"?<section className={styles.teamList}>
-      {visibleRows.map((r:any[],ri:number)=>{
+      {renderedRows.map((r:any[],ri:number)=>{
         const team=String(r[1]),prospects=splitPlayers(r[3]),passShare=numeric(r[27]),logo=logos[team]||"";
         return <article className={styles.teamCard} key={team+"-"+ri}>
           <header className={styles.teamHeader}>
@@ -312,18 +319,19 @@ export default function Page(){
             </div>
           </div>
 
-          <details className={styles.details}>
-            <summary><span>Full offense profile</span><b>Workbook detail</b></summary>
-            <div className={styles.detailGrid}>
+          <details className={styles.details} onToggle={e=>{const isOpen=(e.currentTarget as HTMLDetailsElement).open;setOpenDetails(cur=>{const next=new Set(cur);if(isOpen)next.add(team);else next.delete(team);return next})}}>
+            <summary><span>Full offense profile</span><b>Full detail</b></summary>
+            {openDetails.has(team)&&<div className={styles.detailGrid}>
               {DETAIL_GROUPS.map(group=><section key={group.label}>
                 <h3>{group.label}</h3>
                 <dl>{group.items.map(([label,index])=><div key={label}><dt>{label}</dt><dd>{display(r[index])}</dd></div>)}</dl>
               </section>)}
-            </div>
+            </div>}
           </details>
         </article>;
       })}
       {!visibleRows.length&&<div className={styles.emptyState}><strong>No programs match these filters.</strong><span>Clear the search or turn off Has Players to Scout.</span></div>}
+      {visibleRows.length>renderedRows.length&&<button className={styles.loadMore} onClick={()=>setLimit(x=>x+36)}>Load 36 more programs · {visibleRows.length-renderedRows.length} remaining</button>}
     </section>:<section className={styles.workbookShell}>
       <div className={styles.workbookNote}>
         <div><strong>{historical?"Historical workbook view":"Editable workbook view"}</strong><span>{historical?`Read-only ${draftClass-1} team data preserved from the ${draftClass} draft workbook.`:"Rank is removed. Click any non-team cell to edit; changes save automatically."}</span></div>
