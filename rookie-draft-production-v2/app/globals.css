@@ -556,3 +556,30 @@
 .qb-game-log-global-toggle[aria-pressed="true"] .qb-game-log-global-collapse{display:none}
 .qb-game-log-global-toggle[aria-pressed="true"] .qb-game-log-global-expand{display:inline}
 @media(max-width:780px){.qb-game-log-global-toggle{margin-left:0!important}.qb-game-log-actions{width:100%;justify-content:flex-start}}
+
+
+/* Home-stretch UI polish: scouting corners, grade-only player profile, mobile tool layering */
+.qb-scouting-pane.evaluate{clip-path:none;border-radius:16px;overflow:visible}
+.qb-scouting-pane.evaluate .qb-evaluate-stack{border-radius:16px;overflow:visible}
+.qb-scouting-pane.evaluate .qb-shared-tabs{border-radius:15px 15px 0 0;background-clip:padding-box;overflow-x:auto;overflow-y:hidden}
+
+.profile-grades-data-only{padding-top:24px}
+.profile-core-grade-showcase{grid-template-columns:repeat(3,minmax(0,1fr));max-width:900px}
+
+.tool-menubar{z-index:500;overflow:visible;isolation:isolate}
+.tool-menu{z-index:510}
+.tool-dropdown{z-index:1000}
+
+@media(max-width:800px){
+  .tool-menubar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px!important;padding:6px 8px!important;overflow:visible}
+  .tool-menu{min-width:0}
+  .tool-menu-button{width:100%;min-width:0!important;padding:7px 8px!important}
+  .tool-menu-button strong{font-size:11px!important;white-space:nowrap}
+  .tool-menu-button>span:last-child{margin-left:4px!important}
+  .tool-dropdown{top:calc(100% + 5px);left:0;min-width:min(265px,calc(100vw - 16px))!important;max-width:calc(100vw - 16px);z-index:1200}
+  .tool-menu:nth-child(2) .tool-dropdown{left:50%;transform:translateX(-50%)}
+  .tool-menu:last-child .tool-dropdown{left:auto;right:0}
+}
+@media(max-width:650px){
+  .profile-core-grade-showcase{grid-template-columns:1fr}
+}
