@@ -4,6 +4,7 @@ import {rbReference,rbReferenceGeneratedAt} from "@/lib/rb-reference";
 import {wrReference} from "@/lib/wr-reference";
 import {workbookSecondary} from "@/lib/workbook-secondary";
 import {currentCollegeStatsReference} from "@/lib/current-college-stats-reference";
+import {playerNameKey} from "@/lib/player-name";
 
 const CANONICAL_REFERENCE_SEASON=2025;
 const norm=(v:any)=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -56,9 +57,9 @@ function enrichQB(row:any){
 }
 function mergeQB(current:any[]){
   const merged=new Map<string,any>();
-  for(const row of qbReference as readonly any[])if(row?.Player)merged.set(norm(row.Player),{...row});
+  for(const row of qbReference as readonly any[])if(row?.Player)merged.set(playerNameKey(row.Player),{...row});
   for(const row of current||[]){
-    const key=norm(row?.Player);
+    const key=playerNameKey(row?.Player);
     if(!key)continue;
     merged.set(key,{...(merged.get(key)||{}),...row});
   }
@@ -146,10 +147,10 @@ function wrPlayerDataRows(){
   return (wrReference as readonly any[]).map(row=>enrichWR({...row}));
 }
 function applyCombine(base:any[],combine:any[],position:string){
-  const map=new Map(combine.map(r=>[norm(r.player_name),r]));
+  const map=new Map(combine.map(r=>[playerNameKey(r.player_name),r]));
   const enrich=position==="QB"?enrichQB:position==="RB"?enrichRB:position==="WR"?enrichWR:enrichTE;
   return base.map(row=>{
-    const hit=map.get(norm(row?.Player));if(!hit)return row;
+    const hit=map.get(playerNameKey(row?.Player));if(!hit)return row;
     const next:any={...row};
     if(hit.height!=null&&hit.height!=="")next.Height=hit.height;
     if(hit.weight!=null)next.Weight=Number(hit.weight);
@@ -165,7 +166,7 @@ function applyCombine(base:any[],combine:any[],position:string){
   });
 }
 function projectRows(base:readonly any[],current:any[],enrich:(row:any)=>any){
-  const reference=new Map<string,any>();for(const row of base)if(row?.Player)reference.set(norm(row.Player),row);
+  const reference=new Map<string,any>();for(const row of base)if(row?.Player)reference.set(playerNameKey(row.Player),row);
   return (current||[]).map(row=>{const key=norm(row?.Player);return enrich({...((key&&reference.get(key))||{}),...row})});
 }
 async function canonicalPlayerData(db:any,position:string,draftClass:number,requestedSeason:number|null){

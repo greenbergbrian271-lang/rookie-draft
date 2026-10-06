@@ -6,14 +6,14 @@ export async function POST(req:Request){
     const body=await req.json(),rawPlayers:any[]=Array.isArray(body?.players)?body.players:[];
     if(!rawPlayers.length)return Response.json({players:[],issues:[]});
     const q=await ensureTursoSchema();
-    const existing=rows(await q.execute("select id,name,college from players where draft_class=2027"));
+    const existing=rows(await q.execute("select id,name,college,position from players where draft_class=2027"));
     const normalized=rawPlayers.map(sanitizePlayerInput);
     const results:any[]=[];
     normalized.forEach((player,index)=>{
       const issues:AddPlayerIssue[]=[];
       const basic=basicPlayerError(player);
       if(basic)issues.push({type:"validation_error",message:basic});
-      for(const match of findPossibleDuplicates(player.name,existing)){
+      for(const match of findPossibleDuplicates(player.name,existing,{college:player.college,position:player.position})){
         const suffix=match.existing.college?` · ${match.existing.college}`:"";
         if(match.type==="exact")issues.push({type:"exact_duplicate",existingPlayerId:Number(match.existing.id),message:`Exact match already on the scouting list: "${match.existing.name}${suffix}"`});
         else if(match.type==="suffix")issues.push({type:"possible_duplicate",existingPlayerId:Number(match.existing.id),message:`Likely the same player already exists (suffix difference): "${match.existing.name}${suffix}"`});

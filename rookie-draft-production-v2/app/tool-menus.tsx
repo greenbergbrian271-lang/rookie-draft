@@ -29,6 +29,9 @@ const HISTORICAL_SHEET_URLS:Record<number,string>={
 export default function ToolMenus(){const {draftClass,activeDraftClass,isLocked}=useDraftClassState();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[bestUnwatchedOpen,setBestUnwatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[compareOpen,setCompareOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);const [transitioning,setTransitioning]=useState(false);
 useEffect(()=>{if(tool){fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{});if(tool.id==="combine-refresh")fetch("/api/combine-refresh",{cache:"no-store"}).then(r=>r.json()).then(setCombineStatus).catch(()=>{})}},[tool,draftClass]);
 function close(){setTool(null);setMsg("");setPlayerId("");setChoice("");setPlayerId2("")}
+function menuId(label:string){return "tool-menu-"+label.toLowerCase().replace(/[^a-z0-9]+/g,"-")}
+function openMenuFromKeyboard(e:any,label:string){if(!["ArrowDown","Enter"," "].includes(e.key))return;e.preventDefault();setOpen(label);setTimeout(()=>document.querySelector<HTMLButtonElement>(`[data-tool-menu="${label}"] [role="menuitem"]`)?.focus(),0)}
+function menuKeys(e:any,label:string){const items=Array.from(e.currentTarget.querySelectorAll('[role="menuitem"]')) as HTMLButtonElement[];if(!items.length)return;const current=items.indexOf(document.activeElement as HTMLButtonElement);if(e.key==="Escape"){e.preventDefault();setOpen(null);document.getElementById(menuId(label)+"-trigger")?.focus();return}if(e.key==="Home"||e.key==="End"){e.preventDefault();items[e.key==="Home"?0:items.length-1]?.focus();return}if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();const delta=e.key==="ArrowDown"?1:-1;items[(current+delta+items.length)%items.length]?.focus()}}
 async function playerRun(){const p=players.find(x=>String(x.id)===playerId);if(!p)return setMsg("Select a player.");const a=playerActions[tool!.id];const r=await fetch("/api/players",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:p.id,status:a.status,draftClass:a.draftClass})});setMsg(r.ok?`${p.name} updated successfully.`:"The player update failed.")}
 async function evalRun(category:string){const p=players.find(x=>String(x.id)===playerId);if(!p)return setMsg("Select a player.");if(!choice)return setMsg("Select a value.");const r=await fetch("/api/evaluations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,category,value:null,commentary:choice})});if(r.ok&&category==="Early Declare"){if(choice==="Yes")await fetch("/api/workflow-tags",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,tag:"DECLARES",detail:"Yes"})});else await fetch("/api/workflow-tags",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,tag:"DECLARES"})});}if(r.ok&&category==="Combine Invite?")await fetch("/api/workflow-tags",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,tag:"COMBINE",detail:choice})});if(r.ok&&category==="All Star Game?"){if(choice!=="None")await fetch("/api/workflow-tags",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,tag:"ALL_STAR",detail:choice})});else await fetch("/api/workflow-tags",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,tag:"ALL_STAR"})});}setMsg(r.ok?`${p.name}: ${category} updated to ${choice}.`:"Update failed.")}
 async function transitionYear(){setTransitioning(true);setMsg(`Locking ${activeDraftClass} and preparing ${activeDraftClass+1}…`);try{const r=await fetch("/api/draft-class",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({currentDraftClass:activeDraftClass})}),j=await r.json();if(!r.ok){setMsg(j.error||"Transition failed.");return}localStorage.setItem("rookie-draft.active-default",String(j.activeDraftClass));setDraftClass(j.activeDraftClass);window.dispatchEvent(new CustomEvent("rookie-class-state",{detail:j}));setMsg(`${j.lockedDraftClass} is now locked. ${j.activeDraftClass} is the new default draft class.`)}catch{setMsg("Transition failed. No year settings were changed.")}finally{setTransitioning(false)}}
@@ -41,8 +44,10 @@ if(isLocked){const sourceUrl=HISTORICAL_SHEET_URLS[draftClass];return <div class
 return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{gap:7,padding:"8px 18px"}}>
 {groups.map((g,groupIndex)=><div className="tool-menu" key={g.label}>
   <button
+    id={menuId(g.label)+"-trigger"}
     aria-expanded={open===g.label}
     aria-haspopup="menu"
+    aria-controls={menuId(g.label)}
     className={open===g.label?"tool-menu-button open":"tool-menu-button"}
     style={{
       background:open===g.label?"#142844":"#10213a",
@@ -53,6 +58,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
       boxShadow:"0 1px 0 rgba(255,255,255,.03) inset"
     }}
     onClick={()=>setOpen(open===g.label?null:g.label)}
+    onKeyDown={e=>openMenuFromKeyboard(e,g.label)}
     onMouseEnter={()=>open&&setOpen(g.label)}
   >
     <span style={{display:"inline-flex",alignItems:"center",gap:7}}>
@@ -68,7 +74,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
     </span>
     <span style={{marginLeft:8}}>▾</span>
   </button>
-  {open===g.label&&<div className="tool-dropdown" role="menu" style={{
+  {open===g.label&&<div id={menuId(g.label)} data-tool-menu={g.label} aria-labelledby={menuId(g.label)+"-trigger"} className="tool-dropdown" role="menu" onKeyDown={e=>menuKeys(e,g.label)} style={{
     minWidth:265,
     padding:7,
     borderRadius:12,
@@ -120,7 +126,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
 <CombineStatusModal open={combineOpen} onClose={()=>setCombineOpen(false)}/>
 <ComparePlayersModal open={compareOpen} onClose={()=>setCompareOpen(false)}/>
 <MockDraftModal open={mockOpen} draftClass={draftClass} onClose={()=>setMockOpen(false)}/>
-{tool&&<div className="tool-modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="tool-modal"><div className="page-head"><div><div className="ey">Workbook Tool</div><h2>{tool.label}</h2></div><button className="small ghost" onClick={close}>Close</button></div>
+{tool&&<div className="tool-modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="tool-modal"><div className="page-head"><div><div className="ey">Rookie Draft Tool</div><h2>{tool.label}</h2></div><button className="small ghost" onClick={close}>Close</button></div>
 {tool.id==="transition-year"?<div>
   <div className="notice"><strong>Year rollover</strong><br/>This is a one-way transition. It will preserve ${activeDraftClass} as a viewable archive, block edits to its draft-class records, and make ${activeDraftClass+1} the default working year.</div>
   <div className="card" style={{margin:"14px 0",padding:14}}>

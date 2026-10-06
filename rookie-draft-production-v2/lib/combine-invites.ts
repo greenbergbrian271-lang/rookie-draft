@@ -1,4 +1,5 @@
 import {rows} from "@/lib/turso";
+import {playerNameKey} from "@/lib/player-name";
 
 export type CombineLookupPlayer={
   id:number|string;
@@ -8,16 +9,7 @@ export type CombineLookupPlayer={
   draft_class:number;
 };
 
-export function normalizeCombineName(value:unknown){
-  return String(value??"")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g,"")
-    .replace(/[’‘]/g,"'")
-    .replace(/\b(jr\.?|sr\.?|ii|iii|iv|v)\b/g,"")
-    .replace(/[^a-z0-9]/g,"");
-}
+export function normalizeCombineName(value:unknown){return playerNameKey(value)}
 
 export function normalizeCombineSchool(value:unknown){
   return String(value??"")
