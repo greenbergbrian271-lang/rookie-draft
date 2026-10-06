@@ -37,7 +37,9 @@ export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaRead
 `create table if not exists combine_results(player_id integer primary key references players(id) on delete cascade,season integer,player_name text not null,position text,school text,height text,weight real,forty real,bench real,vertical real,broad_jump real,cone real,shuttle real,source text,refreshed_at text default current_timestamp)`,
 `create table if not exists combine_invite_sources(draft_class integer primary key,source_url text not null,source_title text,total_invites integer not null default 0,imported_at text default current_timestamp)`,
 `create table if not exists combine_invites(draft_class integer not null,player_name text not null,normalized_name text not null,position text,school text,source_url text not null,imported_at text default current_timestamp,primary key(draft_class,normalized_name,position))`,
-`create index if not exists combine_invites_lookup_idx on combine_invites(draft_class,normalized_name,position)`
+`create index if not exists combine_invites_lookup_idx on combine_invites(draft_class,normalized_name,position)`,
+`create table if not exists share_links(id text primary key,title text,years text not null,sections text not null,created_at text not null,expires_at integer not null,revoked_at text,last_used_at text,view_count integer not null default 0)`,
+`create index if not exists share_links_status_idx on share_links(expires_at,revoked_at,created_at desc)`
 ])await c.execute(sql);
 for(const sql of [
   `alter table players add column espn_source text`,

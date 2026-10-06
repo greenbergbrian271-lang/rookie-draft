@@ -6,7 +6,7 @@ function cronAuthorized(req:NextRequest){const secret=process.env.CRON_SECRET;re
 
 export function proxy(req:NextRequest){
   const path=req.nextUrl.pathname;
-  const publicApi=path==="/api/auth/login"||path==="/api/auth/logout"||path==="/api/auth/status"||path==="/api/share/view";
+  const publicApi=path==="/api/auth/login"||path==="/api/auth/logout"||path==="/api/auth/status"||path==="/api/share/view"||path==="/api/share/player";
   if(publicApi)return NextResponse.next();
   if(path==="/admin")return NextResponse.next();
 
