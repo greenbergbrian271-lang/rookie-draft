@@ -1,11 +1,11 @@
-import {createManagedShareLink,listManagedShareLinks,revokeManagedShareLink,shareLinkStatus,shareTokenFor} from "@/lib/share-links";
+import {createManagedShareLink,listManagedShareLinks,revokeManagedShareLink,shareLinkStatus,shareTokenFor,type ManagedShareLink} from "@/lib/share-links";
 
 function urlFor(req:Request,token:string){const url=new URL("/api/share/view",req.url);url.searchParams.set("token",token);return url.toString()}
 
 export async function GET(req:Request){
   try{
     const links=await listManagedShareLinks();
-    return Response.json({links:links.map(link=>({...link,status:shareLinkStatus(link),url:urlFor(req,shareTokenFor(link))}))});
+    return Response.json({links:links.map((link:ManagedShareLink)=>({...link,status:shareLinkStatus(link),url:urlFor(req,shareTokenFor(link))}))});
   }catch(e:unknown){return Response.json({error:e instanceof Error?e.message:"Could not load share links"},{status:500})}
 }
 export async function POST(req:Request){
