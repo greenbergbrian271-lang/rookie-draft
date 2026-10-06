@@ -1,3 +1,4 @@
+import {normalizePlayerName} from "@/lib/player-name";
 export const ALL_STAR_GAMES=[
   {key:"senior-bowl",name:"Panini Senior Bowl",legacyName:"Senior Bowl",date:"2027-01-30T19:30:00.000Z",dateLabel:"January 30, 2027",location:"Mobile, Alabama",tagline:"The Draft Starts in Mobile",websiteUrl:"https://www.seniorbowl.com/",twitterUrl:"https://x.com/seniorbowl",rosterAName:"National",rosterBName:"American",accent:"#ee3d45",accent2:"#21a6c4",logoUrl:"https://unavatar.io/x/seniorbowl"},
   {key:"shrine-bowl",name:"Shriners Children's East-West Bowl",legacyName:"Shrine Bowl",date:"2027-02-05T00:00:00.000Z",dateLabel:"February 4, 2027",location:"Arlington, Texas",tagline:"A century of college all-star football",websiteUrl:"https://shrinersbowl.com/",twitterUrl:"https://x.com/shrinersbowl",rosterAName:"East",rosterBName:"West",accent:"#d61f2c",accent2:"#6b257e",logoUrl:"https://unavatar.io/x/shrinersbowl"},
@@ -19,9 +20,7 @@ export type AllStarConfig={
 export function gameDefinition(key:string){return ALL_STAR_GAMES.find(g=>g.key===key)||null}
 export function gameKeyFromLegacy(detail:string){return ALL_STAR_GAMES.find(g=>g.legacyName===detail||g.name===detail)?.key||null}
 
-export function normalizePersonName(value:unknown){
-  return String(value??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\b(jr|sr|ii|iii|iv|v)\b/g," ").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
-}
+export function normalizePersonName(value:unknown){return normalizePlayerName(value)}
 export function normalizeSourceText(value:unknown){
   return String(value??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
 }
