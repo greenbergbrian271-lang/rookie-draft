@@ -28,7 +28,7 @@ for(const [path,re,label] of checks){
   passed++;
 }
 
-const base=String(process.env.ROOKIE_DRAFT_TEST_BASE_URL||"").replace(/\\/$/,"");
+const rawBase=String(process.env.ROOKIE_DRAFT_TEST_BASE_URL||"");\nconst base=rawBase.endsWith("/")?rawBase.slice(0,-1):rawBase;
 if(base){
   const gets=[
     ["/api/auth/status",200],
