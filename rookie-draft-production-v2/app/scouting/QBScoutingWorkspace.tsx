@@ -119,6 +119,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const {openPlayer}=usePlayerProfile();
   const [selectedId,setSelectedId]=useState<string>("");
   const [search,setSearch]=useState("");
+  const [zeroGamesOnly,setZeroGamesOnly]=useState(false);
   const [tab,setTab]=useState<Tab>("Film");
   const [mode,setMode]=useState<Mode>("Evaluate");
   const [compareIds,setCompareIds]=useState<string[]>([]);
@@ -189,8 +190,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     out["Games watched"]=gameCountFor(p);
     return out;
   }
-  function scoutingFor(p:Player){
-    if(archiveMode)return archivedGrade(p,"scouting") as number|null;
+  function manualScoutingFor(p:Player){
     const grades=FILM.map(x=>num(evalFor(p,x))??NaN);
     return workbookScoutingGrade("QB",grades,fieldsFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
   }
@@ -217,12 +217,16 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   }
   function analyticalFor(p:Player){
     if(archiveMode)return archivedGrade(p,"analytical") as number|null;
-    const scout=scoutingFor(p);
-    if(scout==null)return null;
-    const metrics=metricDataFor(p),imp=importedFor(p);
+    const seed=manualScoutingFor(p)??Number.NaN,metrics=metricDataFor(p),imp=importedFor(p);
     const record=Object.fromEntries(metrics.map(x=>[x.sheet,x.percentile])) as Record<string,number|null>;
     record.pressureToSack=num(imp?.["Pressure-to-Sack %"],true);
-    return qbAnalyticalGrade(scout,record,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    const grade=qbAnalyticalGrade(seed,record,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    return Number.isFinite(grade)?grade:null;
+  }
+  function scoutingFor(p:Player){
+    if(archiveMode)return archivedGrade(p,"scouting") as number|null;
+    const manual=manualScoutingFor(p);if(gameCountFor(p)>=1)return manual;
+    return analyticalFor(p);
   }
   function preDraftFor(p:Player){
     if(archiveMode)return archivedGrade(p,"pre") as number|null;
@@ -239,10 +243,8 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     if(ga==null)return 1;if(gb==null)return -1;
     return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
   }),[players,vals,imports,glossary,sessions,draftPicks,gradeOverrides,archiveMode]);
-  const filtered=useMemo(()=>{
-    const q=norm(search);
-    return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q));
-  },[rankedPlayers,search]);
+  const visiblePlayers=useMemo(()=>zeroGamesOnly?rankedPlayers.filter(p=>gameCountFor(p)<1):rankedPlayers,[rankedPlayers,zeroGamesOnly,sessions]);
+  const filtered=useMemo(()=>{const q=norm(search);return visiblePlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[visiblePlayers,search]);
 
   const combinePopulation=useMemo(()=>({
     forty:(imports||[]).map(r=>num(r["40 Yard Dash"])).filter((x):x is number=>x!=null),
@@ -287,14 +289,14 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
 
   useEffect(()=>{
     if(mode!=="Evaluate")return;
-    const nodes=rankedPlayers.map(p=>document.getElementById("qb-eval-"+p.id)).filter(Boolean) as HTMLElement[];
+    const nodes=visiblePlayers.map(p=>document.getElementById("qb-eval-"+p.id)).filter(Boolean) as HTMLElement[];
     if(!nodes.length)return;
     const obs=new IntersectionObserver(entries=>{
       const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top);
       if(visible[0])setSelectedId(String((visible[0].target as HTMLElement).dataset.playerId||""));
     },{rootMargin:"-150px 0px -65% 0px",threshold:[0,.01]});
     nodes.forEach(n=>obs.observe(n));return()=>obs.disconnect();
-  },[mode,rankedPlayers]);
+  },[mode,visiblePlayers]);
 
   function jumpToPlayer(p:Player){
     setMode("Evaluate");setSelectedId(String(p.id));
@@ -312,7 +314,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return <article className="qb-evaluate-player" id={"qb-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <ScoutingPlayerHero player={p} position="QB" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class} gamesWatched={gamesWatched} draftTeam={draftCtx.team||"TBD"} draftResult={draftCtx.result} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip">
-        <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/9 traits graded"}/>
+        <GradeCard label={gamesWatched<1&&scouting!=null?"Scouting · Provisional":"Scouting"} value={scouting} accent="film" hint={gamesWatched<1&&scouting!=null?"0 games · Analytical fallback":filmComplete+"/9 traits graded"}/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint="Workbook percentile model"/>
         <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scouting + analytics"/>
         <GradeCard label="Final" value={finalGrade} accent="final" hint={preDraft==null?"Waiting for pre-draft grade":draftCtx.finalized?"Draft-adjusted":"Matches Pre-Draft until NFL Draft"}/>
@@ -370,14 +372,14 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     <aside className="qb-prospect-rail">
       <div className="qb-rail-head"><div><span className="ey">{draftClass} Quarterbacks</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
       <div className="qb-mode-toggle">{(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}</div>
-      <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search quarterbacks…"/>
+      <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search quarterbacks…"/><button type="button" className={"qb-zero-games-filter "+(zeroGamesOnly?"active":"")} onClick={()=>setZeroGamesOnly(x=>!x)}><span>0 Games Watched</span><b>{rankedPlayers.filter(p=>gameCountFor(p)<1).length}</b></button>
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">QB{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/9 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
       {demoMode&&<div className="qb-demo-note">Preview data is local to this QB scouting build.</div>}
     </aside>
     <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>
       {mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} finalGradeFor={finalGradeFor} draftContextFor={draftContextFor} gameCountFor={gameCountFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack">
         <nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}{tab==="Film"&&<button type="button" className="qb-game-log-global-toggle" aria-pressed="false" onClick={e=>{const root=e.currentTarget.closest(".qb-scouting-pane");const logs=Array.from(root?.querySelectorAll(".qb-game-log")||[]);const collapse=logs.some(log=>!log.classList.contains("collapsed"));logs.forEach(log=>log.classList.toggle("collapsed",collapse));e.currentTarget.setAttribute("aria-pressed",String(collapse))}}><span className="qb-game-log-global-collapse">Minimize all game logs</span><span className="qb-game-log-global-expand">Expand all game logs</span></button>}</nav>
-        {rankedPlayers.map(renderPlayerSection)}
+        {visiblePlayers.map(renderPlayerSection)}
       </div>}
     </section>
   </div>
