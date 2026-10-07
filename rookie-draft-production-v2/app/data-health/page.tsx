@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import Link from "next/link";
 import {useDraftClass} from "@/lib/use-draft-class";
 
 const tone=(s:string)=>s==="error"?"#ff8291":s==="warning"?"#ffd166":"#70dfc9";
@@ -40,7 +41,7 @@ export default function Page(){
     <div className="grid" style={{gridTemplateColumns:"minmax(0,1.15fr) minmax(300px,.85fr)"}}>
       <div className="card"><div className="page-head"><div><h2>Issues</h2><p className="muted">{issues.length?issues.length+" item"+(issues.length===1?"":"s")+" need attention":"No integrity issues found."}</p></div></div>
         <div style={{display:"grid",gap:8}}>
-          {issues.length?issues.map((x:any,i:number)=><div key={x.code+"-"+(x.playerId||i)} style={{padding:12,border:"1px solid #29476e",borderLeft:"4px solid "+tone(x.severity),borderRadius:9,background:"#09182c"}}><div style={{display:"flex",gap:8,justifyContent:"space-between",alignItems:"center"}}><b>{x.title}</b><span style={{color:tone(x.severity),fontSize:9,fontWeight:950,textTransform:"uppercase"}}>{x.severity}</span></div><div className="muted" style={{fontSize:11,marginTop:5}}>{x.detail}</div>{x.playerName&&<div style={{fontSize:10,marginTop:6,color:"#9fc4ee"}}>{x.position} · {x.playerName} · ID {x.playerId}</div>}</div>):<div className="notice" style={{color:"#70dfc9"}}>✓ All scanned integrity checks passed.</div>}
+          {issues.length?issues.map((x:any,i:number)=><div key={x.code+"-"+(x.playerId||i)} style={{padding:12,border:"1px solid #29476e",borderLeft:"4px solid "+tone(x.severity),borderRadius:9,background:"#09182c"}}><div style={{display:"flex",gap:8,justifyContent:"space-between",alignItems:"center"}}><b>{x.title}</b><span style={{color:tone(x.severity),fontSize:9,fontWeight:950,textTransform:"uppercase"}}>{x.severity}</span></div><div className="muted" style={{fontSize:11,marginTop:5}}>{x.detail}</div>{x.playerName&&<div className="data-health-player-row"><div style={{fontSize:10,color:"#9fc4ee"}}>{x.position} · {x.playerName} · ID {x.playerId}</div>{x.playerId&&x.position&&<Link className="ghost small data-health-open-player" href={"/scouting?pos="+encodeURIComponent(String(x.position))+"&playerId="+encodeURIComponent(String(x.playerId))}>Open in Scouting →</Link>}</div>}</div>):<div className="notice" style={{color:"#70dfc9"}}>✓ All scanned integrity checks passed.</div>}
         </div>
       </div>
       <div className="card"><span className="ey">CLASS CONTEXT</span><h2>Draft Class vs Stat Season</h2><p className="muted">These are separate backend concepts. Scouting for a class uses the explicitly assigned completed analysis season.</p>

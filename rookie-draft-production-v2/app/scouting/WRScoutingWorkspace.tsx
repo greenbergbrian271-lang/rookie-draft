@@ -335,7 +335,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <ScoutingPlayerHero player={p} position="WR" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class||imp?.["Draft Class"]} gamesWatched={gamesWatched} draftTeam={draftCtx.team||"TBD"} draftResult={draftCtx.result} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
-        <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/7 traits graded"}/>
+        <GradeCard label={gamesWatched<1&&scouting!=null?"Scouting · Provisional":"Scouting"} value={scouting} accent="film" hint={gamesWatched<1&&scouting!=null?"0 games · avg Production + Analytical":filmComplete+"/7 traits graded"}/>
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint={penalty?"ADOT / contested penalty applied":"Workbook percentile model"}/>
         <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scout + production + analytics"/>

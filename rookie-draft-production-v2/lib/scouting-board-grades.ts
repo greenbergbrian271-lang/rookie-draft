@@ -338,14 +338,15 @@ export async function buildBoardGradeRows(input:{
 
   const out=[];
   for(const p of players){
-    const manual=manualScouting(p);
-    let productionGrade=production(p,manual),analyticalGrade=analytical(p,manual),scoutingGrade=manual;
-    if(p.position==="WR"&&valuesFor(p).games<1){
+    const manual=manualScouting(p),gamesWatched=valuesFor(p).games;
+    let productionGrade=production(p,manual),analyticalGrade=analytical(p,manual),scoutingGrade=manual,scoutingGradeOrigin=manual==null?"MISSING":"FILM";
+    if(p.position==="WR"&&gamesWatched<1){
       const fallback=[productionGrade,analyticalGrade].filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
       scoutingGrade=fallback.length?fallback.reduce((s,v)=>s+v,0)/fallback.length:null;
+      scoutingGradeOrigin=fallback.length?"WR_NO_GAMES_FALLBACK":"MISSING";
     }
     if(scoutingGrade==null){
-      out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade:null,productionGrade,analyticalGrade,preDraftGrade:null,finalGrade:null,authoritativeGrade:null,gradeSource:"Pre-Draft",draftResult:null});
+      out.push({...p,gamesWatched,scoutingGrade:null,scoutingGradeOrigin,productionGrade,analyticalGrade,preDraftGrade:null,finalGrade:null,authoritativeGrade:null,gradeSource:"Pre-Draft",draftResult:null});
       continue;
     }
     if(p.position==="WR"){productionGrade=production(p,manual);analyticalGrade=analytical(p,manual)}
@@ -358,7 +359,7 @@ export async function buildBoardGradeRows(input:{
     const draftResult=livePick?("Pick "+livePick.overall+", "+livePick.team):storedResult;
     const hasFinal=Boolean(livePick)||(team!=null&&capital!=null&&draftResult!==""&&!/^pending$/i.test(draftResult));
     const finalGrade=hasFinal&&team!=null&&capital!=null?draftAdjustedFinalGrade(p.position,pre,team,capital,glossary):pre;
-    out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:hasFinal?"Final":"Pre-Draft",draftResult:draftResult||null,draftTeam:livePick?.team||null});
+    out.push({...p,gamesWatched,scoutingGrade,scoutingGradeOrigin,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:hasFinal?"Final":"Pre-Draft",draftResult:draftResult||null,draftTeam:livePick?.team||null});
   }
   return out;
 }

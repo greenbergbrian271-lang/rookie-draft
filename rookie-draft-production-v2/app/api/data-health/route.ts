@@ -66,6 +66,7 @@ export async function GET(req:Request){
       for(const g of grades as any[]){
         const extra={playerId:Number(g.id),playerName:String(g.name),position:String(g.position)};
         if(g.authoritativeGrade==null)issues.push(issue("error","missing-authoritative-grade","Watched player has no usable grade",g.name+" cannot currently produce a board grade.",extra));
+        if(g.scoutingGradeOrigin==="WR_NO_GAMES_FALLBACK"){const gf=(v:any)=>typeof v==="number"&&Number.isFinite(v)?v.toFixed(2):"—";issues.push(issue("warning","provisional-scouting-grade","Scouting grade is provisional",g.name+" has 0 watched games. The WR workbook fallback is displaying Scouting "+gf(g.scoutingGrade)+" as the average of Production "+gf(g.productionGrade)+" and Analytical "+gf(g.analyticalGrade)+". No film grade has been entered yet.",extra));}
         if(g.position!=="QB"&&g.productionGrade==null)issues.push(issue("warning","missing-production-grade","Production grade is missing",g.name+" has no production grade. Check Player Data match, threshold population, and required inputs.",extra));
         if(g.analyticalGrade==null)issues.push(issue("warning","missing-analytical-grade","Analytical grade is missing",g.name+" has no analytical grade. Check Player Data percentiles and required inputs.",extra));
         const vals=[g.scoutingGrade,g.productionGrade,g.analyticalGrade,g.preDraftGrade,g.finalGrade].map(Number).filter(Number.isFinite);
