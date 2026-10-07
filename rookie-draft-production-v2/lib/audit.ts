@@ -112,7 +112,7 @@ async function undoPffActivation(c:any,payload:any){
     if(oldId)statements.push({sql:"insert into pff_active_datasets(draft_class,position,import_id,activated_at) values(?,?,?,?) on conflict(draft_class,position) do update set import_id=excluded.import_id,activated_at=excluded.activated_at",args:[draftClass,pos,oldId,new Date().toISOString()]});
     else statements.push({sql:"delete from pff_active_datasets where draft_class=? and position=?",args:[draftClass,pos]});
   }
-  if(payload?.previousAnalysisSeason!=null)statements.push({sql:"insert into draft_class_context(draft_class,analysis_season,source,updated_at) values(?,?,?,?) on conflict(draft_class) do update set analysis_season=excluded.analysis_season,source=excluded.source,updated_at=excluded.updated_at",args:[draftClass,Number(payload.previousAnalysisSeason),"undo",new Date().toISOString()]});
+  if(Object.prototype.hasOwnProperty.call(payload||{},"previousAnalysisSeason"))statements.push({sql:"insert into draft_class_context(draft_class,analysis_season,source,updated_at) values(?,?,?,?) on conflict(draft_class) do update set analysis_season=excluded.analysis_season,source=excluded.source,updated_at=excluded.updated_at",args:[draftClass,payload.previousAnalysisSeason==null?null:Number(payload.previousAnalysisSeason),"undo",new Date().toISOString()]});
   if(statements.length)await c.batch(statements,"write");
 }
 
