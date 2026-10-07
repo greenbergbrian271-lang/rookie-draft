@@ -53,6 +53,11 @@ export async function GET(req:Request){
     const values=Object.fromEntries(mine.map(x=>[String(x.category),x.value??x.commentary]));
     const film=filmInputs(String(player.position),mine,glossary);
     const filmMissing=film.filter(x=>x.value==null).map(x=>x.label);
+    const provisionalScoutingGrade=String(target.scoutingGradeOrigin||"").startsWith("NO_GAMES_");
+    const qbProvisional=target.scoutingGradeOrigin==="NO_GAMES_QB_ANALYTICAL";
+    const provisionalNote=!provisionalScoutingGrade?null:qbProvisional
+      ?"No QB game log exists yet. QB has no separate Production Grade in the workbook, so the provisional Scouting Grade uses the Analytical Grade alone. This is model-derived, not a film grade."
+      :"No game log exists yet, so the provisional Scouting Grade is the average of Production and Analytical. This is model-derived, not a film grade.";
     const productionDescription=player.position==="QB"
       ?"Quarterback production is intentionally not a separate grade in the current model."
       :player.position==="RB"
@@ -68,7 +73,7 @@ export async function GET(req:Request){
           ?"Percentile clusters for hands, down-to-down efficiency, YAC, depth/air-yards profile, contested work and blocking."
           :"Percentile clusters for hands, receiving efficiency, blocking, YAC/depth, contested work and alignment/size indicators.";
     const steps=[
-      {key:"scouting",label:"Scouting Grade",value:round(target.scoutingGrade),formula:"Weighted Film traits + workbook scouting adjustments"+(player.position==="QB"?" + QB career-experience adjustment":""),dependsOn:["Film evaluations","Games watched","Injury / off-field / all-star / combine adjustments"],status:target.scoutingGrade==null?"missing":"ok"},
+      {key:"scouting",label:provisionalScoutingGrade?"Scouting Grade · Provisional":"Scouting Grade",value:round(target.scoutingGrade),formula:provisionalScoutingGrade?(qbProvisional?"QB zero-game fallback: Analytical Grade only because the workbook has no separate QB Production Grade.":"Zero-game fallback: average of Production Grade and Analytical Grade."):"Weighted Film traits + workbook scouting adjustments"+(player.position==="QB"?" + QB career-experience adjustment":""),dependsOn:provisionalScoutingGrade?(qbProvisional?["Analytical Grade","Games watched = 0"]:["Production Grade","Analytical Grade","Games watched = 0"]):["Film evaluations","Games watched","Injury / off-field / all-star / combine adjustments"],status:target.scoutingGrade==null?"missing":provisionalScoutingGrade?"provisional":"ok"},
       ...(player.position==="QB"?[]:[{key:"production",label:"Production Grade",value:round(target.productionGrade),formula:productionDescription,dependsOn:["Active Player Data","Eligible percentile population","College team context","Combine/pro-day inputs"],status:target.productionGrade==null?"missing":"ok"}]),
       {key:"analytical",label:"Analytical Grade",value:round(target.analyticalGrade),formula:analyticalDescription,dependsOn:["Active Player Data","Position-specific percentile distributions"],status:target.analyticalGrade==null?"missing":"ok"},
       {key:"predraft",label:"Pre-Draft Grade",value:round(target.preDraftGrade),formula:preDraftFormula(String(player.position),glossary),dependsOn:player.position==="QB"?["Scouting Grade","Analytical Grade"]:["Scouting Grade","Production Grade","Analytical Grade","Early Declare signal"],status:target.preDraftGrade==null?"missing":"ok"},
@@ -78,6 +83,9 @@ export async function GET(req:Request){
       player:{id:player.id,uid:player.player_uid,name:player.name,position:player.position,college:player.college,draftClass},
       frozen:false,
       gradeSource:target.gradeSource,
+      scoutingGradeOrigin:target.scoutingGradeOrigin,
+      provisionalScoutingGrade,
+      provisionalNote,
       authoritativeGrade:round(target.authoritativeGrade),
       draftResult:target.draftResult,
       steps,

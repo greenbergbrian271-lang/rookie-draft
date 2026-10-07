@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
 import PlayerName from "@/components/PlayerName";
+import PlayerImage from "@/components/PlayerImage";
 
 export const DRAFT_PROJECTION_OPTIONS=["Top 5","Top 10","First Round","Day 2","Early Day 3","Late Day 3","UDFA"] as const;
 
@@ -137,6 +138,10 @@ export function PercentileMetricCard({label,detail,value,percentile,inverse=fals
   return <div className="qb-metric"><div className="qb-metric-top"><div><span>{label}</span><small>{detail||(inverse?"Lower raw is better":"Higher raw is better")}</small></div><b>{value??"—"}</b></div><div className="qb-percentile heat"><i style={{left:((p??0)*100)+"%",background:`hsl(${Math.round((p??0)*120)} 72% 48%)`}}/></div><div className="qb-metric-foot"><span>Quality percentile</span><strong>{p==null?"—":Math.round(p*100)}</strong></div></div>
 }
 
+function explainFmt(v:any){return v==null||!Number.isFinite(Number(v))?"—":Number(v).toFixed(2)}
+function ScoutingGradeExplainModal({data,onClose}:{data:any;onClose:()=>void}){const steps=Array.isArray(data?.steps)?data.steps:[],film=Array.isArray(data?.film?.inputs)?data.film.inputs:[];return <div className="profile-override-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="profile-override-modal grade-explain-modal"><div className="profile-override-head"><div><small>GRADE DEPENDENCY TRACE</small><h2>{data?.player?.name||"Explain Grade"}</h2><p>{data?.frozen?data.summary:"Recalculated from the same centralized grade engine used by the board."}</p></div><button type="button" onClick={onClose}>×</button></div>{data?.provisionalNote&&<div className="notice grade-explain-provisional"><b>Provisional scouting grade</b><div>{data.provisionalNote}</div></div>}{!data?.frozen&&<><div className="grade-explain-chain">{steps.map((s:any)=><div className={"grade-explain-step "+(s.status==="missing"?"missing":s.status==="provisional"?"provisional":"")} key={s.key}><div><span>{s.label}</span><strong>{explainFmt(s.value)}</strong></div><p>{s.formula}</p><small>Depends on: {(s.dependsOn||[]).join(" · ")}</small></div>)}</div><div className="grade-explain-summary"><div><span>Authoritative</span><strong>{explainFmt(data.authoritativeGrade)}</strong></div><div><span>Grade source</span><strong>{data.gradeSource||"—"}</strong></div><div><span>Player UID</span><strong>{data?.player?.uid||"—"}</strong></div></div><details className="grade-explain-details"><summary>Film contribution detail</summary><div className="grade-explain-film">{film.map((x:any)=><div key={x.label}><span>{x.label}</span><b>{explainFmt(x.value)}</b><small>{x.weight!=null?"Weight "+(Number(x.weight)*100).toFixed(1)+"%":"No weight"} · Contribution {explainFmt(x.weightedContribution)}</small></div>)}</div>{data?.film?.missing?.length?<p className="profile-transfer-error">Missing film inputs: {data.film.missing.join(", ")}</p>:null}</details><details className="grade-explain-details"><summary>Adjustments / draft inputs</summary><pre>{JSON.stringify(data.adjustments||{},null,2)}</pre></details><div className="profile-override-note">Engine: {data.engine} · recalculated {data.recalculatedAt?new Date(data.recalculatedAt).toLocaleString():"now"}</div></>}<div className="profile-transfer-actions"><button type="button" onClick={onClose}>Close</button></div></div></div>}
+export function ExplainGradeButton({playerId}:{playerId:string|number}){const [data,setData]=useState<any>(null),[loading,setLoading]=useState(false),[error,setError]=useState("");async function open(){setLoading(true);setError("");try{const r=await fetch("/api/grades/explain?playerId="+encodeURIComponent(String(playerId)),{cache:"no-store"}),j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not explain grade");setData(j)}catch(e:any){setError(e?.message||"Could not explain grade")}finally{setLoading(false)}}return <><button type="button" className="ghost scouting-explain-grade-button" onClick={()=>void open()} disabled={loading}>{loading?"Recalculating…":"Explain Grade"}</button>{error&&<span className="scouting-explain-error">{error}</span>}{data&&<ScoutingGradeExplainModal data={data} onClose={()=>setData(null)}/>}</>}
+
 function sharedNum(v:any){if(v==null||v==="")return null;const n=Number(String(v).replace(/[%,$]/g,"").replace(/,/g,""));return Number.isFinite(n)?n:null}
 function rasFromData(data:any){
   const score=sharedNum(data?.RAS)??sharedNum(data?.["Raw Athletic Score"])??sharedNum(data?.["Relative Athletic Score"]);
@@ -151,18 +156,10 @@ function rasFromData(data:any){
   return {score,url,metrics};
 }
 export function ScoutingPlayerHero({player,position,rank,style,age,classLabel,gamesWatched,draftTeam,draftResult,draftAutomated,saveState,demoMode=false,archiveMode=false,onOpen,extraMeta}:{player:any,position:"QB"|"RB"|"WR"|"TE",rank:number,style?:React.CSSProperties,age?:any,classLabel?:any,gamesWatched:number,draftTeam?:string,draftResult?:string,draftAutomated?:boolean,saveState:"saved"|"saving"|"error",demoMode?:boolean,archiveMode?:boolean,onOpen?:()=>void,extraMeta?:React.ReactNode}){
-  const [resolvedHeadshot,setResolvedHeadshot]=useState(String(player.headshot_url||""));
-  useEffect(()=>{
-    setResolvedHeadshot(String(player.headshot_url||""));
-    if(!archiveMode||player.headshot_url||!player.id)return;
-    let live=true;
-    fetch("/api/player-headshot?id="+encodeURIComponent(String(player.id)),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(live&&j?.url)setResolvedHeadshot(String(j.url))}).catch(()=>{});
-    return()=>{live=false};
-  },[archiveMode,player.id,player.headshot_url]);
   return <header className="qb-player-hero" style={style}>
-    <div className="qb-player-photo">{resolvedHeadshot?<img src={resolvedHeadshot} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{String(player.name||"").split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</span>}</div>
+    <div className="qb-player-photo"><PlayerImage player={player} alt={String(player.name||"")}/></div>
     <div className="qb-player-title"><div className="qb-kicker">{position} {rank} · {player.college||"College TBD"}{player.jersey_number?" · #"+player.jersey_number:""}</div><h1>{onOpen?<PlayerName id={player.id}>{player.name}</PlayerName>:player.name}</h1><div className="qb-hero-meta"><span>{age?"Age "+age:"Age —"}</span><span>{classLabel||"Class —"}</span>{extraMeta}<span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span><span className="qb-draft-result-badge qb-draft-result-badge-v2" style={nflTeamBadgeStyle(draftTeam)} title={draftAutomated?"Auto-filled from the NFL Draft feed":"NFL draft team"}><b>{draftResult&&draftResult!=="Pending"?String(draftResult).trim():(draftTeam||"TBD")}</b><img src={nflTeamLogo(draftTeam)} alt="" aria-hidden="true"/></span></div></div>
-    <div className={"qb-save-state "+saveState}>{archiveMode?"Historical snapshot":demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>
+    <div className="qb-hero-actions"><div className={"qb-save-state "+saveState}>{archiveMode?"Historical snapshot":demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>{!archiveMode&&!demoMode&&<ExplainGradeButton playerId={player.id}/>}</div>
   </header>
 }
 export function CombineTestingSection({playerName,position,data,grade,children}:{playerName:string,position:"QB"|"RB"|"WR"|"TE",data:any,grade:number|null,children?:React.ReactNode}){

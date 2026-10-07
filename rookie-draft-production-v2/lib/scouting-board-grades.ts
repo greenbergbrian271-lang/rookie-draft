@@ -294,58 +294,67 @@ export async function buildBoardGradeRows(input:{
     const {vals}=valuesFor(p);return workbookScoutingGrade(p.position,FILM[p.position].map(k=>num(vals[k])??NaN),fieldsFor(p),glossary);
   }
   function analytical(p:BoardPlayer,scout:number|null){
-    const r=importedFor(p),position=p.position,all=imports[position]||[];
+    const r=importedFor(p),position=p.position,all=imports[position]||[],seed=scout==null?Number.NaN:scout;
     if(position==="QB"){
-      if(scout==null)return null;const record:Record<string,number|null>={};
+      const record:Record<string,number|null>={};
       for(const [label,sheet,inverse,pct] of QB_ANALYTICS){const pop=all.map(x=>num(x[label],pct)).filter((v):v is number=>v!=null),raw=num(r[label],pct);record[sheet]=percentile(pop,raw,inverse)}
-      record.pressureToSack=num(r["Pressure-to-Sack %"],true);return qbAnalyticalGrade(scout,record,glossary);
+      record.pressureToSack=num(r["Pressure-to-Sack %"],true);const g=qbAnalyticalGrade(seed,record,glossary);return Number.isFinite(g)?g:null;
     }
     if(position==="RB"){
-      if(scout==null)return null;const record:Record<string,number|null>={};
+      const record:Record<string,number|null>={};
       for(const [label,sheet,pct] of RB_ANALYTICS){const pop=all.map(x=>num(x[label],pct)).filter((v):v is number=>v!=null),raw=num(r[label],pct);record[sheet]=percentile(pop,raw)}
-      return rbAnalyticalGrade(scout,record,glossary);
+      const g=rbAnalyticalGrade(seed,record,glossary);return Number.isFinite(g)?g:null;
     }
     if(position==="WR"){
       const record:Record<string,number|null>={};
       for(const [key,_label,source,inverse,pct] of WR_ANALYTICS){const pop=all.map(x=>num(sourceValue(x,source),pct)).filter((v):v is number=>v!=null),raw=num(sourceValue(r,source),pct);record[key]=percentile(pop,raw,inverse)}
-      const adot=num(sourceValue(r,"ADOT")),contested=num(sourceValue(r,"Contested Target %"),true);
-      return wrAnalyticalGrade(scout,record,adot!=null&&contested!=null&&adot<=13&&contested>=.23,glossary);
+      const adot=num(sourceValue(r,"ADOT")),contested=num(sourceValue(r,"Contested Target %"),true),g=wrAnalyticalGrade(seed,record,adot!=null&&contested!=null&&adot<=13&&contested>=.23,glossary);
+      return g!=null&&Number.isFinite(g)?g:null;
     }
-    if(scout==null)return null;const record:Record<string,number|null>={};
+    const record:Record<string,number|null>={};
     for(const [label,sheet,inverse,pct] of TE_ANALYTICS){const pop=all.map(x=>num(x[label],pct)).filter((v):v is number=>v!=null),raw=num(r[label],pct);record[sheet]=percentile(pop,raw,inverse)}
-    return teAnalyticalGrade(scout,record,glossary);
+    const g=teAnalyticalGrade(seed,record,glossary);return Number.isFinite(g)?g:null;
   }
   function production(p:BoardPlayer,manual:number|null){
-    const r=importedFor(p),c=collegeMap.get(norm(p.college))||{},position=p.position;
+    const r=importedFor(p),c=collegeMap.get(norm(p.college))||{},position=p.position,seed=manual==null?Number.NaN:manual;
     if(position==="QB")return null;
     if(position==="RB"){
-      if(manual==null)return null;const m=rbProdMetrics(r,c);
-      return rbProductionGrade({scouting:manual,yardsPerCarry:m.yardsPerCarry,yardsPerReception:m.yardsPerReception,yardsPerTouch:m.yardsPerTouch,yptp:m.yptp,recShare:m.recShare,domRtg:m.domRtg,
+      const m=rbProdMetrics(r,c),g=rbProductionGrade({scouting:seed,yardsPerCarry:m.yardsPerCarry,yardsPerReception:m.yardsPerReception,yardsPerTouch:m.yardsPerTouch,yptp:m.yptp,recShare:m.recShare,domRtg:m.domRtg,
         speedScore:num(r["Speed Score"]),receptions:m.receptions,carries:m.carries,combineScore:combineFor("RB",r,combinePops.get("RB"),glossary),
         frSophRushYd:num(r["FR + Soph Rush Yd"]),singleSeasonRec:num(r["Single Season Rec"]),careerRec:num(r["Career Rec"]),isNonFbs:c?.subdivision==="FCS"},rbPop,glossary);
+      return Number.isFinite(g)?g:null;
     }
     if(position==="WR"){
       const m=wrProdMetrics(r,c),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
-      return wrProductionGrade({scouting:manual,yardsPerReception:m.yardsPerReception,yardsPerTarget:m.yardsPerTarget,targetShare:m.targetShare,catchPct:m.catchPct,yptpa:m.yptpa,
+      const g=wrProductionGrade({scouting:seed,yardsPerReception:m.yardsPerReception,yardsPerTarget:m.yardsPerTarget,targetShare:m.targetShare,catchPct:m.catchPct,yptpa:m.yptpa,
         weightedDomRtg:m.weightedDomRtg,domRtg:m.domRtg,speedScore:num(r["Speed Score"]),combineScore:combineFor("WR",r,combinePops.get("WR"),glossary),
         maxFrSophYards:frY==null&&soY==null?null:Math.max(frY??0,soY??0),maxFrSophTds:frTd==null&&soTd==null?null:Math.max(frTd??0,soTd??0),isNonFbs:c?.subdivision==="FCS"},wrPop,glossary);
+      return g!=null&&Number.isFinite(g)?g:null;
     }
-    if(manual==null)return null;const m=teProdMetrics(r,c);
-    return teProductionGrade({scouting:manual,yardsPerReception:m.yardsPerReception,yardsPerTarget:m.yardsPerTarget,targetShare:m.targetShare,catchPct:m.catchPct,yptpa:m.yptpa,
+    const m=teProdMetrics(r,c),g=teProductionGrade({scouting:seed,yardsPerReception:m.yardsPerReception,yardsPerTarget:m.yardsPerTarget,targetShare:m.targetShare,catchPct:m.catchPct,yptpa:m.yptpa,
       weightedDomRtg:m.weightedDomRtg,domRtg:m.domRtg,speedScore:num(r["Speed Score"]),combineScore:combineFor("TE",r,combinePops.get("TE"),glossary),
       maxYardsPerRec:m.maxYardsPerRec,isNonFbs:c?.subdivision==="FCS"},tePop,glossary);
+    return Number.isFinite(g)?g:null;
   }
+
 
   const out=[];
   for(const p of players){
-    const manual=manualScouting(p);
-    let productionGrade=production(p,manual),analyticalGrade=analytical(p,manual),scoutingGrade=manual;
-    if(p.position==="WR"&&valuesFor(p).games<1){
-      const fallback=[productionGrade,analyticalGrade].filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
-      scoutingGrade=fallback.length?fallback.reduce((s,v)=>s+v,0)/fallback.length:null;
+    const manual=manualScouting(p),gamesWatched=valuesFor(p).games;
+    let productionGrade=production(p,manual),analyticalGrade=analytical(p,manual),scoutingGrade=manual,scoutingGradeOrigin=manual==null?"MISSING":"FILM";
+    if(gamesWatched<1){
+      if(p.position==="QB"){
+        scoutingGrade=analyticalGrade;
+        scoutingGradeOrigin=scoutingGrade!=null?"NO_GAMES_QB_ANALYTICAL":"MISSING";
+      }else if(productionGrade!=null&&analyticalGrade!=null){
+        scoutingGrade=(productionGrade+analyticalGrade)/2;
+        scoutingGradeOrigin="NO_GAMES_MODEL_FALLBACK";
+      }else{
+        scoutingGrade=null;scoutingGradeOrigin="MISSING";
+      }
     }
     if(scoutingGrade==null){
-      out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade:null,productionGrade,analyticalGrade,preDraftGrade:null,finalGrade:null,authoritativeGrade:null,gradeSource:"Pre-Draft",draftResult:null});
+      out.push({...p,gamesWatched,scoutingGrade:null,scoutingGradeOrigin,productionGrade,analyticalGrade,preDraftGrade:null,finalGrade:null,authoritativeGrade:null,gradeSource:"Pre-Draft",draftResult:null});
       continue;
     }
     if(p.position==="WR"){productionGrade=production(p,manual);analyticalGrade=analytical(p,manual)}
@@ -358,7 +367,7 @@ export async function buildBoardGradeRows(input:{
     const draftResult=livePick?("Pick "+livePick.overall+", "+livePick.team):storedResult;
     const hasFinal=Boolean(livePick)||(team!=null&&capital!=null&&draftResult!==""&&!/^pending$/i.test(draftResult));
     const finalGrade=hasFinal&&team!=null&&capital!=null?draftAdjustedFinalGrade(p.position,pre,team,capital,glossary):pre;
-    out.push({...p,gamesWatched:valuesFor(p).games,scoutingGrade,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:hasFinal?"Final":"Pre-Draft",draftResult:draftResult||null,draftTeam:livePick?.team||null});
+    out.push({...p,gamesWatched,scoutingGrade,scoutingGradeOrigin,productionGrade,analyticalGrade,preDraftGrade:pre,finalGrade,authoritativeGrade:finalGrade??pre,gradeSource:hasFinal?"Final":"Pre-Draft",draftResult:draftResult||null,draftTeam:livePick?.team||null});
   }
   return out;
 }

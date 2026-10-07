@@ -102,6 +102,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   const {openPlayer}=usePlayerProfile();
   const [selectedId,setSelectedId]=useState("");
   const [search,setSearch]=useState("");
+  const [zeroGamesOnly,setZeroGamesOnly]=useState(false);
   const [tab,setTab]=useState<Tab>("Film");
   const [mode,setMode]=useState<Mode>("Evaluate");
   const [compareIds,setCompareIds]=useState<string[]>([]);
@@ -205,9 +206,9 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   }
   function productionFor(p:Player){
     if(archiveMode)return archivedGrade(p,"production") as number|null;
-    const r=importedFor(p),college=collegeFor(p),ctx=productionContextFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]);
-    return wrProductionGrade({
-      scouting:manualScoutingFor(p),
+    const r=importedFor(p),college=collegeFor(p),ctx=productionContextFor(p),frY=num(r["FR Yards"]),soY=num(r["Soph Yards"]),frTd=num(r["FR TDs"]),soTd=num(r["Soph TDs"]),seed=manualScoutingFor(p)??Number.NaN;
+    const grade=wrProductionGrade({
+      scouting:seed,
       yardsPerReception:ctx.yardsPerReception,
       yardsPerTarget:ctx.yardsPerTarget,
       targetShare:ctx.targetShare,
@@ -221,6 +222,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
       maxFrSophTds:frTd==null&&soTd==null?null:Math.max(frTd??0,soTd??0),
       isNonFbs:college?.subdivision==="FCS"
     },productionPopulation,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    return grade!=null&&Number.isFinite(grade)?grade:null;
   }
   function rawProductionMetricDataFor(p:Player){
     const r=importedFor(p),m=productionContextFor(p);
@@ -268,16 +270,16 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   }
   function analyticalFor(p:Player){
     if(archiveMode)return archivedGrade(p,"analytical") as number|null;
-    const metrics=metricDataFor(p),record=Object.fromEntries(metrics.map(x=>[x.key,x.percentile])) as Record<string,number|null>;
-    return wrAnalyticalGrade(manualScoutingFor(p),record,penaltyFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    const metrics=metricDataFor(p),record=Object.fromEntries(metrics.map(x=>[x.key,x.percentile])) as Record<string,number|null>,grade=wrAnalyticalGrade(manualScoutingFor(p)??Number.NaN,record,penaltyFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+    return grade!=null&&Number.isFinite(grade)?grade:null;
   }
   function earlyDeclareFor(p:Player){const r=importedFor(p);return earlyDeclareStatus(r.Class||r["Draft Class"],evalFor(p,"Early Declare?"))}
   function scoutingFor(p:Player){
     if(archiveMode)return archivedGrade(p,"scouting") as number|null;
     const watched=gameCountFor(p);
     if(watched>=1)return manualScoutingFor(p);
-    const fallback=[productionFor(p),analyticalFor(p)].filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
-    return fallback.length?fallback.reduce((s,v)=>s+v,0)/fallback.length:null;
+    const production=productionFor(p),analytical=analyticalFor(p);
+    return production!=null&&analytical!=null?(production+analytical)/2:null;
   }
   function preDraftFor(p:Player){
     if(archiveMode)return archivedGrade(p,"pre") as number|null;
@@ -291,7 +293,8 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
     if(ga==null)return 1;if(gb==null)return -1;return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
   }),[players,vals,imports,colleges,glossary,sessions,draftPicks,gradeOverrides,archiveMode]);
-  const filtered=useMemo(()=>{const q=norm(search);return rankedPlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[rankedPlayers,search]);
+  const visiblePlayers=useMemo(()=>zeroGamesOnly?rankedPlayers.filter(p=>gameCountFor(p)<1):rankedPlayers,[rankedPlayers,zeroGamesOnly,sessions]);
+  const filtered=useMemo(()=>{const q=norm(search);return visiblePlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[visiblePlayers,search]);
 
   async function persist(p:Player,cat:string,value:any){if(archiveMode)return null;
     setSaveState("saving");setVals(v=>({...v,[p.id+"|"+cat]:value}));
@@ -313,10 +316,10 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
 
   useEffect(()=>{
     if(mode!=="Evaluate")return;
-    const nodes=rankedPlayers.map(p=>document.getElementById("wr-eval-"+p.id)).filter(Boolean) as HTMLElement[];if(!nodes.length)return;
+    const nodes=visiblePlayers.map(p=>document.getElementById("wr-eval-"+p.id)).filter(Boolean) as HTMLElement[];if(!nodes.length)return;
     const obs=new IntersectionObserver(entries=>{const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top);if(visible[0])setSelectedId(String((visible[0].target as HTMLElement).dataset.playerId||""))},{rootMargin:"-150px 0px -65% 0px",threshold:[0,.01]});
     nodes.forEach(n=>obs.observe(n));return()=>obs.disconnect();
-  },[mode,rankedPlayers]);
+  },[mode,visiblePlayers]);
   function jumpToPlayer(p:Player){setMode("Evaluate");setSelectedId(String(p.id));requestAnimationFrame(()=>document.getElementById("wr-eval-"+p.id)?.scrollIntoView({behavior:"smooth",block:"start"}))}
 
   function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("WR",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
@@ -335,7 +338,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     return <article className="qb-evaluate-player" id={"wr-eval-"+p.id} data-player-id={p.id} key={p.id}>
       <ScoutingPlayerHero player={p} position="WR" rank={rank} style={style} age={imp?.Age} classLabel={imp?.Class||imp?.["Draft Class"]} gamesWatched={gamesWatched} draftTeam={draftCtx.team||"TBD"} draftResult={draftCtx.result} draftAutomated={draftCtx.automated} saveState={saveState} demoMode={demoMode} archiveMode={archiveMode} onOpen={!demoMode?()=>openPlayer(p.id):undefined} extraMeta={null}/>
       <div className="qb-grade-strip wr-grade-strip" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
-        <GradeCard label="Scouting" value={scouting} accent="film" hint={filmComplete+"/7 traits graded"}/>
+        <GradeCard label={gamesWatched<1&&scouting!=null?"Scouting · Provisional":"Scouting"} value={scouting} accent="film" hint={gamesWatched<1&&scouting!=null?"0 games · avg Production + Analytical":filmComplete+"/7 traits graded"}/>
         <GradeCard label="Production" value={production} accent="pre" hint="Workbook production model"/>
         <GradeCard label="Analytical" value={analytical} accent="analytics" hint={penalty?"ADOT / contested penalty applied":"Workbook percentile model"}/>
         <GradeCard label="Pre-Draft" value={preDraft} accent="pre" hint="Scout + production + analytics"/>
@@ -393,11 +396,11 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   return <div className="qb-workspace wr-workspace">
     <aside className="qb-prospect-rail"><div className="qb-rail-head"><div><span className="ey">{draftClass} Wide Receivers</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
       <div className="qb-mode-toggle">{(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}</div>
-      <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search wide receivers…"/>
+      <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search wide receivers…"/><button type="button" className={"qb-zero-games-filter "+(zeroGamesOnly?"active":"")} onClick={()=>setZeroGamesOnly(x=>!x)}><span>0 Games Watched</span><b>{rankedPlayers.filter(p=>gameCountFor(p)<1).length}</b></button>
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">WR{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/7 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
       {demoMode&&<div className="qb-demo-note">Previewing Jeremiah Smith, Cam Coleman and Jordan Faison with their existing film evaluations and WR Player Data.</div>}
     </aside>
-    <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>{mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} productionFor={productionFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} finalGradeFor={finalGradeFor} draftContextFor={draftContextFor} gameCountFor={gameCountFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack"><nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}{tab==="Film"&&<button type="button" className="qb-game-log-global-toggle" aria-pressed="false" onClick={e=>{const root=e.currentTarget.closest(".qb-scouting-pane");const logs=Array.from(root?.querySelectorAll(".qb-game-log")||[]);const collapse=logs.some(log=>!log.classList.contains("collapsed"));logs.forEach(log=>log.classList.toggle("collapsed",collapse));e.currentTarget.setAttribute("aria-pressed",String(collapse))}}><span className="qb-game-log-global-collapse">Minimize all game logs</span><span className="qb-game-log-global-expand">Expand all game logs</span></button>}</nav>{rankedPlayers.map(renderPlayerSection)}</div>}</section>
+    <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>{mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} productionFor={productionFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} finalGradeFor={finalGradeFor} draftContextFor={draftContextFor} gameCountFor={gameCountFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack"><nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}{tab==="Film"&&<button type="button" className="qb-game-log-global-toggle" aria-pressed="false" onClick={e=>{const root=e.currentTarget.closest(".qb-scouting-pane");const logs=Array.from(root?.querySelectorAll(".qb-game-log")||[]);const collapse=logs.some(log=>!log.classList.contains("collapsed"));logs.forEach(log=>log.classList.toggle("collapsed",collapse));e.currentTarget.setAttribute("aria-pressed",String(collapse))}}><span className="qb-game-log-global-collapse">Minimize all game logs</span><span className="qb-game-log-global-expand">Expand all game logs</span></button>}</nav>{visiblePlayers.map(renderPlayerSection)}</div>}</section>
   </div>
 }
 
