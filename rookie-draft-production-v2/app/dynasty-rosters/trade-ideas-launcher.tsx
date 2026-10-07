@@ -23,6 +23,7 @@ type Idea={
   sendAdjusted:number;
   receiveAdjusted:number;
   differencePct:number;
+  fitNote?:string;
 };
 type IdeaPayload={
   selected:Asset[];
@@ -170,6 +171,7 @@ export default function RosterTradeIdeas({
                 <div>
                   <small>TRADE WITH</small>
                   <strong>{idea.partnerTeam.name}</strong>
+                  {idea.fitNote&&<small className="muted">{idea.fitNote}</small>}
                 </div>
                 <span>{idea.differencePct.toFixed(1)}% adjusted gap</span>
               </div>
