@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
+import PlayerImage from "@/components/PlayerImage";
 
 type Pos="QB"|"RB"|"WR"|"TE";
 type Player={id:string|number;name:string;position:Pos;college?:string;draft_class:number;scouting_status:string;watch_order?:number;headshot_url?:string};
@@ -36,7 +37,7 @@ function findGame(events:any[],college:string,after:number):NextGame|null{
   return null;
 }
 function kickoffLabel(value:string){return new Intl.DateTimeFormat(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}).format(new Date(value))}
-function PlayerHeadshot({player}:{player:Player}){const [failed,setFailed]=useState(false),initials=player.name.split(/\s+/).filter(Boolean).map(x=>x[0]).slice(0,2).join("");return player.headshot_url&&!failed?<img src={player.headshot_url} alt="" onError={()=>setFailed(true)} style={{width:78,height:78,borderRadius:14,objectFit:"cover",objectPosition:"center top",background:"rgba(3,14,30,.24)",border:"1px solid rgba(255,255,255,.28)",flex:"0 0 auto"}}/>:<div aria-hidden="true" style={{width:78,height:78,borderRadius:14,display:"grid",placeItems:"center",fontSize:22,fontWeight:900,background:"rgba(3,14,30,.2)",border:"1px solid rgba(255,255,255,.22)",flex:"0 0 auto"}}>{initials}</div>}
+function PlayerHeadshot({player}:{player:Player}){return <PlayerImage player={player} alt={player.name} style={{width:78,height:78,borderRadius:14,objectFit:"cover",objectPosition:"center top",background:"rgba(3,14,30,.24)",border:"1px solid rgba(255,255,255,.28)",flex:"0 0 auto",display:"grid",placeItems:"center",fontSize:22,fontWeight:900}}/>}
 
 export default function BestUnwatchedPlayerModal({open,onClose,draftClass=2027}:{open:boolean;onClose:()=>void;draftClass?:number}){
   const [best,setBest]=useState<Record<Pos,Player|null>>({QB:null,RB:null,WR:null,TE:null});

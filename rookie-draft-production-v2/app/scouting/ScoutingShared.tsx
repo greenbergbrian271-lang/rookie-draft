@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
 import PlayerName from "@/components/PlayerName";
+import PlayerImage from "@/components/PlayerImage";
 
 export const DRAFT_PROJECTION_OPTIONS=["Top 5","Top 10","First Round","Day 2","Early Day 3","Late Day 3","UDFA"] as const;
 
@@ -155,16 +156,8 @@ function rasFromData(data:any){
   return {score,url,metrics};
 }
 export function ScoutingPlayerHero({player,position,rank,style,age,classLabel,gamesWatched,draftTeam,draftResult,draftAutomated,saveState,demoMode=false,archiveMode=false,onOpen,extraMeta}:{player:any,position:"QB"|"RB"|"WR"|"TE",rank:number,style?:React.CSSProperties,age?:any,classLabel?:any,gamesWatched:number,draftTeam?:string,draftResult?:string,draftAutomated?:boolean,saveState:"saved"|"saving"|"error",demoMode?:boolean,archiveMode?:boolean,onOpen?:()=>void,extraMeta?:React.ReactNode}){
-  const [resolvedHeadshot,setResolvedHeadshot]=useState(String(player.headshot_url||""));
-  useEffect(()=>{
-    setResolvedHeadshot(String(player.headshot_url||""));
-    if(!archiveMode||player.headshot_url||!player.id)return;
-    let live=true;
-    fetch("/api/player-headshot?id="+encodeURIComponent(String(player.id)),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(live&&j?.url)setResolvedHeadshot(String(j.url))}).catch(()=>{});
-    return()=>{live=false};
-  },[archiveMode,player.id,player.headshot_url]);
   return <header className="qb-player-hero" style={style}>
-    <div className="qb-player-photo">{resolvedHeadshot?<img src={resolvedHeadshot} alt="" onError={e=>{e.currentTarget.style.display="none"}}/>:<span>{String(player.name||"").split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</span>}</div>
+    <div className="qb-player-photo"><PlayerImage player={player} alt={String(player.name||"")}/></div>
     <div className="qb-player-title"><div className="qb-kicker">{position} {rank} · {player.college||"College TBD"}{player.jersey_number?" · #"+player.jersey_number:""}</div><h1>{onOpen?<PlayerName id={player.id}>{player.name}</PlayerName>:player.name}</h1><div className="qb-hero-meta"><span>{age?"Age "+age:"Age —"}</span><span>{classLabel||"Class —"}</span>{extraMeta}<span>{gamesWatched} game{gamesWatched===1?"":"s"} watched</span><span className="qb-draft-result-badge qb-draft-result-badge-v2" style={nflTeamBadgeStyle(draftTeam)} title={draftAutomated?"Auto-filled from the NFL Draft feed":"NFL draft team"}><b>{draftResult&&draftResult!=="Pending"?String(draftResult).trim():(draftTeam||"TBD")}</b><img src={nflTeamLogo(draftTeam)} alt="" aria-hidden="true"/></span></div></div>
     <div className="qb-hero-actions"><div className={"qb-save-state "+saveState}>{archiveMode?"Historical snapshot":demoMode?"Preview data":saveState==="saving"?"Saving…":saveState==="error"?"Save failed":"✓ Saved"}</div>{!archiveMode&&!demoMode&&<ExplainGradeButton playerId={player.id}/>}</div>
   </header>
