@@ -58,7 +58,7 @@ for(const sql of [
   `alter table game_notes add column draft_class integer not null default 2027`,
   `alter table players add column player_uid text`
 ]){try{await c.execute(sql)}catch(e:unknown){const message=e instanceof Error?e.message:String(e);if(!message.toLowerCase().includes("duplicate column"))throw e}}
-await c.execute("update players set player_uid='rdp-' || id where player_uid is null or trim(player_uid)=''");
+await c.execute("update players set player_uid='rdp-' || id where (player_uid is null or trim(player_uid)='') and coalesce((select is_locked from draft_class_state where draft_class=players.draft_class),0)=0");
 await c.execute("create unique index if not exists players_player_uid_idx on players(player_uid)");
 await c.execute("insert or ignore into player_identity_aliases(player_id,alias_type,alias_value,normalized_value,source,updated_at) select id,'NAME',name,lower(replace(replace(replace(replace(replace(replace(name,' ',''),'''',''),'-',''),'.',''),',',''),'_','')),'players',current_timestamp from players where trim(name)<>''");
 await c.execute("insert or ignore into player_identity_aliases(player_id,alias_type,alias_value,normalized_value,source,updated_at) select id,'ESPN_ID',espn_athlete_id,espn_athlete_id,coalesce(espn_source,'players'),current_timestamp from players where espn_athlete_id is not null and trim(espn_athlete_id)<>''");
