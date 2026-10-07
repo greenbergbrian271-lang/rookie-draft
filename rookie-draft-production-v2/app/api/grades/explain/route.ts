@@ -27,7 +27,7 @@ function filmInputs(position:string,evals:any[],g:any){
   const weights=(scoutingWeightRows as any)[position]||[];
   return (FILM[position]||[]).map((label,i)=>{
     const row=map.get(label),value=row?.value==null?null:Number(row.value),weight=glossaryNumber(Number(weights[i]||0),g);
-    return {label,value:Number.isFinite(value)?value:null,weight,weightedContribution:Number.isFinite(value)?round(value*weight):null};
+    return {label,value:value!=null&&Number.isFinite(value)?value:null,weight,weightedContribution:value!=null&&Number.isFinite(value)?round(value*weight):null};
   });
 }
 
