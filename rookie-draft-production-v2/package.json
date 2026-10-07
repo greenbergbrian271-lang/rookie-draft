@@ -4,7 +4,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test:regression": "node scripts/regression.mjs",
+    "check": "npm run typecheck && npm run test:regression && npm run build"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
