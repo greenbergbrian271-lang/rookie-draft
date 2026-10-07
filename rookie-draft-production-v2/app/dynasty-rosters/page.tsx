@@ -3,6 +3,7 @@
 import {useEffect,useMemo,useState} from "react";
 import TradeCalculator from "./trade-calculator";
 import RosterTradeIdeas from "./trade-ideas-launcher";
+import LeagueStrengthMatrix from "./league-strength-matrix";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
 type TradeAsset={
@@ -100,6 +101,7 @@ export default function Page(){
   const [applyAllPreferences,setApplyAllPreferences]=useState<Record<string,boolean>>({});
   const [tradeAssets,setTradeAssets]=useState<{players:TradeAsset[];picks:TradeAsset[]}>({players:[],picks:[]});
   const [loadingTradeAssets,setLoadingTradeAssets]=useState(false);
+  const [strengthRefreshToken,setStrengthRefreshToken]=useState(0);
 
   useEffect(()=>{void load()},[]);
   useEffect(()=>{
@@ -198,6 +200,7 @@ export default function Page(){
       if(!res.ok&&!(data?.rosters?.length))throw new Error(data?.error||data?.detail||"Could not refresh rosters");
       applyRosters((data?.rosters||[]) as RosterView[]);
       if(tab)void loadTradeAssets(tab);
+      setStrengthRefreshToken(value=>value+1);
       setMessageTone(data?.errors?.length?"warn":"ok");
       setMessage(data?.errors?.length?"Roster refresh completed with warnings: "+data.errors.join(" • "):"All Sleeper rosters refreshed.");
     }catch(e:any){
@@ -214,6 +217,7 @@ export default function Page(){
       if(!res.ok)throw new Error(data?.error||data?.detail||"Could not refresh KTC values");
       applyRosters((data?.rosters||[]) as RosterView[]);
       if(tab)void loadTradeAssets(tab);
+      setStrengthRefreshToken(value=>value+1);
       const summary=data?.ktcMatchSummary;
       if(summary?.unmatched){
         setMessageTone("warn");
@@ -321,6 +325,8 @@ export default function Page(){
           <div className="dynasty-meta updated"><span>Roster Updated · {roster.source}</span><strong>{roster.updated||"—"}</strong></div>
           <div className="dynasty-meta updated"><span>KTC Last Updated · {roster.ktcSource||"KeepTradeCut"}</span><strong>{fmtTimestamp(roster.ktcUpdatedAt)}</strong></div>
         </div>
+
+        <LeagueStrengthMatrix leagueKey={roster.key} refreshToken={strengthRefreshToken}/>
 
         <div className="dynasty-layout">
           <div className="dynasty-main-stack">
