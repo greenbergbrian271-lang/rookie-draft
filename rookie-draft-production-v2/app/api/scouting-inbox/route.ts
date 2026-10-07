@@ -1,3 +1,0 @@
-import {ensureTursoSchema,rows} from "@/lib/turso";
-import {inboxPayload,loadScoutingWorkflow} from "@/lib/scouting-workflow";
-export async function GET(req:Request){try{const u=new URL(req.url),draftClass=Number(u.searchParams.get("draftClass")||2027),c=await ensureTursoSchema(),workflow=await loadScoutingWorkflow(c,draftClass),planned=rows(await c.execute({sql:"select id,espn_event_id,kickoff,home_team,away_team,status from planned_games where draft_class=? order by kickoff",args:[draftClass]}));return Response.json({draftClass,...inboxPayload(workflow.players,planned)})}catch(e:any){return Response.json({error:"Could not load scouting inbox",detail:e?.message},{status:500})}}
