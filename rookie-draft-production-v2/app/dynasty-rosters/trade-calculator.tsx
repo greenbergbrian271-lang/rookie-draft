@@ -28,7 +28,7 @@ type IdeaAsset=Asset&{preference?:string};
 type TradeIdea={
   kind:string;youSend:IdeaAsset[];youGet:IdeaAsset[];
   sendValue:number;receiveValue:number;sendAdjusted:number;receiveAdjusted:number;
-  differencePct:number;preferenceNote?:string;
+  differencePct:number;preferenceNote?:string;fitNote?:string;
 };
 type TradeIdeasPayload={
   myTeam:{name:string;rosterId:number};
@@ -319,6 +319,7 @@ export default function TradeCalculator({leagueKey}:{leagueKey:string}){
               </div>
             </div>
             {idea.preferenceNote&&<div className="roster-pref-note">{idea.preferenceNote}</div>}
+            {idea.fitNote&&<div className="roster-pref-note">{idea.fitNote}</div>}
             <button type="button" className="ghost roster-copy-idea" onClick={()=>copyIdea(idea)}>Copy trade</button>
           </article>)}</div>:<div className="trade-loading">No balanced ideas fit the current preferences. Try loosening a preference or choosing another partner.</div>}
 
