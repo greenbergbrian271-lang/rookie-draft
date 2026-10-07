@@ -39,7 +39,12 @@ export function ensureTursoSchema(){if(schemaReady)return schemaReady;schemaRead
 `create table if not exists combine_invites(draft_class integer not null,player_name text not null,normalized_name text not null,position text,school text,source_url text not null,imported_at text default current_timestamp,primary key(draft_class,normalized_name,position))`,
 `create index if not exists combine_invites_lookup_idx on combine_invites(draft_class,normalized_name,position)`,
 `create table if not exists share_links(id text primary key,title text,years text not null,sections text not null,created_at text not null,expires_at integer not null,revoked_at text,last_used_at text,view_count integer not null default 0)`,
-`create index if not exists share_links_status_idx on share_links(expires_at,revoked_at,created_at desc)`
+`create index if not exists share_links_status_idx on share_links(expires_at,revoked_at,created_at desc)`,
+`create table if not exists audit_log(id integer primary key autoincrement,action text not null,entity_type text not null,entity_id text,summary text not null,before_json text,after_json text,undo_kind text,undo_payload text,created_at text not null default current_timestamp,undone_at text,undo_of integer references audit_log(id))`,
+`create index if not exists audit_log_created_idx on audit_log(created_at desc,id desc)`,
+`create table if not exists draft_class_context(draft_class integer primary key,analysis_season integer,source text not null default 'unassigned',updated_at text default current_timestamp)`,
+`create table if not exists player_identity_aliases(id integer primary key autoincrement,player_id integer not null references players(id) on delete cascade,alias_type text not null,alias_value text not null,normalized_value text not null,source text,created_at text default current_timestamp,updated_at text default current_timestamp,unique(player_id,alias_type,normalized_value))`,
+`create index if not exists player_identity_alias_lookup_idx on player_identity_aliases(alias_type,normalized_value)`
 ])await c.execute(sql);
 for(const sql of [
   `alter table players add column espn_source text`,
@@ -50,8 +55,15 @@ for(const sql of [
   `alter table college_stats add column yards_per_rush real`,
   `alter table all_star_invites add column participation_status text not null default 'ACTIVE'`,
   `alter table planned_games add column draft_class integer not null default 2027`,
-  `alter table game_notes add column draft_class integer not null default 2027`
+  `alter table game_notes add column draft_class integer not null default 2027`,
+  `alter table players add column player_uid text`
 ]){try{await c.execute(sql)}catch(e:unknown){const message=e instanceof Error?e.message:String(e);if(!message.toLowerCase().includes("duplicate column"))throw e}}
+await c.execute("update players set player_uid='rdp-' || id where (player_uid is null or trim(player_uid)='') and coalesce((select is_locked from draft_class_state where draft_class=players.draft_class),0)=0");
+await c.execute("create unique index if not exists players_player_uid_idx on players(player_uid)");
+await c.execute("insert into draft_class_context(draft_class,analysis_season,source,updated_at) values(2027,2025,'project-baseline',current_timestamp) on conflict(draft_class) do update set analysis_season=case when draft_class_context.analysis_season is null then 2025 else draft_class_context.analysis_season end,source=case when draft_class_context.analysis_season is null then 'project-baseline' else draft_class_context.source end,updated_at=case when draft_class_context.analysis_season is null then current_timestamp else draft_class_context.updated_at end");
+await c.execute("insert or ignore into player_identity_aliases(player_id,alias_type,alias_value,normalized_value,source,updated_at) select id,'NAME',name,lower(replace(replace(replace(replace(replace(replace(name,' ',''),'''',''),'-',''),'.',''),',',''),'_','')),'players',current_timestamp from players where trim(name)<>''");
+await c.execute("insert or ignore into player_identity_aliases(player_id,alias_type,alias_value,normalized_value,source,updated_at) select id,'ESPN_ID',espn_athlete_id,espn_athlete_id,coalesce(espn_source,'players'),current_timestamp from players where espn_athlete_id is not null and trim(espn_athlete_id)<>''");
+
 const marker=await c.execute({sql:"select value from settings where key=?",args:["baseline_2027_seeded"]});
 if(!marker.rows.length){
   const countResult=await c.execute("select count(*) as count from players where draft_class=2027"),count=Number(countResult.rows[0]?.count||0);

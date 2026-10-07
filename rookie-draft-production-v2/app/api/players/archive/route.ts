@@ -1,4 +1,5 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
+import {recordAudit} from "@/lib/audit";
 
 type AnyRow=Record<string,any>;
 
@@ -85,6 +86,7 @@ export async function POST(req:Request){
         },
         {sql:"delete from players where id=?",args:[id]},
       ],"write");
+      await recordAudit(c,{action:"PLAYER_ARCHIVE",entityType:"player",entityId:id,summary:"Archived "+String(player.name),before:player,after:{archivedAt,reason,relatedTables:Object.keys(related)},undoKind:"archive_player",undoPayload:{playerId:id}});
 
       return Response.json({
         ok:true,
@@ -134,6 +136,7 @@ export async function POST(req:Request){
       }
       statements.push({sql:"delete from archived_players where original_player_id=?",args:[id]});
       await c.batch(statements,"write");
+      await recordAudit(c,{action:"PLAYER_RESTORE",entityType:"player",entityId:id,summary:"Restored "+String(player.name),before:{archivedAt:archived.archived_at,reason:archived.reason},after:player});
 
       return Response.json({ok:true,action:"restore",id,name:player.name,scouting_status:player.scouting_status||"TO_SCOUT"});
     }

@@ -1,0 +1,27 @@
+name: Rookie Draft Regression Gate
+
+on:
+  pull_request:
+    paths:
+      - "rookie-draft-production-v2/**"
+      - ".github/workflows/rookie-draft-regression.yml"
+  push:
+    branches: [main]
+    paths:
+      - "rookie-draft-production-v2/**"
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rookie-draft-production-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run test:regression
+      - run: npm run build
