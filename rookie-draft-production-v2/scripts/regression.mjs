@@ -18,7 +18,7 @@ const checks=[
   ["app/api/pff-process/route.ts",/player_id/,"PFF canonical player linkage"],
   ["app/api/pff-process/route.ts",/setDraftClassAnalysisSeason/,"PFF analysis-season assignment"],
   ["components/PlayerProfile.tsx",/Explain Grade/,"Explain Grade UI"],
-  ["app/nav.tsx",/\\/data-health/,"Data Health navigation"]
+  ["app/nav.tsx",/data-health/,"Data Health navigation"]
 ];
 
 let passed=0;
