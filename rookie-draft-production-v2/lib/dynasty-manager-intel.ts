@@ -47,13 +47,13 @@ function assetValuePlayer(id:string,playerDb:any,matcher:ReturnType<typeof creat
 }
 
 function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLeagueIntegration,currentUsers:any[]){
-  const matcher=createKtcMatcher(dataset),currentNames=new Map(currentUsers.map((u:any)=>[String(u.user_id),intelOwnerName(u)])),profiles=new Map<string,any>(),feed:any[]=[];
+  const matcher=createKtcMatcher(dataset),currentNames=new Map<string,string>(currentUsers.map((u:any)=>[String(u.user_id),intelOwnerName(u)] as [string,string])),profiles=new Map<string,any>(),feed:any[]=[];
   const ensure=(ownerId:string,name:string)=>{
     if(!profiles.has(ownerId))profiles.set(ownerId,{ownerId,name,trades:0,waivers:0,freeAgentAdds:0,picksIn:0,picksOut:0,faabSpent:0,faabReceived:0,positionIn:{QB:0,RB:0,WR:0,TE:0},positionOut:{QB:0,RB:0,WR:0,TE:0},incomingValue:0,outgoingValue:0,tradeRatios:[],positionRatios:{QB:[],RB:[],WR:[],TE:[]}});
     return profiles.get(ownerId);
   };
   for(const season of seasons){
-    const rosterToOwner=new Map((season.rosters||[]).map((r:any)=>[Number(r.roster_id),String(r.owner_id||"")])),usersById=new Map((season.users||[]).map((u:any)=>[String(u.user_id),u]));
+    const rosterToOwner=new Map<number,string>((season.rosters||[]).map((r:any)=>[Number(r.roster_id),String(r.owner_id||"")] as [number,string])),usersById=new Map<string,any>((season.users||[]).map((u:any)=>[String(u.user_id),u] as [string,any]));
     for(const tx of season.transactions||[]){
       const type=String(tx?.type||""),created=Number(tx?.created||0),involved=[...new Set((tx?.roster_ids||[]).map((r:any)=>Number(r)))];
       const sides=new Map<number,any>();
