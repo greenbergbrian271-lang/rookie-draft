@@ -55,7 +55,7 @@ function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLea
   for(const season of seasons){
     const rosterToOwner=new Map<number,string>((season.rosters||[]).map((r:any)=>[Number(r.roster_id),String(r.owner_id||"")] as [number,string])),usersById=new Map<string,any>((season.users||[]).map((u:any)=>[String(u.user_id),u] as [string,any]));
     for(const tx of season.transactions||[]){
-      const type=String(tx?.type||""),created=Number(tx?.created||0),involved=[...new Set((tx?.roster_ids||[]).map((r:any)=>Number(r)))];
+      const type=String(tx?.type||""),created=Number(tx?.created||0),involved:number[]=[...new Set<number>((tx?.roster_ids||[]).map((r:any)=>Number(r)))];
       const sides=new Map<number,any>();
       const side=(rid:number)=>{if(!sides.has(rid))sides.set(rid,{playersIn:[],playersOut:[],picksIn:[],picksOut:[],valueIn:0,valueOut:0});return sides.get(rid)};
       for(const [pid,ridRaw] of Object.entries(tx?.adds||{})){const rid=Number(ridRaw),asset=assetValuePlayer(String(pid),playerDb,matcher,league);if(asset){side(rid).playersIn.push(asset);side(rid).valueIn+=asset.value}}
