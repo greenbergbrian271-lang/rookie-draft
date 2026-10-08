@@ -62,7 +62,7 @@ function expectedAtPosition(rosterPositions:any[],position:StrengthPosition){
 function weightedPositionValue(values:number[],core:number){
   const sorted=[...values].filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>b-a);
   return Math.round(sorted.reduce((sum,value,index)=>{
-    const weight=index<core?1:index<core+2?.55:index<core+4?.30:.12;
+    const weight=index<core?1:index<core+2?0.55:index<core+4?0.30:0.12;
     return sum+value*weight;
   },0));
 }
