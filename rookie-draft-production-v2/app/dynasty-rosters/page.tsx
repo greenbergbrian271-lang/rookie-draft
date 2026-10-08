@@ -4,6 +4,8 @@ import {useEffect,useMemo,useState} from "react";
 import TradeCalculator from "./trade-calculator";
 import RosterTradeIdeas from "./trade-ideas-launcher";
 import LeagueStrengthMatrix from "./league-strength-matrix";
+import DynastyIntelligencePanel from "./dynasty-intelligence-panel";
+import ShopPlayerButton from "./shop-player-button";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
 type TradeAsset={
@@ -251,6 +253,7 @@ export default function Page(){
     return counts;
   },[rosters]);
   const totalPickValue=useMemo(()=>tradeAssets.picks.reduce((sum,p)=>sum+(Number(p.value)||0),0),[tradeAssets.picks]);
+  const tradeAssetByName=useMemo(()=>new Map((tradeAssets.players||[]).map(asset=>[tradePrefKey(asset.name),asset])),[tradeAssets.players]);
   const sortedPlayers=useMemo(()=>{
     if(!roster)return [];
     if(!sort)return roster.players;
@@ -327,6 +330,7 @@ export default function Page(){
         </div>
 
         <LeagueStrengthMatrix leagueKey={roster.key} refreshToken={strengthRefreshToken}/>
+        <DynastyIntelligencePanel leagueKey={roster.key} refreshToken={strengthRefreshToken}/>
 
         <div className="dynasty-layout">
           <div className="dynasty-main-stack">
@@ -352,7 +356,7 @@ export default function Page(){
                   {sortedPlayers.map((p,i)=>{
                     const hasKtc=Number.isFinite(Number(p.ktc));
                     return <tr key={p.name+"-"+i}>
-                      <td><strong>{p.name}</strong></td>
+                      <td><strong>{p.name}</strong>{tradeAssetByName.get(tradePrefKey(p.name))&&<ShopPlayerButton leagueKey={roster.key} asset={tradeAssetByName.get(tradePrefKey(p.name))!}/>}</td>
                       <td><PositionBadge position={p.position}/></td>
                       <td>{p.team||"—"}</td>
                       <td>{p.age||"—"}</td>
