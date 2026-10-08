@@ -124,7 +124,7 @@ export function buildTeamIntel(base:Awaited<ReturnType<typeof loadIntelBase>>,le
   const starterRanks=rankMap("starterValue"),playerRanks=rankMap("totalPlayerValue"),pickRanks=rankMap("pickValue"),ages=raw.map(x=>x.avgAge).filter(Boolean),minAge=Math.min(...ages,24),maxAge=Math.max(...ages,30);
   const profiles=raw.map(row=>{
     const starterRank=starterRanks.get(row.rosterId)||teams,playerRank=playerRanks.get(row.rosterId)||teams,pickRank=pickRanks.get(row.rosterId)||teams;
-    const starterStrength=percentile(starterRank,teams),playerStrength=percentile(playerRank,teams),pickStrength=percentile(pickRank,teams),maturity=maxAge===minAge?.5:Math.max(0,Math.min(1,(row.avgAge-minAge)/(maxAge-minAge)));
+    const starterStrength=percentile(starterRank,teams),playerStrength=percentile(playerRank,teams),pickStrength=percentile(pickRank,teams),maturity=maxAge===minAge?0.5:Math.max(0,Math.min(1,(row.avgAge-minAge)/(maxAge-minAge)));
     const windowScore=Math.round(100*Math.max(0,Math.min(1,starterStrength*.52+playerStrength*.23+maturity*.15+(1-pickStrength)*.10)));
     const classification=starterRank<=Math.ceil(teams*.35)&&playerRank<=Math.ceil(teams*.5)?"Contender":starterRank>Math.ceil(teams*.60)&&pickRank<=Math.ceil(teams*.45)?"Rebuilder":"Stuck in the Middle";
     const construction=row.benchValue>row.starterValue*.72&&row.concentration<.52?"Consolidate":row.benchValue<row.starterValue*.32||row.concentration>.68?"Add Depth":"Balanced";
