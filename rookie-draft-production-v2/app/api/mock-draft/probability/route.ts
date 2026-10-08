@@ -63,7 +63,8 @@ export async function POST(req:Request){
         }
         if(!best)continue;
         available.delete(best.id);
-        counts[best.position]=(counts[best.position]||0)+1;
+        const pickedPosition=best.position as MockPosition;
+        counts[pickedPosition]=(counts[pickedPosition]||0)+1;
         draftedByTeam.set(team.rosterId,counts);
 
         if(best.id===target.id){
