@@ -1,4 +1,5 @@
 import {ensureTursoSchema} from "@/lib/turso";
+import {recordKtcSnapshot} from "@/lib/ktc-history";
 
 export type KtcPlayer={
   name:string;
@@ -105,7 +106,10 @@ async function writeCache(dataset:KtcDataset){
 
 export async function loadKtcDataset(force=false):Promise<KtcDataset>{
   const cached=await readCache();
-  if(!force&&cached&&Date.now()-Date.parse(cached.fetchedAt)<SIX_HOURS)return cached;
+  if(!force&&cached&&Date.now()-Date.parse(cached.fetchedAt)<SIX_HOURS){
+    await recordKtcSnapshot(cached.players).catch(()=>{});
+    return cached;
+  }
 
   try{
     const res=await fetch("https://keeptradecut.com/dynasty-rankings?page=0",{
@@ -119,6 +123,7 @@ export async function loadKtcDataset(force=false):Promise<KtcDataset>{
     const players=parseKtcPlayers(await res.text());
     const dataset:KtcDataset={players,fetchedAt:new Date().toISOString(),source:"KeepTradeCut"};
     await writeCache(dataset);
+    await recordKtcSnapshot(dataset.players).catch(()=>{});
     return dataset;
   }catch(e){
     if(cached)return cached;
