@@ -64,24 +64,50 @@ function pearson(xs:number[],ys:number[]){
 }
 
 async function scoutingAlpha(dataset:KtcDataset){
-  const c=await ensureTursoSchema(),[historical,nfl,playerRows]=await Promise.all([
-    c.execute("select draft_class,overall_rank,player from historical_rankings where draft_class between 2022 and 2026 order by draft_class,overall_rank"),
-    c.execute("select year,overall_pick,position,player from nfl_draft_picks where year between 2022 and 2026 and position in ('QB','RB','WR','TE') order by year,overall_pick"),
-    c.execute("select name,position,draft_class,watch_order from players where draft_class between 2022 and 2026"),
-  ]),matcher=createKtcMatcher(dataset),years=[2022,2023,2024,2025,2026],historicalByYear=new Map<number,any[]>(),nflByYear=new Map<number,any[]>();
-  for(const row of historical.rows as any[]){const year=Number(row.draft_class),list=historicalByYear.get(year)||[];list.push({name:String(row.player),rank:Number(row.overall_rank)});historicalByYear.set(year,list)}
-  if(![...historicalByYear.values()].some(x=>x.length))for(const row of playerRows.rows as any[]){if(!row.watch_order)continue;const year=Number(row.draft_class),list=historicalByYear.get(year)||[];list.push({name:String(row.name),rank:Number(row.watch_order)});historicalByYear.set(year,list)}
-  for(const row of nfl.rows as any[]){const year=Number(row.year),list=nflByYear.get(year)||[];list.push({name:String(row.player),overall:Number(row.overall_pick)});nflByYear.set(year,list)}
-  const positionByName=new Map((playerRows.rows as any[]).map(row=>[intelNorm(row.name),String(row.position)])),results:any[]=[],details:any[]=[];
+  const c=await ensureTursoSchema();
+  const nfl=await c.execute("select year,overall_pick,position,player from nfl_draft_picks where year between 2022 and 2026 and position in ('QB','RB','WR','TE') order by year,overall_pick");
+  const matcher=createKtcMatcher(dataset),years=[2022,2023,2024,2025,2026],nflByYear=new Map<number,any[]>(),results:any[]=[],details:any[]=[];
+  for(const row of nfl.rows as any[]){
+    const year=Number(row.year),list=nflByYear.get(year)||[];
+    list.push({name:String(row.player),overall:Number(row.overall_pick)});
+    nflByYear.set(year,list);
+  }
+
   for(const year of years){
-    const board=[...(historicalByYear.get(year)||[])].sort((a,b)=>a.rank-b.rank),nflList=[...(nflByYear.get(year)||[])].sort((a,b)=>a.overall-b.overall),nflRank=new Map(nflList.map((x,i)=>[intelNorm(x.name),i+1]));
-    const matched=board.map(row=>{const position=positionByName.get(intelNorm(row.name))||"",match=matcher(row.name,position),n=nflRank.get(intelNorm(row.name));if(!match||!n)return null;return {year,name:row.name,position,yourRank:row.rank,nflRank:Number(n),ktcValue:match.player.value}}).filter(Boolean) as any[];
-    const ktcSorted=[...matched].sort((a,b)=>b.ktcValue-a.ktcValue),ktcRank=new Map(ktcSorted.map((x,i)=>[intelNorm(x.name),i+1]));for(const row of matched)row.ktcRank=ktcRank.get(intelNorm(row.name));
+    const boardRes=await getFinalBoard(new Request("http://internal/api/final-board/live?view=base&draftClass="+year));
+    const boardJson=await boardRes.json();
+    const boardRows=boardRes.ok&&Array.isArray(boardJson?.rows)?boardJson.rows:[];
+    const board=boardRows
+      .filter((row:any)=>INTEL_POSITIONS.includes(String(row.position||"").toUpperCase() as any)&&Number(row.overallRank)>0)
+      .map((row:any)=>({name:String(row.name||""),position:String(row.position||"").toUpperCase(),rank:Number(row.overallRank)}))
+      .sort((a:any,b:any)=>a.rank-b.rank);
+
+    const nflList=[...(nflByYear.get(year)||[])].sort((a,b)=>a.overall-b.overall);
+    const nflRank=new Map(nflList.map((x,i)=>[intelNorm(x.name),i+1]));
+
+    const matched=board.map((row:any)=>{
+      const match=matcher(row.name,row.position),n=nflRank.get(intelNorm(row.name));
+      if(!match||!n)return null;
+      return {year,name:row.name,position:row.position,yourRank:row.rank,nflRank:Number(n),ktcValue:match.player.value};
+    }).filter(Boolean) as any[];
+
+    const ktcSorted=[...matched].sort((a,b)=>b.ktcValue-a.ktcValue),ktcRank=new Map(ktcSorted.map((x,i)=>[intelNorm(x.name),i+1]));
+    for(const row of matched)row.ktcRank=ktcRank.get(intelNorm(row.name));
+
     const yourCorr=pearson(matched.map(x=>x.yourRank),matched.map(x=>x.ktcRank)),nflCorr=pearson(matched.map(x=>x.nflRank),matched.map(x=>x.ktcRank)),edge=yourCorr!=null&&nflCorr!=null?yourCorr-nflCorr:null;
     results.push({year,matched:matched.length,yourCorrelation:yourCorr,nflCorrelation:nflCorr,edge});
-    for(const row of matched){const yourError=Math.abs(row.yourRank-row.ktcRank),nflError=Math.abs(row.nflRank-row.ktcRank);details.push({...row,processEdge:nflError-yourError})}
+    for(const row of matched){
+      const yourError=Math.abs(row.yourRank-row.ktcRank),nflError=Math.abs(row.nflRank-row.ktcRank);
+      details.push({...row,processEdge:nflError-yourError});
+    }
   }
-  return {years:results,wins:[...details].sort((a,b)=>b.processEdge-a.processEdge).slice(0,12),lessons:[...details].sort((a,b)=>a.processEdge-b.processEdge).slice(0,12),note:"Current KTC class rank is the outcome proxy; NFL draft capital is the market baseline. Positive process edge means your board is closer to today's dynasty ordering than NFL draft order was."};
+
+  return {
+    years:results,
+    wins:[...details].sort((a,b)=>b.processEdge-a.processEdge).slice(0,12),
+    lessons:[...details].sort((a,b)=>a.processEdge-b.processEdge).slice(0,12),
+    note:"Your historical Final Draft Board is compared with today's KTC class ordering, using NFL draft capital as the outside baseline. Positive process edge means your board is closer to today's dynasty ordering than NFL draft order was.",
+  };
 }
 
 export async function marketIntelMode(league:SleeperLeagueIntegration){
