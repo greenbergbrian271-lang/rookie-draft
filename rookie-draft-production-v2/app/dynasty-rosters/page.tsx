@@ -88,6 +88,27 @@ function HandcuffList({title,items,coverage=false}:{title:string;items:HandcuffI
   </section>;
 }
 
+function HandcuffBonusList({items}:{items:HandcuffItem[]}){
+  return <section className="dynasty-panel dynasty-bonus-panel">
+    <div className="dynasty-panel-title">
+      <div className="dynasty-panel-title-main">
+        <span className="dynasty-panel-name">Handcuff Bonus Players</span>
+        <span className="trade-pref-legend">Extra handcuff targets that qualify beyond the core starter and bench lists</span>
+      </div>
+      <span>{items.length} players</span>
+    </div>
+    {items.length?<div className="dynasty-bonus-grid">
+      {items.map((item,i)=><div className="dynasty-bonus-row" key={"bonus-"+i}>
+        <PositionBadge position={item.slot||"Bench"}/>
+        <div>
+          <strong>{item.name}</strong>
+          {item.team&&<span>{item.team}</span>}
+        </div>
+      </div>)}
+    </div>:<div className="dynasty-empty">No bonus handcuff targets found.</div>}
+  </section>;
+}
+
 export default function Page(){
   const [rosters,setRosters]=useState<RosterView[]>([]);
   const [tab,setTab]=useState("");
@@ -412,6 +433,8 @@ export default function Page(){
               </table>
             </div>
           </section>
+
+          <HandcuffBonusList items={roster.bonus}/>
           </div>
 
           <aside className="dynasty-side">
@@ -419,7 +442,6 @@ export default function Page(){
             <HandcuffList title="Bench Players to Handcuff" items={roster.benchPlayers}/>
             <HandcuffList title="Starting Handcuffs" items={roster.startingCoverage} coverage/>
             <HandcuffList title="Bench Handcuffs" items={roster.benchCoverage} coverage/>
-            <HandcuffList title="Handcuff Bonus Players" items={roster.bonus} coverage/>
           </aside>
         </div>
 
@@ -488,6 +510,13 @@ export default function Page(){
       .dynasty-panel-name{font-size:13px!important;color:#fff!important}
       .trade-pref-legend{font-size:9px!important;color:#d7e7ff!important;font-weight:800!important;letter-spacing:0!important;text-transform:none!important;white-space:normal}
       .dynasty-picks-wrap{max-height:none}
+      .dynasty-bonus-panel{min-height:170px}
+      .dynasty-bonus-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}
+      .dynasty-bonus-row{display:grid;grid-template-columns:68px minmax(0,1fr);gap:10px;align-items:center;min-height:54px;padding:9px 12px;border-bottom:1px solid #18304f}
+      .dynasty-bonus-row:nth-child(4n+2),.dynasty-bonus-row:nth-child(4n+3){background:#0e2039}
+      .dynasty-bonus-row>div:last-child{min-width:0}
+      .dynasty-bonus-row strong{display:block;font-size:13px;white-space:normal}
+      .dynasty-bonus-row span{display:block;margin-top:2px;color:#8fa7c8;font-size:10px;font-weight:800}
       .dynasty-picks-table th{padding:9px 11px}
       .dynasty-picks-table th:nth-child(3),.dynasty-picks-table td:nth-child(3){text-align:center}
       .dynasty-picks-empty{text-align:center!important;color:#8fa7c8!important;padding:18px!important}
@@ -534,6 +563,9 @@ export default function Page(){
         .dynasty-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
         .dynasty-meta.league,.dynasty-meta.updated{grid-column:1/-1}
         .dynasty-side{grid-template-columns:1fr}
+        .dynasty-bonus-grid{grid-template-columns:1fr}
+        .dynasty-bonus-row:nth-child(n){background:transparent}
+        .dynasty-bonus-row:nth-child(even){background:#0e2039}
         .dynasty-table-wrap{overflow-x:auto}
         .dynasty-roster-table{min-width:780px}
         .dynasty-handcuff-copy{display:block}

@@ -46,7 +46,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
     <div className="di-head">
       <div><span>Intelligence Views</span><h2>League, manager, market & process signals</h2></div>
       <div className="di-tabs">
-        {(["league","managers","market","process"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x==="league"?"League":x==="managers"?"Managers":x==="market"?"Market":"Scouting Process"}</button>)}
+        {(["league","managers","market","process"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x==="league"?"League Overview":x==="managers"?"Manager Tendencies":x==="market"?"Market":"Scouting Process"}</button>)}
       </div>
     </div>
     {error&&<div className="di-state error">{error}</div>}
@@ -81,7 +81,38 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
 
       {tab==="managers"&&<>
         <Card title="Dynasty Manager Profiles" wide>
-          <div className="di-manager-grid">{(data.profiles||[]).map((p:any)=><article key={p.ownerId}><h4>{p.name}</h4><div className="di-tags">{(p.tags||[]).map((t:string)=><span key={t}>{t}</span>)}</div><p>{p.trades} trades · {p.waivers} waivers · {p.picksIn} picks acquired / {p.picksOut} moved</p><div className="di-bias">{Object.entries(p.positionBias||{}).map(([pos,v]:any)=><span key={pos} className={v.bias>.05?"hot":""}>{pos} {v.bias>=0?"+":""}{pct(v.bias)}</span>)}</div></article>)}</div>
+          <div className="di-manager-intro">
+            <p>Built from Sleeper trade, waiver and add/drop history across {(data.seasons||[]).join(", ")||"available seasons"}. Position bias compares each manager's acquisition mix with the league average; a positive number means they buy that position more often than the league.</p>
+            <span>Pay Index &gt; 1.00 means the manager has historically surrendered more current KTC value in trades where that position came back.</span>
+          </div>
+          <div className="di-manager-grid">{(data.profiles||[]).map((p:any)=>{
+            const pickNet=(Number(p.picksIn)||0)-(Number(p.picksOut)||0);
+            const pickStyle=pickNet>=3?"Pick Collector":pickNet<=-3?"Pick Seller":"Balanced Picks";
+            return <article key={p.ownerId} className="di-manager-card">
+              <div className="di-manager-card-head"><div><h4>{p.name}</h4><small>{p.trades} trades · {p.waivers} waivers · {p.freeAgentAdds||0} FA adds</small></div><strong>{pickStyle}</strong></div>
+              <div className="di-tags">{(p.tags||[]).map((t:string)=><span key={t}>{t}</span>)}</div>
+              <div className="di-manager-pickline">
+                <span>Picks acquired <b>{p.picksIn}</b></span><span>Picks moved <b>{p.picksOut}</b></span><span>Net <b className={pickNet>0?"up":pickNet<0?"down":""}>{pickNet>0?"+":""}{pickNet}</b></span>
+              </div>
+              <div className="di-position-tendencies">
+                {Object.entries(p.positionBias||{}).map(([pos,v]:any)=><div key={pos} className={v.bias>.05?"hot":v.bias<-.05?"cold":""}>
+                  <b>{pos}</b>
+                  <span>Acq. bias {v.bias>=0?"+":""}{pct(v.bias)}</span>
+                  <em>Pay index {Number(v.payRatio||1).toFixed(2)}</em>
+                </div>)}
+              </div>
+            </article>
+          })}</div>
+        </Card>
+
+        <Card title="Pick Tendencies" wide>
+          <div className="di-table-wrap"><table className="di-table"><thead><tr><th>Manager</th><th>Trades</th><th>Picks Acquired</th><th>Picks Moved</th><th>Net Picks</th><th>Trade Value Style</th></tr></thead><tbody>
+            {(data.profiles||[]).map((p:any)=>{
+              const net=(Number(p.picksIn)||0)-(Number(p.picksOut)||0);
+              const style=Number(p.valueRatio||1)<.94?"Pays Up":Number(p.valueRatio||1)>1.06?"Value Seeker":"Near Market";
+              return <tr key={"pick-"+p.ownerId}><td><strong>{p.name}</strong></td><td>{p.trades}</td><td>{p.picksIn}</td><td>{p.picksOut}</td><td className={net>0?"up":net<0?"down":""}>{net>0?"+":""}{net}</td><td>{style}</td></tr>
+            })}
+          </tbody></table></div>
         </Card>
 
         <Card title="Transaction Feed" wide>
@@ -140,11 +171,13 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       .di-table-wrap{overflow:auto}.di-table{width:100%;border-collapse:collapse;font-size:11px}.di-table th,.di-table td{padding:7px 8px;border-bottom:1px solid #18304f;text-align:left;white-space:nowrap}.di-table th{color:#7890b1;font-size:9px;text-transform:uppercase}.di-table tr.mine td{background:#102a49}.di-line{display:flex;justify-content:space-between;gap:10px;margin:5px 0;padding:6px 0;border-bottom:1px solid #18304f;font-size:11px}.di-line span{color:#8fa7c8;text-align:right}
       .di-age-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.di-age-grid>div{background:#10213a;border-radius:8px;padding:8px;text-align:center}.di-age-grid b,.di-age-grid strong,.di-age-grid span{display:block}.di-age-grid strong{font-size:18px}.risk{font-size:9px;text-transform:uppercase}.risk.high{color:#ff9cab}.risk.watch{color:#ffd978}.risk.low{color:#8df0ca}
       .di-year{display:grid;grid-template-columns:50px 1fr;gap:3px 8px;margin:6px 0}.di-year b{grid-row:1/6;color:#20e2dd}.di-year span{font-size:10px}.di-opps{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.di-opps>div{background:#10213a;border-radius:8px;padding:8px;display:grid;grid-template-columns:1fr auto;gap:2px 8px}.di-opps b{font-size:11px}.di-opps span{font-size:10px;color:#ffd978}.di-opps em{grid-column:1/-1;color:#8fa7c8;font-size:10px;font-style:normal}
-      .di-manager-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.di-manager-grid article{background:#10213a;border-radius:8px;padding:9px}.di-manager-grid h4{margin:0 0 6px}.di-manager-grid p{font-size:10px;color:#8fa7c8}.di-tags,.di-bias{display:flex;gap:4px;flex-wrap:wrap}.di-tags span,.di-bias span{padding:3px 5px;border-radius:999px;background:#152f50;color:#b9c9df;font-size:8px;font-weight:800}.di-bias span.hot{background:#4d2b3b;color:#ffc3ce}
+      .di-manager-intro{display:flex;justify-content:space-between;gap:18px;margin-bottom:10px;padding:8px 10px;border:1px solid #29476e;border-radius:8px;background:#0b2039}.di-manager-intro p{margin:0;color:#a9bdd6;font-size:10px;line-height:1.45;max-width:920px}.di-manager-intro span{max-width:420px;color:#7890b1;font-size:9px;line-height:1.45;text-align:right}
+      .di-manager-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.di-manager-card{background:#10213a;border:1px solid #20395f;border-radius:9px;padding:10px}.di-manager-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.di-manager-card-head h4{margin:0}.di-manager-card-head small{display:block;margin-top:2px;color:#7890b1;font-size:8px}.di-manager-card-head>strong{padding:4px 6px;border-radius:999px;background:#142f50;color:#b9d7ff;font-size:8px;white-space:nowrap}.di-tags,.di-bias{display:flex;gap:4px;flex-wrap:wrap}.di-tags{margin-top:7px}.di-tags span,.di-bias span{padding:3px 5px;border-radius:999px;background:#152f50;color:#b9c9df;font-size:8px;font-weight:800}.di-bias span.hot{background:#4d2b3b;color:#ffc3ce}
+      .di-manager-pickline{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}.di-manager-pickline span{padding:5px 6px;background:#0c1c32;border-radius:6px;color:#7890b1;font-size:8px}.di-manager-pickline b{display:block;margin-top:1px;color:#dce8f6;font-size:11px}.di-position-tendencies{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px}.di-position-tendencies>div{padding:6px;background:#0c1c32;border:1px solid #1c3658;border-radius:6px;text-align:center}.di-position-tendencies b,.di-position-tendencies span,.di-position-tendencies em{display:block}.di-position-tendencies b{font-size:10px}.di-position-tendencies span{font-size:8px;color:#9bb0cc;margin-top:2px}.di-position-tendencies em{font-size:7px;color:#6f89aa;font-style:normal;margin-top:2px}.di-position-tendencies>div.hot{border-color:#865064;background:#351f2d}.di-position-tendencies>div.hot span{color:#ffc3ce}.di-position-tendencies>div.cold{opacity:.72}
       .di-trades{display:grid;gap:5px}.di-trades>div{display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;padding:7px;background:#10213a;border-radius:7px;font-size:10px}.di-trades span{color:#8fa7c8}.di-trades span strong{color:#dce8f6}.di-search{margin-bottom:8px}
       .di-alpha-years{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.di-alpha-years>div{background:#10213a;border-radius:8px;padding:9px;text-align:center}.di-alpha-years b,.di-alpha-years span,.di-alpha-years strong{display:block}.di-alpha-years span{font-size:9px;color:#8fa7c8}.up{color:#8df0ca!important}.down{color:#ff9cab!important}
-      @media(max-width:1000px){.di-grid{grid-template-columns:1fr}.di-card.wide{grid-column:auto}.di-demand{grid-template-columns:repeat(2,1fr)}.di-manager-grid{grid-template-columns:repeat(2,1fr)}}
-      @media(max-width:650px){.di-head{display:block}.di-tabs{margin-top:10px}.di-demand,.di-manager-grid,.di-opps,.di-alpha-years{grid-template-columns:1fr}.di-trades>div{grid-template-columns:1fr}.di-age-grid{grid-template-columns:repeat(2,1fr)}}
+      @media(max-width:1000px){.di-grid{grid-template-columns:1fr}.di-card.wide{grid-column:auto}.di-demand{grid-template-columns:repeat(2,1fr)}.di-manager-grid{grid-template-columns:1fr}.di-manager-intro{display:block}.di-manager-intro span{display:block;max-width:none;text-align:left;margin-top:5px}}
+      @media(max-width:650px){.di-head{display:block}.di-tabs{margin-top:10px}.di-tabs button{flex:1 1 145px}.di-demand,.di-manager-grid,.di-opps,.di-alpha-years{grid-template-columns:1fr}.di-position-tendencies{grid-template-columns:repeat(2,1fr)}.di-trades>div{grid-template-columns:1fr}.di-age-grid{grid-template-columns:repeat(2,1fr)}}
     `}</style>
   </section>;
 }

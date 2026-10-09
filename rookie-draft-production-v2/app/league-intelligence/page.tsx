@@ -32,7 +32,7 @@ export default function LeagueIntelligencePage(){
       <div>
         <div className="ey">League-wide dynasty analysis</div>
         <h1>League Intelligence</h1>
-        <p className="muted">Understand your opponents, positional markets, manager tendencies and how every roster compares.</p>
+        <p className="muted">Understand your opponents, positional markets, manager tendencies and how every roster compares. Use <b>Manager Tendencies</b> below for positional biases, trade style, pick behavior, transaction history and comparable trades.</p>
       </div>
     </div>
 
