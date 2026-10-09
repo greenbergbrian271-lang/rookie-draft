@@ -97,9 +97,6 @@ async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclus
     const boardJson=await boardRes.json();
     const boardRows=boardRes.ok&&Array.isArray(boardJson?.rows)?boardJson.rows:[];
 
-    // The scouting sample is driven by YOUR historical board, not by whether
-    // today's KTC dataset happens to contain the player. Only manual exclusions
-    // remove a player from the sample.
     const classRows=boardRows
       .filter((row:any)=>INTEL_POSITIONS.includes(String(row.position||"").toUpperCase() as any)&&Number(row.overallRank)>0)
       .map((row:any)=>{
@@ -108,38 +105,42 @@ async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclus
           year,name,position,yourRank:Number(row.overallRank),
           nflOverall:draftOrder(row.draftResult),
           draftResult:String(row.draftResult||""),
-          ktcValue:match?Number(match.player.value)||0:0,
+          ktcValue:match?Number(match.player.value)||0:null,
           hasKtc:Boolean(match),
         };
       }) as any[];
 
+    // Full sample = your board, minus only manual exclusions.
     const eligible=classRows.filter(row=>!excluded.has(scoutingExclusionKey(year,row.name)));
 
-    // KTC-missing players are not discarded. A player absent from today's KTC
-    // universe is placed in a shared bottom-value tier (value 0).
-    const ktcRanks=tieRanks(eligible,(row:any)=>Number(row.ktcValue)||0,true);
-    for(const row of eligible)row.ktcRank=ktcRanks.get(row)??eligible.length;
+    // The "vs NFL" score must be apples-to-apples: only players for whom the
+    // NFL supplied an ordered draft position AND KTC supplies an outcome value.
+    // UDFAs and KTC-missing players stay in the board sample, but do not distort
+    // the head-to-head comparison by being assigned artificial bottom ranks.
+    const comparable=eligible.filter(row=>row.nflOverall!=null&&row.hasKtc);
 
-    // NFL-drafted players rank by draft order. UDFAs are retained in the sample
-    // and share one bottom NFL tier instead of disappearing from the analysis.
-    const drafted=eligible.filter(row=>row.nflOverall!=null).sort((a,b)=>a.nflOverall-b.nflOverall);
-    const udfas=eligible.filter(row=>row.nflOverall==null);
-    drafted.forEach((row,index)=>{row.nflRank=index+1});
-    const udfaRank=udfas.length?drafted.length+(udfas.length+1)/2:eligible.length;
-    udfas.forEach(row=>{row.nflRank=udfaRank});
+    const yourRanks=tieRanks(comparable,(row:any)=>Number(row.yourRank),false);
+    const ktcRanks=tieRanks(comparable,(row:any)=>Number(row.ktcValue)||0,true);
+    const nflRanks=tieRanks(comparable,(row:any)=>Number(row.nflOverall),false);
 
-    const yourCorr=pearson(eligible.map(x=>x.yourRank),eligible.map(x=>x.ktcRank));
-    const nflCorr=pearson(eligible.map(x=>x.nflRank),eligible.map(x=>x.ktcRank));
+    for(const row of comparable){
+      row.comparisonYourRank=yourRanks.get(row)??comparable.length;
+      row.ktcRank=ktcRanks.get(row)??comparable.length;
+      row.nflRank=nflRanks.get(row)??comparable.length;
+    }
+
+    const yourCorr=pearson(comparable.map(x=>x.comparisonYourRank),comparable.map(x=>x.ktcRank));
+    const nflCorr=pearson(comparable.map(x=>x.nflRank),comparable.map(x=>x.ktcRank));
     const edge=yourCorr!=null&&nflCorr!=null?yourCorr-nflCorr:null;
 
     const ktcProfiles=eligible.filter(x=>x.hasKtc).length;
-    const nflDrafted=drafted.length;
+    const nflDrafted=eligible.filter(x=>x.nflOverall!=null).length;
     results.push({
       year,
-      matched:eligible.length,
       sample:eligible.length,
       totalBoard:classRows.length,
       excluded:classRows.length-eligible.length,
+      comparable:comparable.length,
       ktcProfiles,
       ktcMissing:eligible.length-ktcProfiles,
       nflDrafted,
@@ -149,22 +150,21 @@ async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclus
       edge,
     });
 
-    const eligibleKeys=new Set(eligible.map(row=>scoutingExclusionKey(year,row.name)));
+    const comparableByKey=new Map(comparable.map(row=>[scoutingExclusionKey(year,row.name),row]));
     for(const row of classRows){
-      const key=scoutingExclusionKey(year,row.name);
-      const scored=eligibleKeys.has(key);
-      const eligibleRow=scored?eligible.find(x=>scoutingExclusionKey(year,x.name)===key):null;
+      const key=scoutingExclusionKey(year,row.name),comp=comparableByKey.get(key);
       players.push({
         ...row,
-        ktcRank:eligibleRow?.ktcRank??null,
-        nflRank:eligibleRow?.nflRank??null,
+        ktcRank:comp?.ktcRank??null,
+        nflRank:comp?.nflRank??null,
+        comparable:Boolean(comp),
         excluded:excluded.has(key),
       });
     }
 
-    for(const row of eligible){
-      const yourError=Math.abs(row.yourRank-row.ktcRank),nflError=Math.abs(row.nflRank-row.ktcRank);
-      details.push({...row,processEdge:nflError-yourError});
+    for(const row of comparable){
+      const yourError=Math.abs(row.comparisonYourRank-row.ktcRank),nflError=Math.abs(row.nflRank-row.ktcRank);
+      details.push({...row,yourComparisonRank:row.comparisonYourRank,processEdge:nflError-yourError});
     }
   }
 
@@ -174,7 +174,7 @@ async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclus
     lessons:[...details].sort((a,b)=>a.processEdge-b.processEdge).slice(0,12),
     players:players.sort((a,b)=>b.year-a.year||a.yourRank-b.yourRank),
     exclusions,
-    note:"The sample now includes every QB/RB/WR/TE on your historical Final Draft Board unless you manually exclude them. Players missing from today's KTC dataset remain in the sample in a shared bottom KTC tier, and UDFAs remain in the sample in a shared bottom NFL tier.",
+    note:"Every QB/RB/WR/TE on your historical Final Draft Board remains in the scouting sample unless you manually exclude him. The vs-NFL score uses only the fair comparison cohort: NFL-drafted players who also have a current KTC outcome value. UDFAs and KTC-missing players remain visible in the sample but are not assigned artificial bottom ranks.",
   };
 }
 

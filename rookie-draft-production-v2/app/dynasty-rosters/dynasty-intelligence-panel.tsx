@@ -188,7 +188,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       {tab==="process"&&<>
         <Card title="Scouting Alpha by Class" wide>
           <p className="muted">{data.scoutingAlpha?.note}</p>
-          <div className="di-alpha-years">{(data.scoutingAlpha?.years||[]).map((y:any)=><div key={y.year}><b>{y.year}</b><span>{y.sample} in sample{y.excluded?" · "+y.excluded+" excluded":""}</span><em>{y.nflDrafted} NFL drafted · {y.ktcProfiles} KTC profiles</em><strong className={(y.edge||0)>=0?"up":"down"}>{y.edge==null?"—":(y.edge>0?"+":"")+y.edge.toFixed(2)} vs NFL</strong></div>)}</div>
+          <div className="di-alpha-years">{(data.scoutingAlpha?.years||[]).map((y:any)=><div key={y.year}><b>{y.year}</b><span>{y.sample} board sample{y.excluded?" · "+y.excluded+" excluded":""}</span><em>{y.comparable} comparable vs NFL · {y.nflDrafted} drafted · {y.ktcProfiles} KTC</em><strong className={(y.edge||0)>=0?"up":"down"}>{y.edge==null?"—":(y.edge>0?"+":"")+y.edge.toFixed(2)} vs NFL</strong></div>)}</div>
         </Card>
 
         <Card title="Manage Scouting Sample" wide>
@@ -196,16 +196,16 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
           <input className="di-search" value={processSearch} onChange={e=>setProcessSearch(e.target.value)} placeholder="Search any historical player to exclude or restore…"/>
           {!processSearch.trim()&&!(data.scoutingAlpha?.exclusions||[]).length?<p className="muted">No players are currently excluded. Search for a player to manage the scoring sample.</p>:null}
           <div className="di-process-manage">{processPlayers.map((x:any)=><div key={x.year+"|"+x.name}>
-            <div><strong>{x.year} · {x.name}</strong><span>{x.position} · You #{x.yourRank} · KTC #{x.ktcRank}{x.nflRank?" · NFL #"+x.nflRank:""}</span></div>
+            <div><strong>{x.year} · {x.name}</strong><span>{x.position} · Board #{x.yourRank}{x.comparable?" · comparable vs NFL":" · not in vs-NFL cohort"}</span></div>
             <button type="button" disabled={processSaving===x.year+"|"+x.name} onClick={()=>void updateProcessExclusion(x.excluded?"restore":"exclude",x)}>{processSaving===x.year+"|"+x.name?"Saving…":x.excluded?"Restore":"Exclude"}</button>
           </div>)}</div>
         </Card>
 
         <Card title="Process Wins">
-          {(data.scoutingAlpha?.wins||[]).slice(0,8).map((x:any)=><div className="di-process-line" key={x.year+x.name}><div><strong>{x.year} · {x.name}</strong><span>You #{x.yourRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></div><button onClick={()=>void updateProcessExclusion("exclude",x)}>Exclude</button></div>)}
+          {(data.scoutingAlpha?.wins||[]).slice(0,8).map((x:any)=><div className="di-process-line" key={x.year+x.name}><div><strong>{x.year} · {x.name}</strong><span>Board #{x.yourRank} · Comparable #{x.yourComparisonRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></div><button onClick={()=>void updateProcessExclusion("exclude",x)}>Exclude</button></div>)}
         </Card>
         <Card title="Process Lessons">
-          {(data.scoutingAlpha?.lessons||[]).slice(0,8).map((x:any)=><div className="di-process-line" key={x.year+x.name}><div><strong>{x.year} · {x.name}</strong><span>You #{x.yourRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></div><button onClick={()=>void updateProcessExclusion("exclude",x)}>Exclude</button></div>)}
+          {(data.scoutingAlpha?.lessons||[]).slice(0,8).map((x:any)=><div className="di-process-line" key={x.year+x.name}><div><strong>{x.year} · {x.name}</strong><span>Board #{x.yourRank} · Comparable #{x.yourComparisonRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></div><button onClick={()=>void updateProcessExclusion("exclude",x)}>Exclude</button></div>)}
         </Card>
       </>}
 

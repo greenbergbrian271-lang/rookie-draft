@@ -46,7 +46,7 @@ function assetValuePlayer(id:string,playerDb:any,matcher:ReturnType<typeof creat
   return {id,name,position,team:String(p.team||"FA"),value};
 }
 
-function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLeagueIntegration,currentUsers:any[],myOwnerId:string){
+function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLeagueIntegration,currentUsers:any[],myOwnerId:string,activeOwnerIds:Set<string>){
   const matcher=createKtcMatcher(dataset),currentNames=new Map<string,string>(currentUsers.map((u:any)=>[String(u.user_id),intelOwnerName(u)] as [string,string])),profiles=new Map<string,any>(),feed:any[]=[];
   const ensure=(ownerId:string,name:string)=>{
     if(!profiles.has(ownerId))profiles.set(ownerId,{ownerId,name,isMine:ownerId===myOwnerId,trades:0,waivers:0,freeAgentAdds:0,picksIn:0,picksOut:0,faabSpent:0,faabReceived:0,positionIn:{QB:0,RB:0,WR:0,TE:0},positionOut:{QB:0,RB:0,WR:0,TE:0},incomingValue:0,outgoingValue:0,tradeRatios:[],positionRatios:{QB:[],RB:[],WR:[],TE:[]}});
@@ -56,7 +56,7 @@ function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLea
   };
   for(const user of currentUsers){
     const ownerId=String(user?.user_id||"");
-    if(ownerId)ensure(ownerId,intelOwnerName(user));
+    if(ownerId&&activeOwnerIds.has(ownerId))ensure(ownerId,intelOwnerName(user));
   }
   for(const season of seasons){
     const rosterToOwner=new Map<number,string>((season.rosters||[]).map((r:any)=>[Number(r.roster_id),String(r.owner_id||"")] as [number,string])),usersById=new Map<string,any>((season.users||[]).map((u:any)=>[String(u.user_id),u] as [string,any]));
@@ -97,7 +97,7 @@ function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLea
       }
     }
   }
-  const rows=[...profiles.values()],leaguePositionTotals={QB:0,RB:0,WR:0,TE:0};let leagueIncoming=0;
+  const rows=[...profiles.values()].filter(p=>activeOwnerIds.has(String(p.ownerId))),leaguePositionTotals={QB:0,RB:0,WR:0,TE:0};let leagueIncoming=0;
   for(const p of rows)for(const pos of INTEL_POSITIONS){leaguePositionTotals[pos]+=p.positionIn[pos];leagueIncoming+=p.positionIn[pos]}
   const leagueShares=Object.fromEntries(INTEL_POSITIONS.map(pos=>[pos,leagueIncoming?leaguePositionTotals[pos]/leagueIncoming:.25]));
   for(const p of rows){
@@ -117,7 +117,7 @@ function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLea
 }
 
 export async function managerIntelMode(league:SleeperLeagueIntegration){
-  const base=await loadIntelBase(league),seasons=await historySeasons(league.leagueId,3),mine=resolveIntelRoster(base.rosters,base.users,league.teamIdentity||""),myOwnerId=String(mine?.owner_id||""),analysis=analyze(seasons,base.playerDb,base.dataset,league,base.users,myOwnerId),c=await ensureTursoSchema();
+  const base=await loadIntelBase(league),seasons=await historySeasons(league.leagueId,3),mine=resolveIntelRoster(base.rosters,base.users,league.teamIdentity||""),myOwnerId=String(mine?.owner_id||""),activeOwnerIds=new Set<string>((base.rosters||[]).map((r:any)=>String(r?.owner_id||"")).filter(Boolean)),analysis=analyze(seasons,base.playerDb,base.dataset,league,base.users,myOwnerId,activeOwnerIds),c=await ensureTursoSchema();
   let draftTendencies:any[]=[];
   try{const r=await c.execute({sql:"select owner_name,owner_key,count(*) as sample_size from mock_draft_history where league_key=? group by owner_name,owner_key",args:[league.key]});draftTendencies=r.rows.map((x:any)=>({ownerName:String(x.owner_name),ownerKey:String(x.owner_key),sampleSize:Number(x.sample_size)||0}))}catch{}
   return {league:{key:league.key,name:String(base.leagueData?.name||league.name)},...analysis,draftTendencies,seasons:seasons.map(s=>Number(s?.meta?.season)).filter(Boolean)};
