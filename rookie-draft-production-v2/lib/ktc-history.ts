@@ -39,6 +39,17 @@ async function ensureHistorySchema(){
     last_error text
   )`);
   await c.execute("create index if not exists ktc_history_backfill_name_idx on ktc_history_backfill(player_name,position)");
+  await c.execute(`create table if not exists ktc_history_series(
+    ktc_id integer primary key,
+    player_name text not null,
+    position text not null,
+    slug text not null,
+    history_json text not null,
+    first_date text,
+    last_date text,
+    points integer not null default 0,
+    fetched_at text not null
+  )`);
   await c.execute(`create table if not exists yearly_power_rankings(
     league_key text not null,
     season integer not null,
@@ -75,21 +86,28 @@ export async function recordKtcHistoricalSeries(player:{name:string;position:str
     .sort((a,b)=>a.date.localeCompare(b.date));
   if(!clean.length)throw new Error("KTC history contained no usable points");
 
-  const today=new Date().toISOString().slice(0,10);
-  const rows=clean.filter(point=>point.date<today);
+  const today=new Date().toISOString().slice(0,10),cutoff=new Date(Date.now()-400*86400000).toISOString().slice(0,10);
+  // Preserve the entire all-time KTC series compactly, while materializing the
+  // most recent ~13 months into daily rows for fast 7/30/90/365-day queries.
+  const rows=clean.filter(point=>point.date<today&&point.date>=cutoff);
   const c=await ensureHistorySchema(),now=new Date().toISOString();
+  await c.execute({
+    sql:"insert into ktc_history_series(ktc_id,player_name,position,slug,history_json,first_date,last_date,points,fetched_at) values(?,?,?,?,?,?,?,?,?) on conflict(ktc_id) do update set player_name=excluded.player_name,position=excluded.position,slug=excluded.slug,history_json=excluded.history_json,first_date=excluded.first_date,last_date=excluded.last_date,points=excluded.points,fetched_at=excluded.fetched_at",
+    args:[player.ktcId,player.name,player.position,player.slug,JSON.stringify(clean),clean[0]?.date||"",clean[clean.length-1]?.date||"",clean.length,now],
+  });
+
   const statements=rows.map(point=>({
     sql:"insert into ktc_value_history(snapshot_date,player_name,position,team,value,tep_value,captured_at) values(?,?,?,?,?,?,?) on conflict(snapshot_date,player_name,position) do update set team=excluded.team,value=excluded.value,captured_at=excluded.captured_at",
     args:[point.date,player.name,player.position,player.team||"",point.value,null,now],
   }));
-  for(let i=0;i<statements.length;i+=100)await c.batch(statements.slice(i,i+100),"write");
+  for(let i=0;i<statements.length;i+=200)await c.batch(statements.slice(i,i+200),"write");
 
   const firstDate=clean[0]?.date||"",lastDate=clean[clean.length-1]?.date||"";
   await c.execute({
     sql:"insert into ktc_history_backfill(ktc_id,player_name,position,slug,first_date,last_date,points,fetched_at,last_error) values(?,?,?,?,?,?,?,?,?) on conflict(ktc_id) do update set player_name=excluded.player_name,position=excluded.position,slug=excluded.slug,first_date=excluded.first_date,last_date=excluded.last_date,points=excluded.points,fetched_at=excluded.fetched_at,last_error=''",
     args:[player.ktcId,player.name,player.position,player.slug,firstDate,lastDate,clean.length,now,""],
   });
-  return {firstDate,lastDate,points:clean.length};
+  return {firstDate,lastDate,points:clean.length,materializedPoints:rows.length};
 }
 
 export async function recordKtcHistoryBackfillError(player:{name:string;position:string;ktcId:number;slug:string},error:string){
