@@ -1,7 +1,7 @@
 import type {SleeperLeagueIntegration} from "@/lib/integrations";
 import {createKtcMatcher,getKtcPickValue,type KtcDataset} from "@/lib/ktc";
 import {ensureTursoSchema} from "@/lib/turso";
-import {INTEL_POSITIONS,intelNumber,intelOwnerName,loadIntelBase,sleeperJson} from "@/lib/dynasty-intelligence-core";
+import {INTEL_POSITIONS,intelNumber,intelOwnerName,loadIntelBase,resolveIntelRoster,sleeperJson} from "@/lib/dynasty-intelligence-core";
 
 async function cacheGet(key:string,maxAgeMs:number){
   const c=await ensureTursoSchema(),r=await c.execute({sql:"select value,updated_at from settings where key=?",args:[key]});
@@ -46,12 +46,18 @@ function assetValuePlayer(id:string,playerDb:any,matcher:ReturnType<typeof creat
   return {id,name,position,team:String(p.team||"FA"),value};
 }
 
-function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLeagueIntegration,currentUsers:any[]){
+function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLeagueIntegration,currentUsers:any[],myOwnerId:string){
   const matcher=createKtcMatcher(dataset),currentNames=new Map<string,string>(currentUsers.map((u:any)=>[String(u.user_id),intelOwnerName(u)] as [string,string])),profiles=new Map<string,any>(),feed:any[]=[];
   const ensure=(ownerId:string,name:string)=>{
-    if(!profiles.has(ownerId))profiles.set(ownerId,{ownerId,name,trades:0,waivers:0,freeAgentAdds:0,picksIn:0,picksOut:0,faabSpent:0,faabReceived:0,positionIn:{QB:0,RB:0,WR:0,TE:0},positionOut:{QB:0,RB:0,WR:0,TE:0},incomingValue:0,outgoingValue:0,tradeRatios:[],positionRatios:{QB:[],RB:[],WR:[],TE:[]}});
-    return profiles.get(ownerId);
+    if(!profiles.has(ownerId))profiles.set(ownerId,{ownerId,name,isMine:ownerId===myOwnerId,trades:0,waivers:0,freeAgentAdds:0,picksIn:0,picksOut:0,faabSpent:0,faabReceived:0,positionIn:{QB:0,RB:0,WR:0,TE:0},positionOut:{QB:0,RB:0,WR:0,TE:0},incomingValue:0,outgoingValue:0,tradeRatios:[],positionRatios:{QB:[],RB:[],WR:[],TE:[]}});
+    const row=profiles.get(ownerId);
+    if(row){row.name=name||row.name;row.isMine=ownerId===myOwnerId}
+    return row;
   };
+  for(const user of currentUsers){
+    const ownerId=String(user?.user_id||"");
+    if(ownerId)ensure(ownerId,intelOwnerName(user));
+  }
   for(const season of seasons){
     const rosterToOwner=new Map<number,string>((season.rosters||[]).map((r:any)=>[Number(r.roster_id),String(r.owner_id||"")] as [number,string])),usersById=new Map<string,any>((season.users||[]).map((u:any)=>[String(u.user_id),u] as [string,any]));
     for(const tx of season.transactions||[]){
@@ -107,11 +113,11 @@ function analyze(seasons:any[],playerDb:any,dataset:KtcDataset,league:SleeperLea
     p.tags=tags.slice(0,4);
   }
   feed.sort((a,b)=>b.created-a.created);
-  return {profiles:rows.sort((a,b)=>b.trades-a.trades||a.name.localeCompare(b.name)),feed:feed.slice(0,80)};
+  return {profiles:rows.sort((a,b)=>Number(b.isMine)-Number(a.isMine)||b.trades-a.trades||a.name.localeCompare(b.name)),feed:feed.slice(0,80)};
 }
 
 export async function managerIntelMode(league:SleeperLeagueIntegration){
-  const base=await loadIntelBase(league),seasons=await historySeasons(league.leagueId,3),analysis=analyze(seasons,base.playerDb,base.dataset,league,base.users),c=await ensureTursoSchema();
+  const base=await loadIntelBase(league),seasons=await historySeasons(league.leagueId,3),mine=resolveIntelRoster(base.rosters,base.users,league.teamIdentity||""),myOwnerId=String(mine?.owner_id||""),analysis=analyze(seasons,base.playerDb,base.dataset,league,base.users,myOwnerId),c=await ensureTursoSchema();
   let draftTendencies:any[]=[];
   try{const r=await c.execute({sql:"select owner_name,owner_key,count(*) as sample_size from mock_draft_history where league_key=? group by owner_name,owner_key",args:[league.key]});draftTendencies=r.rows.map((x:any)=>({ownerName:String(x.owner_name),ownerKey:String(x.owner_key),sampleSize:Number(x.sample_size)||0}))}catch{}
   return {league:{key:league.key,name:String(base.leagueData?.name||league.name)},...analysis,draftTendencies,seasons:seasons.map(s=>Number(s?.meta?.season)).filter(Boolean)};

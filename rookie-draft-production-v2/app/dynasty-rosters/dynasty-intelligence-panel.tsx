@@ -17,6 +17,8 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
   const [tradeSearch,setTradeSearch]=useState("");
+  const [processSearch,setProcessSearch]=useState("");
+  const [processSaving,setProcessSaving]=useState("");
 
   useEffect(()=>{setCache({});setTab("league");setError("")},[leagueKey,refreshToken]);
 
@@ -41,6 +43,24 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       ...(side.playersIn||[]),...(side.playersOut||[])
     ].some((a:any)=>(a.name+" "+a.position).toLowerCase().includes(q)))).slice(0,12);
   },[data,tradeSearch,tab]);
+
+  const processPlayers=useMemo(()=>{
+    if(tab!=="process"||!data?.scoutingAlpha?.players)return[];
+    const q=processSearch.trim().toLowerCase();
+    const rows=[...data.scoutingAlpha.players];
+    if(!q)return rows.filter((x:any)=>x.excluded).slice(0,12);
+    return rows.filter((x:any)=>(x.name+" "+x.position+" "+x.year).toLowerCase().includes(q)).slice(0,20);
+  },[data,processSearch,tab]);
+
+  async function updateProcessExclusion(action:"exclude"|"restore",player:any){
+    const key=player.year+"|"+player.name;
+    setProcessSaving(key);setError("");
+    try{
+      const r=await fetch("/api/dynasty-intelligence/scouting-exclusions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,year:player.year,name:player.name})});
+      const j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not update scouting sample");
+      setCache(current=>{const next={...current};delete next.process;return next});
+    }catch(e:any){setError(e?.message||"Could not update scouting sample")}finally{setProcessSaving("")}
+  }
 
   return <section className="di-shell">
     <div className="di-head">
@@ -88,8 +108,8 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
           <div className="di-manager-grid">{(data.profiles||[]).map((p:any)=>{
             const pickNet=(Number(p.picksIn)||0)-(Number(p.picksOut)||0);
             const pickStyle=pickNet>=3?"Pick Collector":pickNet<=-3?"Pick Seller":"Balanced Picks";
-            return <article key={p.ownerId} className="di-manager-card">
-              <div className="di-manager-card-head"><div><h4>{p.name}</h4><small>{p.trades} trades · {p.waivers} waivers · {p.freeAgentAdds||0} FA adds</small></div><strong>{pickStyle}</strong></div>
+            return <article key={p.ownerId} className={"di-manager-card "+(p.isMine?"mine":"")}>
+              <div className="di-manager-card-head"><div><h4>{p.name}{p.isMine&&<span className="di-you">You</span>}</h4><small>{p.trades} trades · {p.waivers} waivers · {p.freeAgentAdds||0} FA adds</small></div><strong>{pickStyle}</strong></div>
               <div className="di-tags">{(p.tags||[]).map((t:string)=><span key={t}>{t}</span>)}</div>
               <div className="di-manager-pickline">
                 <span>Picks acquired <b>{p.picksIn}</b></span><span>Picks moved <b>{p.picksOut}</b></span><span>Net <b className={pickNet>0?"up":pickNet<0?"down":""}>{pickNet>0?"+":""}{pickNet}</b></span>
@@ -110,7 +130,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
             {(data.profiles||[]).map((p:any)=>{
               const net=(Number(p.picksIn)||0)-(Number(p.picksOut)||0);
               const style=Number(p.valueRatio||1)<.94?"Pays Up":Number(p.valueRatio||1)>1.06?"Value Seeker":"Near Market";
-              return <tr key={"pick-"+p.ownerId}><td><strong>{p.name}</strong></td><td>{p.trades}</td><td>{p.picksIn}</td><td>{p.picksOut}</td><td className={net>0?"up":net<0?"down":""}>{net>0?"+":""}{net}</td><td>{style}</td></tr>
+              return <tr key={"pick-"+p.ownerId} className={p.isMine?"mine":""}><td><strong>{p.name}{p.isMine?" · You":""}</strong></td><td>{p.trades}</td><td>{p.picksIn}</td><td>{p.picksOut}</td><td className={net>0?"up":net<0?"down":""}>{net>0?"+":""}{net}</td><td>{style}</td></tr>
             })}
           </tbody></table></div>
         </Card>
@@ -149,13 +169,24 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       {tab==="process"&&<>
         <Card title="Scouting Alpha by Class" wide>
           <p className="muted">{data.scoutingAlpha?.note}</p>
-          <div className="di-alpha-years">{(data.scoutingAlpha?.years||[]).map((y:any)=><div key={y.year}><b>{y.year}</b><span>{y.matched} matched</span><strong className={(y.edge||0)>=0?"up":"down"}>{y.edge==null?"—":(y.edge>0?"+":"")+y.edge.toFixed(2)} vs NFL</strong></div>)}</div>
+          <div className="di-alpha-years">{(data.scoutingAlpha?.years||[]).map((y:any)=><div key={y.year}><b>{y.year}</b><span>{y.matched} scored{y.excluded?" · "+y.excluded+" excluded":""}</span><strong className={(y.edge||0)>=0?"up":"down"}>{y.edge==null?"—":(y.edge>0?"+":"")+y.edge.toFixed(2)} vs NFL</strong></div>)}</div>
         </Card>
+
+        <Card title="Manage Scouting Sample" wide>
+          <p className="muted">Exclude players you never properly evaluated. Excluded players are removed from class scoring and from Process Wins/Lessons, but their historical board data is left untouched.</p>
+          <input className="di-search" value={processSearch} onChange={e=>setProcessSearch(e.target.value)} placeholder="Search any historical player to exclude or restore…"/>
+          {!processSearch.trim()&&!(data.scoutingAlpha?.exclusions||[]).length?<p className="muted">No players are currently excluded. Search for a player to manage the scoring sample.</p>:null}
+          <div className="di-process-manage">{processPlayers.map((x:any)=><div key={x.year+"|"+x.name}>
+            <div><strong>{x.year} · {x.name}</strong><span>{x.position} · You #{x.yourRank} · KTC #{x.ktcRank}{x.nflRank?" · NFL #"+x.nflRank:""}</span></div>
+            <button type="button" disabled={processSaving===x.year+"|"+x.name} onClick={()=>void updateProcessExclusion(x.excluded?"restore":"exclude",x)}>{processSaving===x.year+"|"+x.name?"Saving…":x.excluded?"Restore":"Exclude"}</button>
+          </div>)}</div>
+        </Card>
+
         <Card title="Process Wins">
-          {(data.scoutingAlpha?.wins||[]).slice(0,8).map((x:any)=><p className="di-line" key={x.year+x.name}><strong>{x.year} · {x.name}</strong><span>You #{x.yourRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></p>)}
+          {(data.scoutingAlpha?.wins||[]).slice(0,8).map((x:any)=><div className="di-process-line" key={x.year+x.name}><div><strong>{x.year} · {x.name}</strong><span>You #{x.yourRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></div><button onClick={()=>void updateProcessExclusion("exclude",x)}>Exclude</button></div>)}
         </Card>
         <Card title="Process Lessons">
-          {(data.scoutingAlpha?.lessons||[]).slice(0,8).map((x:any)=><p className="di-line" key={x.year+x.name}><strong>{x.year} · {x.name}</strong><span>You #{x.yourRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></p>)}
+          {(data.scoutingAlpha?.lessons||[]).slice(0,8).map((x:any)=><div className="di-process-line" key={x.year+x.name}><div><strong>{x.year} · {x.name}</strong><span>You #{x.yourRank} · KTC #{x.ktcRank} · NFL #{x.nflRank}</span></div><button onClick={()=>void updateProcessExclusion("exclude",x)}>Exclude</button></div>)}
         </Card>
       </>}
 
@@ -172,12 +203,12 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       .di-age-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.di-age-grid>div{background:#10213a;border-radius:8px;padding:8px;text-align:center}.di-age-grid b,.di-age-grid strong,.di-age-grid span{display:block}.di-age-grid strong{font-size:18px}.risk{font-size:9px;text-transform:uppercase}.risk.high{color:#ff9cab}.risk.watch{color:#ffd978}.risk.low{color:#8df0ca}
       .di-year{display:grid;grid-template-columns:50px 1fr;gap:3px 8px;margin:6px 0}.di-year b{grid-row:1/6;color:#20e2dd}.di-year span{font-size:10px}.di-opps{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.di-opps>div{background:#10213a;border-radius:8px;padding:8px;display:grid;grid-template-columns:1fr auto;gap:2px 8px}.di-opps b{font-size:11px}.di-opps span{font-size:10px;color:#ffd978}.di-opps em{grid-column:1/-1;color:#8fa7c8;font-size:10px;font-style:normal}
       .di-manager-intro{display:flex;justify-content:space-between;gap:18px;margin-bottom:10px;padding:8px 10px;border:1px solid #29476e;border-radius:8px;background:#0b2039}.di-manager-intro p{margin:0;color:#a9bdd6;font-size:10px;line-height:1.45;max-width:920px}.di-manager-intro span{max-width:420px;color:#7890b1;font-size:9px;line-height:1.45;text-align:right}
-      .di-manager-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.di-manager-card{background:#10213a;border:1px solid #20395f;border-radius:9px;padding:10px}.di-manager-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.di-manager-card-head h4{margin:0}.di-manager-card-head small{display:block;margin-top:2px;color:#7890b1;font-size:8px}.di-manager-card-head>strong{padding:4px 6px;border-radius:999px;background:#142f50;color:#b9d7ff;font-size:8px;white-space:nowrap}.di-tags,.di-bias{display:flex;gap:4px;flex-wrap:wrap}.di-tags{margin-top:7px}.di-tags span,.di-bias span{padding:3px 5px;border-radius:999px;background:#152f50;color:#b9c9df;font-size:8px;font-weight:800}.di-bias span.hot{background:#4d2b3b;color:#ffc3ce}
+      .di-manager-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.di-manager-card{background:#10213a;border:1px solid #20395f;border-radius:9px;padding:10px}.di-manager-card.mine{border-color:#4f8ccf;box-shadow:0 0 0 1px rgba(79,140,207,.28) inset}.di-manager-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.di-manager-card-head h4{margin:0}.di-you{display:inline-block;margin-left:6px;padding:2px 5px;border-radius:999px;background:#1c4d7d;color:#b9dcff;font-size:7px;vertical-align:middle;text-transform:uppercase;letter-spacing:.06em}.di-manager-card-head small{display:block;margin-top:2px;color:#7890b1;font-size:8px}.di-manager-card-head>strong{padding:4px 6px;border-radius:999px;background:#142f50;color:#b9d7ff;font-size:8px;white-space:nowrap}.di-tags,.di-bias{display:flex;gap:4px;flex-wrap:wrap}.di-tags{margin-top:7px}.di-tags span,.di-bias span{padding:3px 5px;border-radius:999px;background:#152f50;color:#b9c9df;font-size:8px;font-weight:800}.di-bias span.hot{background:#4d2b3b;color:#ffc3ce}
       .di-manager-pickline{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}.di-manager-pickline span{padding:5px 6px;background:#0c1c32;border-radius:6px;color:#7890b1;font-size:8px}.di-manager-pickline b{display:block;margin-top:1px;color:#dce8f6;font-size:11px}.di-position-tendencies{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px}.di-position-tendencies>div{padding:6px;background:#0c1c32;border:1px solid #1c3658;border-radius:6px;text-align:center}.di-position-tendencies b,.di-position-tendencies span,.di-position-tendencies em{display:block}.di-position-tendencies b{font-size:10px}.di-position-tendencies span{font-size:8px;color:#9bb0cc;margin-top:2px}.di-position-tendencies em{font-size:7px;color:#6f89aa;font-style:normal;margin-top:2px}.di-position-tendencies>div.hot{border-color:#865064;background:#351f2d}.di-position-tendencies>div.hot span{color:#ffc3ce}.di-position-tendencies>div.cold{opacity:.72}
       .di-trades{display:grid;gap:5px}.di-trades>div{display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;padding:7px;background:#10213a;border-radius:7px;font-size:10px}.di-trades span{color:#8fa7c8}.di-trades span strong{color:#dce8f6}.di-search{margin-bottom:8px}
-      .di-alpha-years{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.di-alpha-years>div{background:#10213a;border-radius:8px;padding:9px;text-align:center}.di-alpha-years b,.di-alpha-years span,.di-alpha-years strong{display:block}.di-alpha-years span{font-size:9px;color:#8fa7c8}.up{color:#8df0ca!important}.down{color:#ff9cab!important}
+      .di-alpha-years{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.di-alpha-years>div{background:#10213a;border-radius:8px;padding:9px;text-align:center}.di-alpha-years b,.di-alpha-years span,.di-alpha-years strong{display:block}.di-alpha-years span{font-size:9px;color:#8fa7c8}.di-process-manage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.di-process-manage>div,.di-process-line{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 8px;border:1px solid #18304f;border-radius:7px;background:#10213a}.di-process-manage strong,.di-process-manage span,.di-process-line strong,.di-process-line span{display:block}.di-process-manage span,.di-process-line span{font-size:9px;color:#8fa7c8;margin-top:2px}.di-process-manage button,.di-process-line button{padding:4px 7px;background:#152f50;border:1px solid #31527f;color:#b9d7ff;border-radius:6px;font-size:8px;white-space:nowrap}.di-process-manage button:hover,.di-process-line button:hover{background:#1d426d;color:#fff}.up{color:#8df0ca!important}.down{color:#ff9cab!important}
       @media(max-width:1000px){.di-grid{grid-template-columns:1fr}.di-card.wide{grid-column:auto}.di-demand{grid-template-columns:repeat(2,1fr)}.di-manager-grid{grid-template-columns:1fr}.di-manager-intro{display:block}.di-manager-intro span{display:block;max-width:none;text-align:left;margin-top:5px}}
-      @media(max-width:650px){.di-head{display:block}.di-tabs{margin-top:10px}.di-tabs button{flex:1 1 145px}.di-demand,.di-manager-grid,.di-opps,.di-alpha-years{grid-template-columns:1fr}.di-position-tendencies{grid-template-columns:repeat(2,1fr)}.di-trades>div{grid-template-columns:1fr}.di-age-grid{grid-template-columns:repeat(2,1fr)}}
+      @media(max-width:650px){.di-head{display:block}.di-tabs{margin-top:10px}.di-tabs button{flex:1 1 145px}.di-demand,.di-manager-grid,.di-opps,.di-alpha-years,.di-process-manage{grid-template-columns:1fr}.di-position-tendencies{grid-template-columns:repeat(2,1fr)}.di-trades>div{grid-template-columns:1fr}.di-age-grid{grid-template-columns:repeat(2,1fr)}}
     `}</style>
   </section>;
 }

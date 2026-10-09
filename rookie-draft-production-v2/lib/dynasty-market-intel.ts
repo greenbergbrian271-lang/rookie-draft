@@ -5,6 +5,7 @@ import {ensureTursoSchema} from "@/lib/turso";
 import {GET as getFinalBoard} from "@/app/api/final-board/live/route";
 import {getIntegrations} from "@/lib/integrations";
 import {INTEL_POSITIONS,intelNorm,loadIntelBase,resolveIntelRoster,sleeperJson,valuedIntelPlayers} from "@/lib/dynasty-intelligence-core";
+import {getScoutingProcessExclusions,scoutingExclusionKey,type ScoutingProcessExclusion} from "@/lib/scouting-process-exclusions";
 
 const ADP_SLUG:Record<string,string>={
   "one-league":"one-league",
@@ -63,8 +64,9 @@ function pearson(xs:number[],ys:number[]){
   return dx&&dy?num/Math.sqrt(dx*dy):null;
 }
 
-async function scoutingAlpha(dataset:KtcDataset){
-  const matcher=createKtcMatcher(dataset),years=[2022,2023,2024,2025,2026],results:any[]=[],details:any[]=[];
+async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclusion[]){
+  const matcher=createKtcMatcher(dataset),years=[2022,2023,2024,2025,2026],results:any[]=[],details:any[]=[],players:any[]=[];
+  const excluded=new Set(exclusions.map(x=>scoutingExclusionKey(x.year,x.name)));
 
   const draftOrder=(value:any)=>{
     const text=String(value||"").trim();
@@ -99,13 +101,15 @@ async function scoutingAlpha(dataset:KtcDataset){
     const nflRank=new Map(drafted.map((x,i)=>[intelNorm(x.name),i+1]));
     for(const row of matched)row.nflRank=nflRank.get(intelNorm(row.name))??null;
 
-    const yourCorr=pearson(matched.map(x=>x.yourRank),matched.map(x=>x.ktcRank));
-    const nflComparable=matched.filter(x=>x.nflRank!=null);
+    const eligible=matched.filter(row=>!excluded.has(scoutingExclusionKey(year,row.name)));
+    const yourCorr=pearson(eligible.map(x=>x.yourRank),eligible.map(x=>x.ktcRank));
+    const nflComparable=eligible.filter(x=>x.nflRank!=null);
     const nflCorr=pearson(nflComparable.map(x=>x.nflRank),nflComparable.map(x=>x.ktcRank));
     const edge=yourCorr!=null&&nflCorr!=null?yourCorr-nflCorr:null;
-    results.push({year,matched:matched.length,yourCorrelation:yourCorr,nflCorrelation:nflCorr,edge});
+    results.push({year,matched:eligible.length,excluded:matched.length-eligible.length,yourCorrelation:yourCorr,nflCorrelation:nflCorr,edge});
 
-    for(const row of matched){
+    for(const row of matched)players.push({...row,excluded:excluded.has(scoutingExclusionKey(year,row.name))});
+    for(const row of eligible){
       if(row.nflRank==null)continue;
       const yourError=Math.abs(row.yourRank-row.ktcRank),nflError=Math.abs(row.nflRank-row.ktcRank);
       details.push({...row,processEdge:nflError-yourError});
@@ -116,7 +120,9 @@ async function scoutingAlpha(dataset:KtcDataset){
     years:results,
     wins:[...details].sort((a,b)=>b.processEdge-a.processEdge).slice(0,12),
     lessons:[...details].sort((a,b)=>a.processEdge-b.processEdge).slice(0,12),
-    note:"Your historical Final Draft Board is compared with today's KTC class ordering. NFL draft order is the outside baseline for drafted players. Positive process edge means your board is closer to today's dynasty ordering than NFL draft order was.",
+    players:players.sort((a,b)=>b.year-a.year||a.yourRank-b.yourRank),
+    exclusions,
+    note:"Your historical Final Draft Board is compared with today's KTC class ordering. NFL draft order is the outside baseline for drafted players. Players you exclude are removed from the class correlations and Process Wins/Lessons.",
   };
 }
 
@@ -127,6 +133,6 @@ export async function marketIntelMode(league:SleeperLeagueIntegration){
 }
 
 export async function processIntelMode(league:SleeperLeagueIntegration){
-  const dataset=await loadKtcDataset(false);
-  return {league:{key:league.key,name:league.name},scoutingAlpha:await scoutingAlpha(dataset)};
+  const [dataset,exclusions]=await Promise.all([loadKtcDataset(false),getScoutingProcessExclusions()]);
+  return {league:{key:league.key,name:league.name},scoutingAlpha:await scoutingAlpha(dataset,exclusions)};
 }
