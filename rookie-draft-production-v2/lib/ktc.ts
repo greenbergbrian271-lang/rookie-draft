@@ -7,6 +7,8 @@ export type KtcPlayer={
   team:string;
   value:number;
   tepValue:number;
+  ktcId?:number;
+  slug?:string;
 };
 
 export type KtcDataset={
@@ -20,7 +22,7 @@ export type KtcMatch={
   method:"exact"|"alias"|"first-last";
 };
 
-const CACHE_KEY="ktc_values_cache_v3";
+const CACHE_KEY="ktc_values_cache_v4";
 const SIX_HOURS=6*60*60*1000;
 
 const NAME_ALIASES:Record<string,string>={
@@ -73,12 +75,15 @@ function parseKtcPlayers(html:string):KtcPlayer[]{
     const value=readNumeric(sf?.tep?.value??sf?.value);
     const tepValue=readNumeric(sf?.tepp?.value??sf?.tep?.value??sf?.value);
     if(value==null)continue;
+    const rawId=Number(p.playerID);
     players.push({
       name:String(p.playerName).trim(),
       position:String(p.position),
       team:String(p.team||""),
       value,
       tepValue:tepValue??value,
+      ktcId:Number.isFinite(rawId)&&rawId>0?rawId:undefined,
+      slug:String(p.slug||"").trim()||undefined,
     });
   }
   if(!players.length)throw new Error("KTC rankings were fetched but no player values could be parsed");

@@ -5,6 +5,7 @@ import {ensureTursoSchema} from "@/lib/turso";
 import {GET as getFinalBoard} from "@/app/api/final-board/live/route";
 import {getIntegrations} from "@/lib/integrations";
 import {INTEL_POSITIONS,intelNorm,loadIntelBase,resolveIntelRoster,sleeperJson,valuedIntelPlayers} from "@/lib/dynasty-intelligence-core";
+import {buildLeagueKtcHistoryTargets,getKtcHistoryBackfillStatus} from "@/lib/ktc-history-backfill";
 import {getScoutingProcessExclusions,scoutingExclusionKey,type ScoutingProcessExclusion} from "@/lib/scouting-process-exclusions";
 
 const ADP_SLUG:Record<string,string>={
@@ -127,9 +128,14 @@ async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclus
 }
 
 export async function marketIntelMode(league:SleeperLeagueIntegration){
-  const base=await loadIntelBase(league),[move7,move30,emerging,exposure,gaps]=await Promise.all([ktcMovement(7),ktcMovement(30),emergingRadar(base,league),portfolioExposure(base.playerDb,base.dataset),marketGaps(league.key)]),mine=resolveIntelRoster(base.rosters,base.users,league.teamIdentity||""),myNames=new Set(valuedIntelPlayers(mine,base.playerDb,base.dataset,league).map(p=>intelNorm(p.name)));
+  const base=await loadIntelBase(league),mine=resolveIntelRoster(base.rosters,base.users,league.teamIdentity||"");
+  const historyTargets=buildLeagueKtcHistoryTargets({rosters:base.rosters,playerDb:base.playerDb,dataset:base.dataset,mineRosterId:Number(mine?.roster_id)||null});
+  const [move7,move30,move90,emerging,exposure,gaps,historyStatus]=await Promise.all([
+    ktcMovement(7),ktcMovement(30),ktcMovement(90),emergingRadar(base,league),portfolioExposure(base.playerDb,base.dataset),marketGaps(league.key),getKtcHistoryBackfillStatus(historyTargets)
+  ]);
+  const myNames=new Set(valuedIntelPlayers(mine,base.playerDb,base.dataset,league).map(p=>intelNorm(p.name)));
   const decorate=(pack:any)=>({...pack,rows:(pack.rows||[]).map((r:any)=>({...r,onMyRoster:myNames.has(intelNorm(r.name))}))});
-  return {league:{key:league.key,name:String(base.leagueData?.name||league.name)},movement7:decorate(move7),movement30:decorate(move30),emerging,exposure,marketGaps:gaps};
+  return {league:{key:league.key,name:String(base.leagueData?.name||league.name)},movement7:decorate(move7),movement30:decorate(move30),movement90:decorate(move90),historyStatus,emerging,exposure,marketGaps:gaps};
 }
 
 export async function processIntelMode(league:SleeperLeagueIntegration){

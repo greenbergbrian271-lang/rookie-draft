@@ -19,6 +19,8 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
   const [tradeSearch,setTradeSearch]=useState("");
   const [processSearch,setProcessSearch]=useState("");
   const [processSaving,setProcessSaving]=useState("");
+  const [historyImporting,setHistoryImporting]=useState(false);
+  const [historyMessage,setHistoryMessage]=useState("");
 
   useEffect(()=>{setCache({});setTab("league");setError("")},[leagueKey,refreshToken]);
 
@@ -60,6 +62,16 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       const j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not update scouting sample");
       setCache(current=>{const next={...current};delete next.process;return next});
     }catch(e:any){setError(e?.message||"Could not update scouting sample")}finally{setProcessSaving("")}
+  }
+
+  async function importKtcHistory(){
+    setHistoryImporting(true);setHistoryMessage("");setError("");
+    try{
+      const r=await fetch("/api/dynasty-intelligence/ktc-history",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({leagueKey,limit:6})});
+      const j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not import KTC history");
+      setHistoryMessage(j.imported?.length?("Imported "+j.imported.length+" player histories. "+j.remaining+" remaining."):(j.remaining?"No new histories imported in this batch.":"League history import complete."));
+      setCache(current=>{const next={...current};delete next.market;return next});
+    }catch(e:any){setError(e?.message||"Could not import KTC history")}finally{setHistoryImporting(false)}
   }
 
   return <section className="di-shell">
@@ -147,13 +159,20 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
 
       {tab==="market"&&<>
         <Card title="Historical KTC Tracking">
-          <p className="muted">Daily KTC snapshots are now stored automatically.</p>
-          <p className="di-line"><strong>7-day baseline</strong><span>{data.movement7?.baselineDate||"Collecting history"}</span></p>
-          <p className="di-line"><strong>30-day baseline</strong><span>{data.movement30?.baselineDate||"Collecting history"}</span></p>
+          <p className="muted">Imports the all-time Superflex value series already published on KTC player pages, then keeps the database current with our daily snapshots.</p>
+          <div className="di-history-progress">
+            <div><strong>{data.historyStatus?.completed||0}</strong><span>of {data.historyStatus?.total||0} league-rostered players imported</span></div>
+            <button type="button" disabled={historyImporting||!(data.historyStatus?.remaining)} onClick={()=>void importKtcHistory()}>{historyImporting?"Importing 6 histories…":data.historyStatus?.remaining?"Import Next 6":"History Complete"}</button>
+          </div>
+          {historyMessage&&<p className="di-history-message">{historyMessage}</p>}
+          {data.historyStatus?.oldestDate&&<p className="di-line"><strong>Oldest imported KTC point</strong><span>{data.historyStatus.oldestDate}</span></p>}
+          <p className="di-line"><strong>7-day baseline</strong><span>{(data.movement7?.rows||[]).length?data.movement7.baselineDate:"Import history to activate"}</span></p>
+          <p className="di-line"><strong>30-day baseline</strong><span>{(data.movement30?.rows||[]).length?data.movement30.baselineDate:"Import history to activate"}</span></p>
+          <p className="di-line"><strong>90-day baseline</strong><span>{(data.movement90?.rows||[]).length?data.movement90.baselineDate:"Import history to activate"}</span></p>
         </Card>
 
         <Card title="Buy Low / Sell High">
-          {(data.movement30?.rows||[]).length?<>{data.movement30.rows.filter((x:any)=>x.onMyRoster&&x.changePct>0).slice(0,4).map((x:any)=><p className="di-line" key={"s"+x.name}><strong>Sell high · {x.name}</strong><span>+{Number(x.changePct).toFixed(1)}%</span></p>)}{data.movement30.rows.filter((x:any)=>x.changePct<0).slice(0,4).map((x:any)=><p className="di-line" key={"b"+x.name}><strong>Buy low · {x.name}</strong><span>{Number(x.changePct).toFixed(1)}%</span></p>)}</>:<p className="muted">This activates as daily KTC history accumulates.</p>}
+          {(data.movement30?.rows||[]).length?<>{data.movement30.rows.filter((x:any)=>x.onMyRoster&&x.changePct>0).slice(0,4).map((x:any)=><p className="di-line" key={"s"+x.name}><strong>Sell high · {x.name}</strong><span>+{Number(x.changePct).toFixed(1)}%</span></p>)}{data.movement30.rows.filter((x:any)=>x.changePct<0).slice(0,4).map((x:any)=><p className="di-line" key={"b"+x.name}><strong>Buy low · {x.name}</strong><span>{Number(x.changePct).toFixed(1)}%</span></p>)}</>:<p className="muted">Import KTC player histories to activate the 30-day market signals immediately.</p>}
         </Card>
 
         <Card title="Emerging Player Radar">
@@ -169,7 +188,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       {tab==="process"&&<>
         <Card title="Scouting Alpha by Class" wide>
           <p className="muted">{data.scoutingAlpha?.note}</p>
-          <div className="di-alpha-years">{(data.scoutingAlpha?.years||[]).map((y:any)=><div key={y.year}><b>{y.year}</b><span>{y.matched} scored{y.excluded?" · "+y.excluded+" excluded":""}</span><strong className={(y.edge||0)>=0?"up":"down"}>{y.edge==null?"—":(y.edge>0?"+":"")+y.edge.toFixed(2)} vs NFL</strong></div>)}</div>
+          <div className="di-alpha-years">{(data.scoutingAlpha?.years||[]).map((y:any)=><div key={y.year}><b>{y.year}</b><span>{y.matched} in sample{y.excluded?" · "+y.excluded+" excluded":""}</span><strong className={(y.edge||0)>=0?"up":"down"}>{y.edge==null?"—":(y.edge>0?"+":"")+y.edge.toFixed(2)} vs NFL</strong></div>)}</div>
         </Card>
 
         <Card title="Manage Scouting Sample" wide>
@@ -206,6 +225,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
       .di-manager-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.di-manager-card{background:#10213a;border:1px solid #20395f;border-radius:9px;padding:10px}.di-manager-card.mine{border-color:#4f8ccf;box-shadow:0 0 0 1px rgba(79,140,207,.28) inset}.di-manager-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.di-manager-card-head h4{margin:0}.di-you{display:inline-block;margin-left:6px;padding:2px 5px;border-radius:999px;background:#1c4d7d;color:#b9dcff;font-size:7px;vertical-align:middle;text-transform:uppercase;letter-spacing:.06em}.di-manager-card-head small{display:block;margin-top:2px;color:#7890b1;font-size:8px}.di-manager-card-head>strong{padding:4px 6px;border-radius:999px;background:#142f50;color:#b9d7ff;font-size:8px;white-space:nowrap}.di-tags,.di-bias{display:flex;gap:4px;flex-wrap:wrap}.di-tags{margin-top:7px}.di-tags span,.di-bias span{padding:3px 5px;border-radius:999px;background:#152f50;color:#b9c9df;font-size:8px;font-weight:800}.di-bias span.hot{background:#4d2b3b;color:#ffc3ce}
       .di-manager-pickline{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}.di-manager-pickline span{padding:5px 6px;background:#0c1c32;border-radius:6px;color:#7890b1;font-size:8px}.di-manager-pickline b{display:block;margin-top:1px;color:#dce8f6;font-size:11px}.di-position-tendencies{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px}.di-position-tendencies>div{padding:6px;background:#0c1c32;border:1px solid #1c3658;border-radius:6px;text-align:center}.di-position-tendencies b,.di-position-tendencies span,.di-position-tendencies em{display:block}.di-position-tendencies b{font-size:10px}.di-position-tendencies span{font-size:8px;color:#9bb0cc;margin-top:2px}.di-position-tendencies em{font-size:7px;color:#6f89aa;font-style:normal;margin-top:2px}.di-position-tendencies>div.hot{border-color:#865064;background:#351f2d}.di-position-tendencies>div.hot span{color:#ffc3ce}.di-position-tendencies>div.cold{opacity:.72}
       .di-trades{display:grid;gap:5px}.di-trades>div{display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;padding:7px;background:#10213a;border-radius:7px;font-size:10px}.di-trades span{color:#8fa7c8}.di-trades span strong{color:#dce8f6}.di-search{margin-bottom:8px}
+      .di-history-progress{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 9px;margin:8px 0;background:#10213a;border:1px solid #29476e;border-radius:8px}.di-history-progress>div{display:flex;align-items:baseline;gap:6px}.di-history-progress strong{font-size:20px;color:#20e2dd}.di-history-progress span{font-size:9px;color:#8fa7c8}.di-history-progress button{padding:6px 9px;background:#183f69;border:1px solid #3972ac;color:#dcecff;border-radius:7px;font-size:9px;font-weight:900}.di-history-progress button:disabled{opacity:.55}.di-history-message{margin:4px 0;color:#8df0ca;font-size:9px}
       .di-alpha-years{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.di-alpha-years>div{background:#10213a;border-radius:8px;padding:9px;text-align:center}.di-alpha-years b,.di-alpha-years span,.di-alpha-years strong{display:block}.di-alpha-years span{font-size:9px;color:#8fa7c8}.di-process-manage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.di-process-manage>div,.di-process-line{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 8px;border:1px solid #18304f;border-radius:7px;background:#10213a}.di-process-manage strong,.di-process-manage span,.di-process-line strong,.di-process-line span{display:block}.di-process-manage span,.di-process-line span{font-size:9px;color:#8fa7c8;margin-top:2px}.di-process-manage button,.di-process-line button{padding:4px 7px;background:#152f50;border:1px solid #31527f;color:#b9d7ff;border-radius:6px;font-size:8px;white-space:nowrap}.di-process-manage button:hover,.di-process-line button:hover{background:#1d426d;color:#fff}.up{color:#8df0ca!important}.down{color:#ff9cab!important}
       @media(max-width:1000px){.di-grid{grid-template-columns:1fr}.di-card.wide{grid-column:auto}.di-demand{grid-template-columns:repeat(2,1fr)}.di-manager-grid{grid-template-columns:1fr}.di-manager-intro{display:block}.di-manager-intro span{display:block;max-width:none;text-align:left;margin-top:5px}}
       @media(max-width:650px){.di-head{display:block}.di-tabs{margin-top:10px}.di-tabs button{flex:1 1 145px}.di-demand,.di-manager-grid,.di-opps,.di-alpha-years,.di-process-manage{grid-template-columns:1fr}.di-position-tendencies{grid-template-columns:repeat(2,1fr)}.di-trades>div{grid-template-columns:1fr}.di-age-grid{grid-template-columns:repeat(2,1fr)}}

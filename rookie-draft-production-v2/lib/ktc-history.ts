@@ -1,6 +1,18 @@
 import {ensureTursoSchema} from "@/lib/turso";
 
 type SnapshotPlayer={name:string;position:string;team:string;value:number;tepValue:number};
+export type KtcHistoricalPoint={date:string;value:number};
+export type KtcHistoryBackfillRecord={
+  ktcId:number;
+  playerName:string;
+  position:string;
+  slug:string;
+  firstDate:string;
+  lastDate:string;
+  points:number;
+  fetchedAt:string;
+  lastError:string;
+};
 
 async function ensureHistorySchema(){
   const c=await ensureTursoSchema();
@@ -15,6 +27,18 @@ async function ensureHistorySchema(){
     primary key(snapshot_date,player_name,position)
   )`);
   await c.execute("create index if not exists ktc_value_history_player_idx on ktc_value_history(player_name,position,snapshot_date)");
+  await c.execute(`create table if not exists ktc_history_backfill(
+    ktc_id integer primary key,
+    player_name text not null,
+    position text not null,
+    slug text not null,
+    first_date text,
+    last_date text,
+    points integer not null default 0,
+    fetched_at text,
+    last_error text
+  )`);
+  await c.execute("create index if not exists ktc_history_backfill_name_idx on ktc_history_backfill(player_name,position)");
   await c.execute(`create table if not exists yearly_power_rankings(
     league_key text not null,
     season integer not null,
@@ -45,31 +69,90 @@ export async function recordKtcSnapshot(players:SnapshotPlayer[],date=new Date()
   for(let i=0;i<statements.length;i+=75)await c.batch(statements.slice(i,i+75),"write");
 }
 
+export async function recordKtcHistoricalSeries(player:{name:string;position:string;team?:string;ktcId:number;slug:string},points:KtcHistoricalPoint[]){
+  const clean=points
+    .filter(point=>/^\d{4}-\d{2}-\d{2}$/.test(point.date)&&Number.isFinite(point.value)&&point.value>=0)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  if(!clean.length)throw new Error("KTC history contained no usable points");
+
+  const today=new Date().toISOString().slice(0,10);
+  const rows=clean.filter(point=>point.date<today);
+  const c=await ensureHistorySchema(),now=new Date().toISOString();
+  const statements=rows.map(point=>({
+    sql:"insert into ktc_value_history(snapshot_date,player_name,position,team,value,tep_value,captured_at) values(?,?,?,?,?,?,?) on conflict(snapshot_date,player_name,position) do update set team=excluded.team,value=excluded.value,captured_at=excluded.captured_at",
+    args:[point.date,player.name,player.position,player.team||"",point.value,null,now],
+  }));
+  for(let i=0;i<statements.length;i+=100)await c.batch(statements.slice(i,i+100),"write");
+
+  const firstDate=clean[0]?.date||"",lastDate=clean[clean.length-1]?.date||"";
+  await c.execute({
+    sql:"insert into ktc_history_backfill(ktc_id,player_name,position,slug,first_date,last_date,points,fetched_at,last_error) values(?,?,?,?,?,?,?,?,?) on conflict(ktc_id) do update set player_name=excluded.player_name,position=excluded.position,slug=excluded.slug,first_date=excluded.first_date,last_date=excluded.last_date,points=excluded.points,fetched_at=excluded.fetched_at,last_error=''",
+    args:[player.ktcId,player.name,player.position,player.slug,firstDate,lastDate,clean.length,now,""],
+  });
+  return {firstDate,lastDate,points:clean.length};
+}
+
+export async function recordKtcHistoryBackfillError(player:{name:string;position:string;ktcId:number;slug:string},error:string){
+  const c=await ensureHistorySchema(),now=new Date().toISOString();
+  await c.execute({
+    sql:"insert into ktc_history_backfill(ktc_id,player_name,position,slug,points,fetched_at,last_error) values(?,?,?,?,0,?,?) on conflict(ktc_id) do update set player_name=excluded.player_name,position=excluded.position,slug=excluded.slug,fetched_at=excluded.fetched_at,last_error=excluded.last_error",
+    args:[player.ktcId,player.name,player.position,player.slug,now,String(error||"Unknown KTC history error").slice(0,500)],
+  });
+}
+
+export async function readKtcHistoryBackfillRecords(ktcIds:number[]){
+  if(!ktcIds.length)return [] as KtcHistoryBackfillRecord[];
+  const c=await ensureHistorySchema(),out:KtcHistoryBackfillRecord[]=[];
+  for(let i=0;i<ktcIds.length;i+=200){
+    const chunk=ktcIds.slice(i,i+200),marks=chunk.map(()=>"?").join(",");
+    const r=await c.execute({sql:`select ktc_id,player_name,position,slug,first_date,last_date,points,fetched_at,last_error from ktc_history_backfill where ktc_id in (${marks})`,args:chunk});
+    for(const row of r.rows as any[])out.push({
+      ktcId:Number(row.ktc_id),playerName:String(row.player_name||""),position:String(row.position||""),slug:String(row.slug||""),
+      firstDate:String(row.first_date||""),lastDate:String(row.last_date||""),points:Number(row.points)||0,
+      fetchedAt:String(row.fetched_at||""),lastError:String(row.last_error||""),
+    });
+  }
+  return out;
+}
+
 export async function ktcMovement(days=30){
   const c=await ensureHistorySchema();
   const latest=await c.execute("select max(snapshot_date) as d from ktc_value_history");
   const latestDate=String(latest.rows[0]?.d||"");
   if(!latestDate)return {latestDate:"",baselineDate:"",rows:[] as any[]};
-  const baseline=await c.execute({
-    sql:"select max(snapshot_date) as d from ktc_value_history where snapshot_date<=date(?,'-' || ? || ' days')",
-    args:[latestDate,days],
-  });
-  const baselineDate=String(baseline.rows[0]?.d||"");
-  if(!baselineDate)return {latestDate,baselineDate:"",rows:[] as any[]};
+  const target=new Date(Date.parse(latestDate+"T12:00:00Z")-Math.max(0,days)*86400000).toISOString().slice(0,10);
   const result=await c.execute({
-    sql:`select a.player_name as name,a.position,a.team,a.value as current,b.value as previous,
-      (a.value-b.value) as change,
-      case when b.value>0 then ((a.value-b.value)*100.0/b.value) else null end as change_pct
-      from ktc_value_history a
-      join ktc_value_history b on b.player_name=a.player_name and b.position=a.position and b.snapshot_date=?
-      where a.snapshot_date=?
-      order by abs(a.value-b.value) desc`,
-    args:[baselineDate,latestDate],
+    sql:`with current_dates as (
+        select player_name,position,max(snapshot_date) as current_date
+        from ktc_value_history
+        group by player_name,position
+      ),
+      current_rows as (
+        select h.player_name,h.position,h.team,h.snapshot_date,h.value
+        from ktc_value_history h
+        join current_dates d on d.player_name=h.player_name and d.position=h.position and d.current_date=h.snapshot_date
+      ),
+      baseline_dates as (
+        select c.player_name,c.position,max(h.snapshot_date) as baseline_date
+        from current_rows c
+        join ktc_value_history h on h.player_name=c.player_name and h.position=c.position
+          and h.snapshot_date<=date(c.snapshot_date,'-' || ? || ' days')
+        group by c.player_name,c.position
+      )
+      select c.player_name as name,c.position,c.team,c.value as current,b.value as previous,
+        (c.value-b.value) as change,
+        case when b.value>0 then ((c.value-b.value)*100.0/b.value) else null end as change_pct,
+        b.snapshot_date as baseline_date
+      from current_rows c
+      join baseline_dates d on d.player_name=c.player_name and d.position=c.position
+      join ktc_value_history b on b.player_name=c.player_name and b.position=c.position and b.snapshot_date=d.baseline_date
+      order by abs(case when b.value>0 then ((c.value-b.value)*100.0/b.value) else 0 end) desc`,
+    args:[Math.max(0,days)],
   });
-  return {latestDate,baselineDate,rows:result.rows.map((r:any)=>({
+  return {latestDate,baselineDate:target,rows:result.rows.map((r:any)=>({
     name:String(r.name),position:String(r.position),team:String(r.team||""),
     current:Number(r.current)||0,previous:Number(r.previous)||0,change:Number(r.change)||0,
-    changePct:r.change_pct==null?null:Number(r.change_pct),
+    changePct:r.change_pct==null?null:Number(r.change_pct),baselineDate:String(r.baseline_date||target),
   }))};
 }
 
