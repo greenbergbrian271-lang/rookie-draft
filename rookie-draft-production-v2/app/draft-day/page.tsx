@@ -37,6 +37,7 @@ type AdpLeague={league:string;slug:string;top75:AdpPlayer[]};
 type LeagueMeta={slug:string;boardKey:string;name:string;rounds:number;teams:number;tePremium?:boolean;superflex?:boolean;exists?:boolean;status?:string;historical?:boolean};
 type IntelRow=FinalBoardScoredRow&{adpRank:number|null;delta:number|null};
 type BoardPayload={view?:{key:string;label:string;tePremium:boolean;rosterKey?:string};rows?:FinalBoardScoredRow[]};
+type StrengthPayload={teams:number;rows:{rosterId:number;name:string;isMine:boolean;positions:Record<string,{rank:number;need:number;label:string}>}[]};
 type TradeAsset={name:string;position?:string;value:number;source?:string};
 type TradeIdea={kind:string;youSend:TradeAsset[];youGet:TradeAsset[];sendValue:number;receiveValue:number;sendAdjusted:number;receiveAdjusted:number;differencePct:number};
 type TradeResponse={
@@ -82,7 +83,7 @@ export default function DraftDayPage(){
   const [tradeData,setTradeData]=useState<TradeResponse|null>(null);
   const [tradeLoading,setTradeLoading]=useState(false);
   const [tradeError,setTradeError]=useState("");
-  const [rosterViews,setRosterViews]=useState<any[]>([]);
+  const [strengthData,setStrengthData]=useState<StrengthPayload|null>(null);
   const [checkedAt,setCheckedAt]=useState<string|null>(null);
 
   async function loadMeta(){
@@ -95,24 +96,21 @@ export default function DraftDayPage(){
 
   async function loadStatus(){
     setError("");
-    if(historical){setResults([]);setAdpLists([]);setUpdatedAt(null);setArchivedNames(new Set());setRosterViews([]);setLoading(false);return}
+    if(historical){setResults([]);setAdpLists([]);setUpdatedAt(null);setArchivedNames(new Set());setStrengthData(null);setLoading(false);return}
     try{
-      const [statusRes,archiveRes,rosterRes]=await Promise.all([
+      const [statusRes,archiveRes]=await Promise.all([
         fetch("/api/draft-day/status",{cache:"no-store"}),
-        fetch("/api/players/archive",{cache:"no-store"}),
-        fetch("/api/dynasty-rosters",{cache:"no-store"})
+        fetch("/api/players/archive",{cache:"no-store"})
       ]);
       if(!statusRes.ok)throw new Error("Draft status endpoint returned "+statusRes.status);
-      const [status,archiveData,rosterData]=await Promise.all([
+      const [status,archiveData]=await Promise.all([
         statusRes.json(),
-        archiveRes.ok?archiveRes.json():[],
-        rosterRes.ok?rosterRes.json():{rosters:[]}
+        archiveRes.ok?archiveRes.json():[]
       ]);
       setResults(status.draft_day_status?.results||[]);
       setAdpLists(status.sleeper_adp?.lists||[]);
       setUpdatedAt(status.draft_day_status?.updatedAt||status.sleeper_adp?.updatedAt||null);
       setArchivedNames(new Set(Array.isArray(archiveData)?archiveData.map((p:any)=>normName(p.player_name)):[]));
-      setRosterViews(Array.isArray(rosterData?.rosters)?rosterData.rosters:[]);
     }catch(e:any){
       setError(e?.message||"Could not load draft-day data");
     }finally{
@@ -148,6 +146,17 @@ export default function DraftDayPage(){
     }
   }
 
+  async function loadStrengths(boardKey:string){
+    try{
+      const r=await fetch("/api/dynasty-rosters/strengths?leagueKey="+encodeURIComponent(boardKey),{cache:"no-store"});
+      const data=await r.json();
+      if(!r.ok)throw new Error(data?.error||"Could not load positional strength");
+      setStrengthData(data as StrengthPayload);
+    }catch{
+      setStrengthData(null);
+    }
+  }
+
   useEffect(()=>{
     setLoading(true);setLiveDraft(null);setBoardRows([]);setError("");
     loadMeta();
@@ -163,9 +172,12 @@ export default function DraftDayPage(){
 
   const activeMeta=leagues.find(x=>x.slug===slug);
   useEffect(()=>{
-    if(activeMeta?.boardKey)loadBoard(activeMeta.boardKey);
+    if(activeMeta?.boardKey){
+      loadBoard(activeMeta.boardKey);
+      if(!historical)loadStrengths(activeMeta.boardKey);
+    }
     if(activeMeta?.slug)loadLiveDraft(activeMeta.slug);
-  },[activeMeta?.boardKey,activeMeta?.slug,draftClass]);
+  },[activeMeta?.boardKey,activeMeta?.slug,draftClass,historical]);
 
   async function sync(kind:"picks"|"adp"){
     setSyncing(kind);
@@ -249,9 +261,8 @@ export default function DraftDayPage(){
 
   const madeCount=active?.picks.filter(p=>p.player&&!archivedNames.has(normName(p.player))).length||0;
   const totalPicks=active?.total||((activeMeta?.rounds||0)*(activeMeta?.teams||0));
-  const activeRoster=rosterViews.find((r:any)=>r.key===activeMeta?.boardKey);
-  const rosterTargets:Record<string,number>={QB:activeMeta?.superflex?3:2,RB:4,WR:5,TE:2};
-  const rosterNeeds=FINAL_BOARD_POSITIONS.map(pos=>{const count=(activeRoster?.players||[]).filter((p:any)=>p.position===pos).length,target=rosterTargets[pos];return {pos,count,target,label:count===0?"Critical":count<target?"Need":"Covered"}});
+  const myStrength=strengthData?.rows?.find(row=>row.isMine);
+  const positionalStrength=FINAL_BOARD_POSITIONS.map(pos=>{const cell=myStrength?.positions?.[pos];return {pos,rank:cell?.rank??null,teams:strengthData?.teams||0,label:cell?.label||"Unavailable"}});
   const tierAlerts=FINAL_BOARD_POSITIONS.map(pos=>{const remaining=intelRows.filter(p=>p.position===pos&&p.boardGrade!=null&&!draftedNames.has(normName(p.name)));if(!remaining.length)return null;const tier=remaining[0].tier,same=remaining.filter(p=>p.tier===tier);return same.length<=2?{pos,tier,count:same.length,names:same.map(p=>p.name)}:null}).filter(Boolean) as {pos:string;tier:number|null;count:number;names:string[]}[];
   const recent=[...(active?.picks||[])].filter(p=>p.position).sort((a,b)=>b.pickNo-a.pickNo).slice(0,5),run=FINAL_BOARD_POSITIONS.map(pos=>({pos,count:recent.filter(p=>p.position===pos).length})).find(x=>x.count>=3);
 
@@ -313,7 +324,7 @@ export default function DraftDayPage(){
     </section>
 
     {!historical&&!loading&&activeMeta&&<section className="dd-context-strip">
-      <div className="dd-context-block"><div className="dd-context-title"><span>My roster needs</span><small>{activeRoster?"Live dynasty roster depth":"Roster snapshot unavailable"}</small></div><div className="dd-need-pills">{rosterNeeds.map(n=><span key={n.pos} className={n.label.toLowerCase()}><b>{n.pos}</b><em>{n.count}/{n.target}</em><small>{n.label}</small></span>)}</div></div>
+      <div className="dd-context-block"><div className="dd-context-title"><span>My positional strength</span><small>League-relative KTC rank · #1 strongest</small></div><div className="dd-need-pills">{positionalStrength.map(n=><span key={n.pos} className={"rank-"+n.label.toLowerCase()}><b>{n.pos}</b><em>{n.rank?"#"+n.rank+" / "+n.teams:"—"}</em><small>{n.label}</small></span>)}</div></div>
       <div className="dd-context-block"><div className="dd-context-title"><span>Draft alerts</span><small>Tier cliffs + recent position runs</small></div><div className="dd-alert-pills">{run&&<span className="run"><b>{run.pos} run</b> · {run.count} of last {recent.length} picks</span>}{tierAlerts.slice(0,3).map(a=><span key={a.pos}><b>{a.pos} Tier {a.tier??"—"}</b> · {a.count} left · {a.names.join(", ")}</span>)}{!run&&!tierAlerts.length&&<span className="quiet">No immediate tier or position-run alerts.</span>}</div></div>
     </section>}
 
@@ -487,6 +498,7 @@ export default function DraftDayPage(){
       .dd-board-row.selected-other,.dd-adp-row.selected-other{background:rgba(255,77,99,.08)}.dd-board-row.selected-other .dd-player>a,.dd-board-row.selected-other .dd-player>button,.dd-board-row.selected-other .dd-player>strong,.dd-adp-row.selected-other .dd-player>strong{color:#ff7184!important;text-decoration:line-through;text-decoration-thickness:2px}.dd-board-row.selected-mine,.dd-adp-row.selected-mine{background:rgba(57,190,112,.16);box-shadow:inset 4px 0 0 #62e889}.dd-board-row.selected-mine .dd-player>a,.dd-board-row.selected-mine .dd-player>button,.dd-board-row.selected-mine .dd-player>strong,.dd-adp-row.selected-mine .dd-player>strong{color:#9af0b8!important}.dd-selected-tag{position:absolute;right:7px;top:3px;font-size:6px;font-weight:950;letter-spacing:.08em;color:#ff7184}.selected-mine .dd-selected-tag{color:#62e889}
       .dd-empty{display:grid;place-items:center;min-height:120px;padding:24px;color:#7189aa;text-align:center;font-size:10px;line-height:1.5}
       .dd-modal-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:22px;background:rgba(3,9,18,.78);backdrop-filter:blur(8px)}.dd-trade-modal{width:min(980px,96vw);max-height:90vh;overflow:auto;border:1px solid #31577f;border-radius:16px;background:#081426;box-shadow:0 28px 90px rgba(0,0,0,.52)}.dd-trade-modal>header{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;gap:18px;padding:18px 20px;background:linear-gradient(180deg,#102641,#0a172a);border-bottom:1px solid #27476e}.dd-trade-modal>header h2{margin:3px 0 4px;font-size:22px}.dd-trade-modal>header p{margin:0;color:#849dbd;font-size:11px}.dd-modal-close{width:34px;height:34px;border-radius:999px;border:1px solid #395b83;background:#0b1d34;color:#dce8f6;font-size:22px;line-height:1}.dd-trade-loading{display:grid;place-items:center;gap:6px;min-height:260px;color:#dce8f6}.dd-trade-loading span{color:#7f97b7;font-size:10px}.dd-trade-error{margin:18px;padding:13px;border:1px solid #7a3341;border-radius:10px;background:#351a23;color:#ffc0c8}.dd-trade-body{padding:16px}.dd-trade-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.dd-trade-summary>div{padding:10px 11px;border:1px solid #20395f;border-radius:10px;background:#0b1a30}.dd-trade-summary span{display:block;color:#6f89aa;font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.07em}.dd-trade-summary strong{display:block;margin-top:4px;color:#eff5ff;font-size:13px}.dd-trade-ideas{display:grid;gap:9px}.dd-trade-ideas article{padding:11px;border:1px solid #20395f;border-radius:11px;background:#09172a}.dd-trade-card-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}.dd-trade-card-head span{color:#20e2dd;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.07em}.dd-trade-card-head b{color:#8fa7c8;font-size:9px}.dd-trade-sides{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:stretch}.dd-trade-sides>div:not(.arrow){padding:8px;border:1px solid #1b3557;border-radius:9px;background:#0d1f38}.dd-trade-sides small{display:block;margin-bottom:6px;color:#7088aa;font-size:7px;font-weight:950;letter-spacing:.08em}.dd-trade-sides p{display:flex;justify-content:space-between;gap:10px;margin:0;padding:5px 0;border-bottom:1px solid #18304f}.dd-trade-sides p:last-of-type{border-bottom:0}.dd-trade-sides p strong{font-size:10px;color:#eef5ff}.dd-trade-sides p span{font-size:9px;color:#8fa7c8;font-variant-numeric:tabular-nums}.dd-trade-sides em{display:block;margin-top:6px;color:#7e96b5;font-size:8px;font-style:normal;font-weight:900}.dd-trade-sides .arrow{display:grid;place-items:center;color:#4ea8c8;font-size:18px;font-weight:950}.dd-copy-trade{margin-top:8px;height:30px;padding:0 10px;font-size:9px}.dd-trade-source{display:grid;grid-template-columns:1fr auto;gap:3px 14px;margin-top:12px;padding:10px 12px;border:1px solid #29476e;border-radius:10px;background:#0b1b30}.dd-trade-source strong{color:#c7d8ec;font-size:9px}.dd-trade-source span{grid-column:1/2;color:#738baa;font-size:8px;line-height:1.4}.dd-trade-source a{grid-column:2/3;grid-row:1/3;align-self:center;color:#20e2dd;font-size:9px;font-weight:900;text-decoration:none}.dd-team-section{padding-top:2px}.dd-team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px;margin-top:10px}.dd-team-grid details{background:#08172a;border:1px solid #20395f;border-radius:11px;overflow:hidden}.dd-team-grid summary{list-style:none;display:flex;justify-content:space-between;gap:10px;align-items:center;padding:11px 12px;cursor:pointer;font-weight:850}.dd-team-grid summary::-webkit-details-marker{display:none}.dd-team-grid summary b{display:grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:#163150;color:#9fb7d4;font-size:10px}.dd-team-grid details>div{border-top:1px solid #20395f;padding:5px 10px}.dd-team-grid p{display:grid;grid-template-columns:42px 1fr auto;gap:8px;align-items:center;margin:0;padding:7px 2px;border-bottom:1px solid #142943;font-size:10px}.dd-team-grid p:last-child{border-bottom:0}.dd-team-grid p strong{color:#91a9c8}.dd-team-grid p span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dd-team-grid p em{font-style:normal;color:#7189aa;font-weight:900}.dd-team-grid p.mine{background:rgba(57,190,112,.1)}
+      .dd-need-pills>span.rank-priority{border-color:#86465a!important;background:#351d2b!important}.dd-need-pills>span.rank-priority small{color:#ff9cab!important}.dd-need-pills>span.rank-need{border-color:#8a6c25!important;background:#342c1a!important}.dd-need-pills>span.rank-need small{color:#ffd978!important}.dd-need-pills>span.rank-depth{border-color:#526786!important;background:#17243a!important}.dd-need-pills>span.rank-depth small{color:#a8bad2!important}.dd-need-pills>span.rank-strength{border-color:#287c72!important;background:#123b38!important}.dd-need-pills>span.rank-strength small{color:#8df0ca!important}.dd-need-pills>span.rank-unavailable{opacity:.72}
       @media(max-width:1120px){.dd-command-grid{grid-template-columns:1fr}.dd-feed-scroll{height:520px}.dd-intel-scroll{height:560px}.dd-best-grid{grid-template-columns:repeat(2,1fr)}}
       @media(max-width:760px){.dd-trade-summary{grid-template-columns:1fr 1fr}.dd-trade-sides{grid-template-columns:1fr}.dd-trade-sides .arrow{transform:rotate(90deg)}.dd-hero{display:block}.dd-hero .status{margin-top:10px}.dd-league-row{display:block}.dd-inline-status{margin-top:7px}.dd-controls{grid-template-columns:1fr 1fr}.dd-search{grid-column:1/-1}.dd-best-grid{grid-template-columns:1fr 1fr}.dd-section-title small{display:none}.dd-intel-head{align-items:flex-start!important;flex-direction:column}.dd-intel-actions{width:100%;justify-content:space-between}.dd-feed-row{grid-template-columns:54px minmax(0,1fr) 44px 30px 72px}.dd-board-grid{grid-template-columns:29px minmax(125px,1fr) 46px 47px 36px 38px}.dd-feed-scroll,.dd-intel-scroll{height:auto;max-height:620px}}
       @media(max-width:500px){.dd-best-grid{grid-template-columns:1fr}.dd-controls{grid-template-columns:1fr}.dd-controls button{width:100%}.dd-board-head span:nth-child(4),.dd-board-row>div:nth-child(4){display:none}.dd-board-grid{grid-template-columns:27px minmax(115px,1fr) 43px 34px 36px}}

@@ -118,18 +118,18 @@ export function buildTeamIntel(base:Awaited<ReturnType<typeof loadIntelBase>>,le
     const ownedPicks=picks.byOwner.get(rosterId)||[],pickValue=ownedPicks.reduce((s:any,p:any)=>s+p.value,0),den=ps.reduce((s,p)=>s+p.value,0),avgAge=den?ps.reduce((s,p)=>s+p.age*p.value,0)/den:0;
     const ageByPosition=Object.fromEntries(INTEL_POSITIONS.map(pos=>{const group=ps.filter(p=>p.position===pos),d=group.reduce((s,p)=>s+p.value,0),age=d?group.reduce((s,p)=>s+p.age*p.value,0)/d:0;return [pos,{age,risk:ageRisk(pos,age)}]}));
     const top5=ps.map(p=>p.value).sort((a,b)=>b-a).slice(0,5).reduce((a,b)=>a+b,0),concentration=totalPlayerValue?top5/totalPlayerValue:0;
-    return {rosterId,ownerId:String(roster.owner_id||""),name:intelOwnerName(userById.get(String(roster.owner_id)),roster),isMine:Boolean(strengthByRoster.get(rosterId)?.isMine),players:ps,starterValue,benchValue,totalPlayerValue,pickValue,avgAge,ageByPosition,concentration,picks:ownedPicks,strength:strengthByRoster.get(rosterId)};
+    return {rosterId,ownerId:String(roster.owner_id||""),name:intelOwnerName(userById.get(String(roster.owner_id)),roster),isMine:Boolean(strengthByRoster.get(rosterId)?.isMine),players:ps,starterValue,benchValue,totalPlayerValue,pickValue,avgAge,ageByPosition,concentration,starterShare:totalPlayerValue?starterValue/totalPlayerValue:0,picks:ownedPicks,strength:strengthByRoster.get(rosterId)};
   });
   const rankMap=(key:string)=>new Map([...raw].sort((a:any,b:any)=>b[key]-a[key]).map((x,i)=>[x.rosterId,i+1]));
-  const starterRanks=rankMap("starterValue"),playerRanks=rankMap("totalPlayerValue"),pickRanks=rankMap("pickValue"),ages=raw.map(x=>x.avgAge).filter(Boolean),minAge=Math.min(...ages,24),maxAge=Math.max(...ages,30);
+  const starterRanks=rankMap("starterValue"),playerRanks=rankMap("totalPlayerValue"),pickRanks=rankMap("pickValue"),benchRanks=rankMap("benchValue"),starterShareRanks=rankMap("starterShare"),ages=raw.map(x=>x.avgAge).filter(Boolean),minAge=Math.min(...ages,24),maxAge=Math.max(...ages,30);
   const profiles=raw.map(row=>{
-    const starterRank=starterRanks.get(row.rosterId)||teams,playerRank=playerRanks.get(row.rosterId)||teams,pickRank=pickRanks.get(row.rosterId)||teams;
+    const starterRank=starterRanks.get(row.rosterId)||teams,playerRank=playerRanks.get(row.rosterId)||teams,pickRank=pickRanks.get(row.rosterId)||teams,benchRank=benchRanks.get(row.rosterId)||teams,starterShareRank=starterShareRanks.get(row.rosterId)||teams;
     const starterStrength=percentile(starterRank,teams),playerStrength=percentile(playerRank,teams),pickStrength=percentile(pickRank,teams),maturity=maxAge===minAge?0.5:Math.max(0,Math.min(1,(row.avgAge-minAge)/(maxAge-minAge)));
     const windowScore=Math.round(100*Math.max(0,Math.min(1,starterStrength*.52+playerStrength*.23+maturity*.15+(1-pickStrength)*.10)));
     const classification=starterRank<=Math.ceil(teams*.35)&&playerRank<=Math.ceil(teams*.5)?"Contender":starterRank>Math.ceil(teams*.60)&&pickRank<=Math.ceil(teams*.45)?"Rebuilder":"Stuck in the Middle";
-    const construction=row.benchValue>row.starterValue*.72&&row.concentration<.52?"Consolidate":row.benchValue<row.starterValue*.32||row.concentration>.68?"Add Depth":"Balanced";
+    const construction=starterShareRank>Math.ceil(teams*.68)||(benchRank<=Math.ceil(teams*.35)&&starterRank>Math.ceil(teams*.40))?"Consolidate":starterShareRank<=Math.ceil(teams*.30)||(benchRank>Math.ceil(teams*.70)&&starterRank<=Math.ceil(teams*.55))?"Add Depth":"Balanced";
     const powerScore=Math.round(100*(starterStrength*.45+playerStrength*.35+pickStrength*.12+(1-Math.min(1,Math.max(0,(row.avgAge-24)/10)))*.08));
-    return {...row,starterRank,playerRank,pickRank,windowScore,classification,construction,powerScore};
+    return {...row,starterRank,playerRank,pickRank,benchRank,starterShareRank,windowScore,classification,construction,powerScore};
   });
   const powerRanks=new Map([...profiles].sort((a,b)=>b.powerScore-a.powerScore).map((x,i)=>[x.rosterId,i+1]));
   return profiles.map(x=>({...x,powerRank:powerRanks.get(x.rosterId)||teams}));
@@ -154,7 +154,7 @@ export async function leagueIntelMode(league:SleeperLeagueIntegration){
   return {
     league:{key:league.key,name:String(base.leagueData?.name||league.name),season},
     strengths:base.strengths,demand:demandMap(base.strengths),
-    teams:profiles.map(p=>({rosterId:p.rosterId,name:p.name,isMine:p.isMine,starterValue:p.starterValue,benchValue:p.benchValue,totalPlayerValue:p.totalPlayerValue,pickValue:p.pickValue,starterRank:p.starterRank,playerRank:p.playerRank,pickRank:p.pickRank,powerRank:p.powerRank,powerScore:p.powerScore,avgAge:p.avgAge,ageByPosition:p.ageByPosition,windowScore:p.windowScore,classification:p.classification,construction:p.construction,concentration:p.concentration,pickByYear:Object.entries(p.picks.reduce((acc:any,pick:any)=>{acc[pick.season]=(acc[pick.season]||0)+pick.value;return acc},{})).map(([y,v])=>({season:Number(y),value:Number(v)}))})),
+    teams:profiles.map(p=>({rosterId:p.rosterId,name:p.name,isMine:p.isMine,starterValue:p.starterValue,benchValue:p.benchValue,totalPlayerValue:p.totalPlayerValue,pickValue:p.pickValue,starterRank:p.starterRank,benchRank:p.benchRank,playerRank:p.playerRank,pickRank:p.pickRank,powerRank:p.powerRank,powerScore:p.powerScore,avgAge:p.avgAge,ageByPosition:p.ageByPosition,windowScore:p.windowScore,classification:p.classification,construction:p.construction,concentration:p.concentration,starterShare:p.starterShare,pickByYear:Object.entries(p.picks.reduce((acc:any,pick:any)=>{acc[pick.season]=(acc[pick.season]||0)+pick.value;return acc},{})).map(([y,v])=>({season:Number(y),value:Number(v)}))})),
     deadline:deadlineOpportunities(profiles),yearlyPower:yearly,
   };
 }

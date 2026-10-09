@@ -44,7 +44,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
 
   return <section className="di-shell">
     <div className="di-head">
-      <div><span>Dynasty Intelligence</span><h2>League, manager, market & process signals</h2></div>
+      <div><span>Intelligence Views</span><h2>League, manager, market & process signals</h2></div>
       <div className="di-tabs">
         {(["league","managers","market","process"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x==="league"?"League":x==="managers"?"Managers":x==="market"?"Market":"Scouting Process"}</button>)}
       </div>
@@ -57,17 +57,14 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
           <div className="di-demand">{(data.demand||[]).map((d:any)=><div key={d.position}><b>{d.position}</b><span>Best buyers</span>{d.buyers.map((x:any)=><p key={x.rosterId}><strong>#{x.rank}</strong> {x.name}</p>)}<span>Position surplus</span>{d.sellers.map((x:any)=><p key={"s"+x.rosterId}><strong>#{x.rank}</strong> {x.name}</p>)}</div>)}</div>
         </Card>
 
-        <Card title="Team Windows & Construction" wide>
-          <div className="di-table-wrap"><table className="di-table"><thead><tr><th>Team</th><th>Type</th><th>Window</th><th>Starters</th><th>Bench</th><th>Avg Age</th><th>Build</th></tr></thead><tbody>
+        <Card title="Team Windows & Strategy" wide>
+          <div className="di-table-wrap"><table className="di-table"><thead><tr><th>Team</th><th>Type</th><th>Win-Now</th><th>Starters</th><th>Bench</th><th>Avg Age</th><th>Roster Strategy</th></tr></thead><tbody>
             {(data.teams||[]).sort((a:any,b:any)=>a.powerRank-b.powerRank).map((t:any)=><tr key={t.rosterId} className={t.isMine?"mine":""}>
               <td><strong>#{t.powerRank} {t.name}</strong></td><td>{t.classification}</td><td>{t.windowScore}/100</td><td>#{t.starterRank} · {money(t.starterValue)}</td><td>{money(t.benchValue)}</td><td>{Number(t.avgAge||0).toFixed(1)}</td><td>{t.construction}</td>
             </tr>)}
           </tbody></table></div>
         </Card>
 
-        <Card title="Age Risk by Position">
-          {(data.teams||[]).filter((x:any)=>x.isMine).map((t:any)=><div key={t.rosterId} className="di-age-grid">{Object.entries(t.ageByPosition||{}).map(([pos,v]:any)=><div key={pos}><b>{pos}</b><strong>{v.age?Number(v.age).toFixed(1):"—"}</strong><span className={"risk "+String(v.risk).toLowerCase()}>{v.risk}</span></div>)}</div>)}
-        </Card>
 
         <Card title="Draft Pick Wealth">
           {(data.teams||[]).sort((a:any,b:any)=>a.pickRank-b.pickRank).slice(0,6).map((t:any)=><p className="di-line" key={t.rosterId}><strong>#{t.pickRank} {t.name}</strong><span>{money(t.pickValue)}</span></p>)}
@@ -112,9 +109,6 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
           {(data.emerging?.adds||[]).slice(0,8).map((x:any)=><p className="di-line" key={x.id}><strong>{x.name} · {x.position}</strong><span>+{fmt.format(x.count)} adds · {money(x.value)}</span></p>)}
         </Card>
 
-        <Card title="Cross-League Exposure">
-          {(data.exposure||[]).filter((x:any)=>x.count>1).slice(0,10).map((x:any)=><p className="di-line" key={x.name}><strong>{x.name} · {x.count} leagues</strong><span>{x.leagues.join(", ")}</span></p>)}
-        </Card>
 
         <Card title="Market vs My Board" wide>
           <div className="di-table-wrap"><table className="di-table"><thead><tr><th>Player</th><th>Pos</th><th>My Rank</th><th>ADP</th><th>Gap</th></tr></thead><tbody>{(data.marketGaps||[]).slice(0,16).map((x:any)=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.position}</td><td>{x.myRank}</td><td>{x.adpRank}</td><td className={x.delta>0?"up":"down"}>{x.delta>0?"+":""}{x.delta}</td></tr>)}</tbody></table></div>

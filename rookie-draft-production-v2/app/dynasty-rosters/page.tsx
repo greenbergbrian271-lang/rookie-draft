@@ -3,8 +3,7 @@
 import {useEffect,useMemo,useState} from "react";
 import TradeCalculator from "./trade-calculator";
 import RosterTradeIdeas from "./trade-ideas-launcher";
-import LeagueStrengthMatrix from "./league-strength-matrix";
-import DynastyIntelligencePanel from "./dynasty-intelligence-panel";
+import MyTeamInsights from "./my-team-insights";
 import ShopPlayerButton from "./shop-player-button";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
@@ -95,7 +94,6 @@ export default function Page(){
   const [sort,setSort]=useState<SortState>(null);
   const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
-  const [refreshingKtc,setRefreshingKtc]=useState(false);
   const [message,setMessage]=useState("");
   const [messageTone,setMessageTone]=useState<"ok"|"warn">("warn");
   const [tradePreferences,setTradePreferences]=useState<Record<string,TradePreference>>({});
@@ -197,41 +195,36 @@ export default function Page(){
   async function refresh(){
     setRefreshing(true);setMessage("");
     try{
-      const res=await fetch("/api/dynasty-rosters",{method:"POST"});
-      const data=await res.json();
-      if(!res.ok&&!(data?.rosters?.length))throw new Error(data?.error||data?.detail||"Could not refresh rosters");
-      applyRosters((data?.rosters||[]) as RosterView[]);
-      if(tab)void loadTradeAssets(tab);
-      setStrengthRefreshToken(value=>value+1);
-      setMessageTone(data?.errors?.length?"warn":"ok");
-      setMessage(data?.errors?.length?"Roster refresh completed with warnings: "+data.errors.join(" • "):"All Sleeper rosters refreshed.");
-    }catch(e:any){
-      setMessageTone("warn");
-      setMessage(e?.message||"Could not refresh rosters");
-    }finally{setRefreshing(false)}
-  }
+      const rosterRes=await fetch("/api/dynasty-rosters",{method:"POST"});
+      const rosterData=await rosterRes.json();
+      if(!rosterRes.ok&&!(rosterData?.rosters?.length))throw new Error(rosterData?.error||rosterData?.detail||"Could not refresh rosters");
 
-  async function refreshKtc(){
-    setRefreshingKtc(true);setMessage("");
-    try{
-      const res=await fetch("/api/dynasty-rosters/ktc",{method:"POST"});
-      const data=await res.json();
-      if(!res.ok)throw new Error(data?.error||data?.detail||"Could not refresh KTC values");
-      applyRosters((data?.rosters||[]) as RosterView[]);
+      let finalData=rosterData;
+      let ktcWarning="";
+      try{
+        const ktcRes=await fetch("/api/dynasty-rosters/ktc",{method:"POST"});
+        const ktcData=await ktcRes.json();
+        if(!ktcRes.ok)throw new Error(ktcData?.error||ktcData?.detail||"Could not refresh KTC values");
+        finalData=ktcData;
+      }catch(e:any){
+        ktcWarning=e?.message||"KTC refresh failed";
+      }
+
+      applyRosters((finalData?.rosters||rosterData?.rosters||[]) as RosterView[]);
       if(tab)void loadTradeAssets(tab);
       setStrengthRefreshToken(value=>value+1);
-      const summary=data?.ktcMatchSummary;
-      if(summary?.unmatched){
-        setMessageTone("warn");
-        setMessage("KTC refreshed: "+summary.matched+" matches, "+summary.unmatched+" unmatched. Hover any N/A value for details.");
-      }else{
-        setMessageTone("ok");
-        setMessage("KTC values refreshed for every roster player.");
-      }
+
+      const warnings=[...(rosterData?.errors||[])];
+      if(ktcWarning)warnings.push("KTC: "+ktcWarning);
+      const summary=finalData?.ktcMatchSummary;
+      if(summary?.unmatched)warnings.push(summary.unmatched+" KTC player matches unresolved");
+
+      setMessageTone(warnings.length?"warn":"ok");
+      setMessage(warnings.length?"Refresh completed with warnings: "+warnings.join(" • "):"Sleeper rosters and KTC values refreshed.");
     }catch(e:any){
       setMessageTone("warn");
-      setMessage(e?.message||"Could not refresh KTC values");
-    }finally{setRefreshingKtc(false)}
+      setMessage(e?.message||"Could not refresh rosters + KTC");
+    }finally{setRefreshing(false)}
   }
 
   function chooseSort(key:SortKey){
@@ -239,19 +232,24 @@ export default function Page(){
   }
 
   const roster=rosters.find(r=>r.key===tab)||rosters[0];
-  const playerLeagueCounts=useMemo(()=>{
-    const counts:Record<string,number>={};
+  const playerLeagueExposure=useMemo(()=>{
+    const map=new Map<string,{name:string;count:number;leagues:string[]}>();
     for(const item of rosters){
       const seen=new Set<string>();
       for(const player of item.players||[]){
         const key=tradePrefKey(player.name);
         if(seen.has(key))continue;
         seen.add(key);
-        counts[key]=(counts[key]||0)+1;
+        const row=map.get(key)||{name:player.name,count:0,leagues:[]};
+        row.count++;
+        row.leagues.push(item.label);
+        map.set(key,row);
       }
     }
-    return counts;
+    return map;
   },[rosters]);
+  const playerLeagueCounts=useMemo(()=>Object.fromEntries([...playerLeagueExposure.entries()].map(([key,row])=>[key,row.count])),[playerLeagueExposure]);
+  const currentExposure=useMemo(()=>roster?(roster.players||[]).map(player=>playerLeagueExposure.get(tradePrefKey(player.name))).filter((row):row is {name:string;count:number;leagues:string[]}=>Boolean(row&&row.count>1)).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name)):[],[roster,playerLeagueExposure]);
   const totalPickValue=useMemo(()=>tradeAssets.picks.reduce((sum,p)=>sum+(Number(p.value)||0),0),[tradeAssets.picks]);
   const tradeAssetByName=useMemo(()=>new Map((tradeAssets.players||[]).map(asset=>[tradePrefKey(asset.name),asset])),[tradeAssets.players]);
   const sortedPlayers=useMemo(()=>{
@@ -287,11 +285,11 @@ export default function Page(){
       <div>
         <div className="ey">Dynasty roster reference</div>
         <h1>Dynasty Rosters</h1>
-        <p className="muted">Live Sleeper rosters with sortable values and roster-construction handcuff targets.</p>
+        <p className="muted">Your team, your assets and your roster construction across each connected dynasty league.</p>
       </div>
       <div className="dynasty-refresh-actions">
-        <button className="refresh-rosters" type="button" onClick={refresh} disabled={refreshing||refreshingKtc}>
-          {refreshing?"Refreshing all leagues…":"↻ Refresh Rosters"}
+        <button className="refresh-rosters" type="button" onClick={refresh} disabled={refreshing}>
+          {refreshing?"Refreshing rosters + KTC…":"↻ Refresh Rosters + KTC"}
         </button>
         <RosterTradeIdeas
           leagueKey={roster?.key||tab}
@@ -299,9 +297,6 @@ export default function Page(){
           preferences={tradePreferences}
           loading={loadingTradeAssets}
         />
-        <button className="refresh-ktc" type="button" onClick={refreshKtc} disabled={refreshing||refreshingKtc}>
-          {refreshingKtc?"Refreshing KTC…":"↻ Refresh KTC Values"}
-        </button>
       </div>
     </div>
 
@@ -329,8 +324,7 @@ export default function Page(){
           <div className="dynasty-meta updated"><span>KTC Last Updated · {roster.ktcSource||"KeepTradeCut"}</span><strong>{fmtTimestamp(roster.ktcUpdatedAt)}</strong></div>
         </div>
 
-        <LeagueStrengthMatrix leagueKey={roster.key} refreshToken={strengthRefreshToken}/>
-        <DynastyIntelligencePanel leagueKey={roster.key} refreshToken={strengthRefreshToken}/>
+        <MyTeamInsights leagueKey={roster.key} refreshToken={strengthRefreshToken} exposure={currentExposure}/>
 
         <div className="dynasty-layout">
           <div className="dynasty-main-stack">
@@ -438,7 +432,7 @@ export default function Page(){
       .dynasty-page-head{margin-bottom:10px;align-items:center}
       .dynasty-page-head p{max-width:760px;margin:4px 0 0}
       .dynasty-refresh-actions{display:flex;gap:8px;align-items:center}
-      .refresh-rosters,.refresh-ktc{min-width:168px;white-space:nowrap}
+      .refresh-rosters{min-width:168px;white-space:nowrap}
       .refresh-rosters{background:#18794e}
       .refresh-ktc{background:#193d6a;border-color:#315f95}
       .refresh-rosters:disabled,.refresh-ktc:disabled{opacity:.65;cursor:wait}
@@ -536,7 +530,7 @@ export default function Page(){
       @media(max-width:780px){
         .dynasty-page-head{display:block}
         .dynasty-refresh-actions{margin-top:12px;flex-wrap:wrap}
-        .refresh-rosters,.refresh-ktc{flex:1 1 180px}
+        .refresh-rosters{flex:1 1 180px}
         .dynasty-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
         .dynasty-meta.league,.dynasty-meta.updated{grid-column:1/-1}
         .dynasty-side{grid-template-columns:1fr}
