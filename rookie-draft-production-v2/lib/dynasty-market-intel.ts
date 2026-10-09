@@ -65,6 +65,21 @@ function pearson(xs:number[],ys:number[]){
   return dx&&dy?num/Math.sqrt(dx*dy):null;
 }
 
+function tieRanks<T>(rows:T[],score:(row:T)=>number,descending=true){
+  const sorted=[...rows].sort((a,b)=>descending?score(b)-score(a):score(a)-score(b));
+  const ranks=new Map<T,number>();
+  let i=0;
+  while(i<sorted.length){
+    const value=score(sorted[i]);
+    let j=i+1;
+    while(j<sorted.length&&score(sorted[j])===value)j++;
+    const averageRank=((i+1)+j)/2;
+    for(let k=i;k<j;k++)ranks.set(sorted[k],averageRank);
+    i=j;
+  }
+  return ranks;
+}
+
 async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclusion[]){
   const matcher=createKtcMatcher(dataset),years=[2022,2023,2024,2025,2026],results:any[]=[],details:any[]=[],players:any[]=[];
   const excluded=new Set(exclusions.map(x=>scoutingExclusionKey(x.year,x.name)));
@@ -82,36 +97,72 @@ async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclus
     const boardJson=await boardRes.json();
     const boardRows=boardRes.ok&&Array.isArray(boardJson?.rows)?boardJson.rows:[];
 
-    const matched=boardRows
+    // The scouting sample is driven by YOUR historical board, not by whether
+    // today's KTC dataset happens to contain the player. Only manual exclusions
+    // remove a player from the sample.
+    const classRows=boardRows
       .filter((row:any)=>INTEL_POSITIONS.includes(String(row.position||"").toUpperCase() as any)&&Number(row.overallRank)>0)
       .map((row:any)=>{
         const name=String(row.name||""),position=String(row.position||"").toUpperCase(),match=matcher(name,position);
-        if(!match)return null;
         return {
           year,name,position,yourRank:Number(row.overallRank),
           nflOverall:draftOrder(row.draftResult),
           draftResult:String(row.draftResult||""),
-          ktcValue:match.player.value,
+          ktcValue:match?Number(match.player.value)||0:0,
+          hasKtc:Boolean(match),
         };
-      }).filter(Boolean) as any[];
+      }) as any[];
 
-    const ktcSorted=[...matched].sort((a,b)=>b.ktcValue-a.ktcValue),ktcRank=new Map(ktcSorted.map((x,i)=>[intelNorm(x.name),i+1]));
-    for(const row of matched)row.ktcRank=ktcRank.get(intelNorm(row.name));
+    const eligible=classRows.filter(row=>!excluded.has(scoutingExclusionKey(year,row.name)));
 
-    const drafted=[...matched].filter(x=>x.nflOverall!=null).sort((a,b)=>a.nflOverall-b.nflOverall);
-    const nflRank=new Map(drafted.map((x,i)=>[intelNorm(x.name),i+1]));
-    for(const row of matched)row.nflRank=nflRank.get(intelNorm(row.name))??null;
+    // KTC-missing players are not discarded. A player absent from today's KTC
+    // universe is placed in a shared bottom-value tier (value 0).
+    const ktcRanks=tieRanks(eligible,(row:any)=>Number(row.ktcValue)||0,true);
+    for(const row of eligible)row.ktcRank=ktcRanks.get(row)??eligible.length;
 
-    const eligible=matched.filter(row=>!excluded.has(scoutingExclusionKey(year,row.name)));
+    // NFL-drafted players rank by draft order. UDFAs are retained in the sample
+    // and share one bottom NFL tier instead of disappearing from the analysis.
+    const drafted=eligible.filter(row=>row.nflOverall!=null).sort((a,b)=>a.nflOverall-b.nflOverall);
+    const udfas=eligible.filter(row=>row.nflOverall==null);
+    drafted.forEach((row,index)=>{row.nflRank=index+1});
+    const udfaRank=udfas.length?drafted.length+(udfas.length+1)/2:eligible.length;
+    udfas.forEach(row=>{row.nflRank=udfaRank});
+
     const yourCorr=pearson(eligible.map(x=>x.yourRank),eligible.map(x=>x.ktcRank));
-    const nflComparable=eligible.filter(x=>x.nflRank!=null);
-    const nflCorr=pearson(nflComparable.map(x=>x.nflRank),nflComparable.map(x=>x.ktcRank));
+    const nflCorr=pearson(eligible.map(x=>x.nflRank),eligible.map(x=>x.ktcRank));
     const edge=yourCorr!=null&&nflCorr!=null?yourCorr-nflCorr:null;
-    results.push({year,matched:eligible.length,excluded:matched.length-eligible.length,yourCorrelation:yourCorr,nflCorrelation:nflCorr,edge});
 
-    for(const row of matched)players.push({...row,excluded:excluded.has(scoutingExclusionKey(year,row.name))});
+    const ktcProfiles=eligible.filter(x=>x.hasKtc).length;
+    const nflDrafted=drafted.length;
+    results.push({
+      year,
+      matched:eligible.length,
+      sample:eligible.length,
+      totalBoard:classRows.length,
+      excluded:classRows.length-eligible.length,
+      ktcProfiles,
+      ktcMissing:eligible.length-ktcProfiles,
+      nflDrafted,
+      udfa:eligible.length-nflDrafted,
+      yourCorrelation:yourCorr,
+      nflCorrelation:nflCorr,
+      edge,
+    });
+
+    const eligibleKeys=new Set(eligible.map(row=>scoutingExclusionKey(year,row.name)));
+    for(const row of classRows){
+      const key=scoutingExclusionKey(year,row.name);
+      const scored=eligibleKeys.has(key);
+      const eligibleRow=scored?eligible.find(x=>scoutingExclusionKey(year,x.name)===key):null;
+      players.push({
+        ...row,
+        ktcRank:eligibleRow?.ktcRank??null,
+        nflRank:eligibleRow?.nflRank??null,
+        excluded:excluded.has(key),
+      });
+    }
+
     for(const row of eligible){
-      if(row.nflRank==null)continue;
       const yourError=Math.abs(row.yourRank-row.ktcRank),nflError=Math.abs(row.nflRank-row.ktcRank);
       details.push({...row,processEdge:nflError-yourError});
     }
@@ -123,7 +174,7 @@ async function scoutingAlpha(dataset:KtcDataset,exclusions:ScoutingProcessExclus
     lessons:[...details].sort((a,b)=>a.processEdge-b.processEdge).slice(0,12),
     players:players.sort((a,b)=>b.year-a.year||a.yourRank-b.yourRank),
     exclusions,
-    note:"Your historical Final Draft Board is compared with today's KTC class ordering. NFL draft order is the outside baseline for drafted players. Players you exclude are removed from the class correlations and Process Wins/Lessons.",
+    note:"The sample now includes every QB/RB/WR/TE on your historical Final Draft Board unless you manually exclude them. Players missing from today's KTC dataset remain in the sample in a shared bottom KTC tier, and UDFAs remain in the sample in a shared bottom NFL tier.",
   };
 }
 
