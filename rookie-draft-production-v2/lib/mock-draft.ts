@@ -19,6 +19,7 @@ export type MockNeed={
   need:number;
   label:"Priority"|"Need"|"Depth"|"Strength";
   depth:number;
+  rank:number;
 };
 
 export type MockTeam={

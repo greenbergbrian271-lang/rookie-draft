@@ -23,6 +23,12 @@ type Idea={
   differencePct:number;
   preferenceNote?:string;
   score:number;
+  fitNote?:string;
+};
+
+type StrengthRow={
+  rosterId:number;
+  positions:Record<string,{rank:number;need:number;label:string}>;
 };
 
 function weightedPackageValue(items:Asset[]){
@@ -49,7 +55,22 @@ function packageKey(items:Asset[]){
   return items.map(x=>x.id).sort().join("|");
 }
 
-function makeIdea(kind:string,youSend:Asset[],youGet:Asset[]):Idea{
+function receiverFit(items:Asset[],strength:StrengthRow|undefined){
+  if(!strength)return {bonus:0,note:""};
+  const positions=[...new Set(items.filter(x=>x.type==="player"&&x.position).map(x=>String(x.position)))];
+  if(!positions.length)return {bonus:0,note:""};
+  const cells=positions.map(position=>({position,cell:strength.positions?.[position]})).filter(x=>x.cell);
+  if(!cells.length)return {bonus:0,note:""};
+  const avgNeed=cells.reduce((sum,x)=>sum+Number(x.cell?.need||0),0)/cells.length;
+  const weakest=[...cells].sort((a,b)=>Number(b.cell?.need||0)-Number(a.cell?.need||0))[0];
+  const rank=Number(weakest?.cell?.rank||0);
+  return {
+    bonus:avgNeed*6,
+    note:rank?"Need fit: receiver ranks #"+rank+" at "+weakest.position+".":"",
+  };
+}
+
+function makeIdea(kind:string,youSend:Asset[],youGet:Asset[],myStrength?:StrengthRow,theirStrength?:StrengthRow):Idea{
   const sendValue=Math.round(youSend.reduce((sum,x)=>sum+(Number(x.value)||0),0));
   const receiveValue=Math.round(youGet.reduce((sum,x)=>sum+(Number(x.value)||0),0));
   const sendAdjusted=Math.round(weightedPackageValue(youSend));
@@ -60,9 +81,12 @@ function makeIdea(kind:string,youSend:Asset[],youGet:Asset[]):Idea{
   const hasReluctant=youSend.some(x=>x.preference==="reluctant");
   const hasPick=youSend.some(x=>x.type==="pick");
   const preferenceNote=hasShopping?"Includes a player you marked Actively Shopping":hasReluctant?"Includes a player you marked Reluctant":undefined;
+  const partnerFit=receiverFit(youSend,theirStrength);
+  const myFit=receiverFit(youGet,myStrength);
+  const fitNote=partnerFit.note||myFit.note||undefined;
   return {
-    kind,youSend,youGet,sendValue,receiveValue,sendAdjusted,receiveAdjusted,differencePct,preferenceNote,
-    score:differencePct+penalty+(youSend.length+youGet.length-2)*1.4-(hasPick?1.5:0),
+    kind,youSend,youGet,sendValue,receiveValue,sendAdjusted,receiveAdjusted,differencePct,preferenceNote,fitNote,
+    score:differencePct+penalty+(youSend.length+youGet.length-2)*1.4-(hasPick?1.5:0)-partnerFit.bonus-myFit.bonus*.55,
   };
 }
 
@@ -73,7 +97,7 @@ function combos(items:Asset[],size:1|2){
   return out;
 }
 
-function buildIdeas(myAssets:Asset[],theirAssets:Asset[]){
+function buildIdeas(myAssets:Asset[],theirAssets:Asset[],myStrength?:StrengthRow,theirStrength?:StrengthRow){
   const mine=myAssets
     .filter(x=>x.value!=null&&Number(x.value)>0&&x.preference!=="untouchable")
     .sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0))
@@ -97,7 +121,7 @@ function buildIdeas(myAssets:Asset[],theirAssets:Asset[]){
     const key=packageKey(youSend)+"=>"+packageKey(youGet);
     if(seen.has(key))return;
     seen.add(key);
-    const next=makeIdea(kind,youSend,youGet);
+    const next=makeIdea(kind,youSend,youGet,myStrength,theirStrength);
     if(next.differencePct<=16&&prefPenalty(youSend)<900)candidates.push(next);
   };
 
@@ -149,7 +173,10 @@ export async function POST(req:Request){
 
     const myAssets=[...(tradeData.myTeam?.assets?.players||[]),...(tradeData.myTeam?.assets?.picks||[])].map(decorate);
     const theirAssets=[...(tradeData.partnerTeam?.assets?.players||[]),...(tradeData.partnerTeam?.assets?.picks||[])].map(decorate);
-    const ideas=buildIdeas(myAssets,theirAssets);
+    const strengths=(tradeData.leagueStrengths||[]) as StrengthRow[];
+    const myStrength=strengths.find(x=>Number(x.rosterId)===Number(tradeData.myTeam?.rosterId));
+    const theirStrength=strengths.find(x=>Number(x.rosterId)===Number(tradeData.partnerTeam?.rosterId));
+    const ideas=buildIdeas(myAssets,theirAssets,myStrength,theirStrength);
 
     return Response.json({
       league:tradeData.league,
@@ -158,7 +185,7 @@ export async function POST(req:Request){
       ideas,
       preferencesApplied:Object.keys(preferences).length,
       ktcUpdatedAt:tradeData.ktcUpdatedAt,
-      valueNote:"Raw KTC values are shown alongside consolidation-adjusted package values. Untouchable players are excluded; Shopping/Open assets are favored and Reluctant assets are deprioritized.",
+      valueNote:"Raw KTC values are shown alongside consolidation-adjusted package values. League-relative positional needs now influence idea ordering, while Untouchable players are excluded and Shopping/Open assets are favored.",
     });
   }catch(e:any){
     return Response.json({error:"Could not generate roster trade ideas",detail:e?.message},{status:500});

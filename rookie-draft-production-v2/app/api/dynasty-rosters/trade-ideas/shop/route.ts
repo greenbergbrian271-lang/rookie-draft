@@ -20,6 +20,11 @@ type TeamAssets={
   assets:{players:Asset[];picks:Asset[]};
 };
 
+type StrengthRow={
+  rosterId:number;
+  positions:Record<string,{rank:number;need:number;label:string}>;
+};
+
 type ShopIdea={
   partnerTeam:{rosterId:number;name:string};
   youSend:Asset[];
@@ -30,6 +35,7 @@ type ShopIdea={
   receiveAdjusted:number;
   differencePct:number;
   score:number;
+  fitNote?:string;
 };
 
 function weightedPackageValue(items:Asset[]){
@@ -43,6 +49,21 @@ function gapPct(a:number,b:number){
 
 function rawValue(items:Asset[]){
   return Math.round(items.reduce((sum,item)=>sum+(Number(item.value)||0),0));
+}
+
+function receiverFit(items:Asset[],strength:StrengthRow|undefined){
+  if(!strength)return {bonus:0,note:""};
+  const positions=[...new Set(items.filter(x=>x.type==="player"&&x.position).map(x=>String(x.position)))];
+  if(!positions.length)return {bonus:0,note:""};
+  const cells=positions.map(position=>({position,cell:strength.positions?.[position]})).filter(x=>x.cell);
+  if(!cells.length)return {bonus:0,note:""};
+  const avgNeed=cells.reduce((sum,x)=>sum+Number(x.cell?.need||0),0)/cells.length;
+  const weakest=[...cells].sort((a,b)=>Number(b.cell?.need||0)-Number(a.cell?.need||0))[0];
+  const rank=Number(weakest?.cell?.rank||0);
+  return {
+    bonus:avgNeed*8,
+    note:rank?"Team fit: #"+rank+" at "+weakest.position+" in this league.":"",
+  };
 }
 
 function poolForTarget(items:Asset[],target:number){
@@ -122,9 +143,11 @@ export async function POST(req:Request){
     const sendRaw=rawValue(selected);
     const ideas:ShopIdea[]=[];
 
+    const strengthByRoster=new Map<number,StrengthRow>((data?.leagueStrengths||[]).map((row:StrengthRow)=>[Number(row.rosterId),row]));
     for(const partner of (data?.leagueTeams||[]) as TeamAssets[]){
       const theirs=[...(partner.assets?.players||[]),...(partner.assets?.picks||[])] as Asset[];
       const packages=candidatePackages(theirs,sendAdjusted);
+      const fit=receiverFit(selected,strengthByRoster.get(partner.rosterId));
       for(const candidate of packages.slice(0,4)){
         ideas.push({
           partnerTeam:{rosterId:partner.rosterId,name:partner.name},
@@ -135,7 +158,8 @@ export async function POST(req:Request){
           sendAdjusted,
           receiveAdjusted:candidate.adjusted,
           differencePct:candidate.gap,
-          score:candidate.score,
+          score:candidate.score-fit.bonus,
+          fitNote:fit.note||undefined,
         });
       }
     }
@@ -157,7 +181,7 @@ export async function POST(req:Request){
       selected,
       ideas:chosen.map(({score,...idea})=>idea),
       ktcUpdatedAt:data.ktcUpdatedAt,
-      valueNote:"League-wide ideas use current Sleeper ownership and KTC values. Return packages may contain one to four players/picks; package-size adjustment prevents several smaller assets from being treated as perfectly additive.",
+      valueNote:"League-wide ideas use current Sleeper ownership, KTC values, and league-relative positional strength. Teams weak at the position you are shopping are prioritized. Return packages may contain one to four players/picks; package-size adjustment prevents several smaller assets from being treated as perfectly additive.",
     });
   }catch(e:any){
     return Response.json({error:"Could not generate league-wide trade ideas",detail:e?.message},{status:500});

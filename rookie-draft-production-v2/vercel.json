@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/college-football-season",
       "schedule": "0 10 20 8 *"
+    },
+    {
+      "path": "/api/cron/dynasty-market-daily",
+      "schedule": "30 11 * * *"
     }
   ]
 }

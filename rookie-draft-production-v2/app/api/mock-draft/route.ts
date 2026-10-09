@@ -3,6 +3,8 @@ import {GET as getFinalBoard} from "@/app/api/final-board/live/route";
 import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations";
 import {ensureTursoSchema} from "@/lib/turso";
 import {MOCK_POSITIONS,type MockCandidate,type MockNeed,type MockPosition,type MockTeam,type MockTendency} from "@/lib/mock-draft";
+import {loadKtcDataset} from "@/lib/ktc";
+import {buildLeagueStrengths,type LeagueStrengths} from "@/lib/league-strengths";
 
 export const dynamic="force-dynamic";
 
@@ -21,24 +23,37 @@ function matchedIdentity(user:any,roster:any,identity:string){const wanted=ident
 function pickDraft(drafts:any[],draftClass:number){const sorted=[...drafts].sort((a,b)=>{const seasonDelta=Number(b?.season||0)-Number(a?.season||0);if(seasonDelta)return seasonDelta;return Number(b?.start_time||b?.created||0)-Number(a?.start_time||a?.created||0)});return sorted.find(d=>Number(d?.season)===draftClass&&String(d?.status||"").toLowerCase()!=="complete")||sorted.find(d=>Number(d?.season)===draftClass)||sorted.find(d=>String(d?.status||"").toLowerCase()!=="complete")||sorted[0]||null}
 function currentOwner(originalRosterId:number,round:number,traded:any[],season:number){const matches=traded.filter((p:any)=>Number(p?.roster_id)===originalRosterId&&Number(p?.round)===round&&(!season||!p?.season||Number(p.season)===season));const latest=matches[matches.length-1];return Number(latest?.owner_id||originalRosterId)}
 function slotForPick(pickNo:number,teams:number,type:string){const round=Math.floor((pickNo-1)/teams)+1,within=((pickNo-1)%teams)+1;return String(type||"").toLowerCase()==="snake"&&round%2===0?teams-within+1:within}
-function valueScore(player:any){const rank=Number(player?.search_rank||999),age=Number(player?.age),rankScore=rank>0?1/(1+rank/70):0.04,ageFactor=Number.isFinite(age)?Math.max(.72,1-Math.max(0,age-27)*.035):1;return rankScore*ageFactor}
-function expectedAtPosition(rosterPositions:any[],position:MockPosition,superflex:boolean){const upper=(Array.isArray(rosterPositions)?rosterPositions:[]).map(x=>String(x).toUpperCase()),direct=upper.filter(x=>x===position).length;if(position==="QB"&&superflex)return Math.max(2,direct);if(position==="RB")return Math.max(2,direct);if(position==="WR")return Math.max(3,direct);return Math.max(1,direct)}
-function rawPositionStrength(players:any[],position:MockPosition,expected:number){const atPos=players.filter(p=>String(p?.position||"").toUpperCase()===position).sort((a,b)=>valueScore(b)-valueScore(a)),core=atPos.slice(0,expected).reduce((sum,p)=>sum+valueScore(p),0),depth=atPos.slice(expected,expected+3).reduce((sum,p)=>sum+valueScore(p)*.22,0),missing=Math.max(0,expected-atPos.length);return {raw:Math.max(0,core+depth-missing*.22),depth:atPos.length}}
-function needLabel(need:number):MockNeed["label"]{if(need>=.72)return "Priority";if(need>=.52)return "Need";if(need>=.34)return "Depth";return "Strength"}
-function buildTeams(league:any,rosters:any[],users:any[],playerDb:any,identity:string){
-  const userById=new Map(users.map((u:any)=>[String(u.user_id),u]));
-  const superflex=(Array.isArray(league?.roster_positions)?league.roster_positions:[]).some((x:any)=>String(x).toUpperCase()==="SUPER_FLEX");
-  const raw=rosters.map((r:any)=>{const user=userById.get(String(r.owner_id)),ids=[...new Set([...(r.players||[]),...(r.reserve||[]),...(r.taxi||[])].map(String))],players=ids.map(id=>playerDb?.[id]).filter(Boolean),byPos={} as Record<MockPosition,{raw:number;depth:number}>;for(const pos of MOCK_POSITIONS)byPos[pos]=rawPositionStrength(players,pos,expectedAtPosition(league?.roster_positions,pos,superflex));return {rosterId:Number(r.roster_id),ownerId:String(r.owner_id||""),ownerKey:norm(ownerName(user)),name:ownerName(user),isMine:matchedIdentity(user,r,identity),byPos}});
-  const posRanges={} as Record<MockPosition,{min:number;max:number}>;for(const pos of MOCK_POSITIONS){const values=raw.map(t=>t.byPos[pos].raw);posRanges[pos]={min:Math.min(...values),max:Math.max(...values)}}
-  return raw.map(t=>{const needs={} as Record<MockPosition,MockNeed>;for(const pos of MOCK_POSITIONS){const range=posRanges[pos],spread=Math.max(.001,range.max-range.min),strength=(t.byPos[pos].raw-range.min)/spread,need=1-strength;needs[pos]={position:pos,strength,need,label:needLabel(need),depth:t.byPos[pos].depth}}return {rosterId:t.rosterId,ownerId:t.ownerId,ownerKey:t.ownerKey,name:t.name,isMine:t.isMine,needs} satisfies MockTeam})
+function buildTeams(strengths:LeagueStrengths){
+  return strengths.rows.map(t=>{
+    const needs={} as Record<MockPosition,MockNeed>;
+    for(const pos of MOCK_POSITIONS){
+      const cell=t.positions[pos];
+      needs[pos]={
+        position:pos,
+        strength:cell.strength,
+        need:cell.need,
+        label:cell.label,
+        depth:cell.depth,
+        rank:cell.rank,
+      };
+    }
+    return {
+      rosterId:t.rosterId,
+      ownerId:t.ownerId,
+      ownerKey:norm(t.name),
+      name:t.name,
+      isMine:t.isMine,
+      needs,
+    } satisfies MockTeam;
+  });
 }
 async function ensureMockHistorySchema(){const c=await ensureTursoSchema();await c.execute(`create table if not exists mock_draft_history(id integer primary key autoincrement,league_key text not null,season integer,owner_name text not null,owner_key text not null,pick_no integer,round integer,slot integer,player_name text not null,position text not null,board_rank real,source_label text,fingerprint text not null unique,imported_at text default current_timestamp)`);await c.execute(`create index if not exists mock_draft_history_league_owner_idx on mock_draft_history(league_key,owner_key,season)`);return c}
 async function tendenciesFor(leagueKey:string):Promise<{tendencies:MockTendency[];summary:{samples:number;managers:number;trained:boolean}}>{const c=await ensureMockHistorySchema(),result=await c.execute({sql:"select owner_name,owner_key,pick_no,position,board_rank from mock_draft_history where league_key=? order by season,pick_no,id",args:[leagueKey]}),groups=new Map<string,{ownerName:string;sampleSize:number;positionCounts:Record<MockPosition,number>;rankDelta:number[]}>();for(const row of result.rows){const pos=String(row.position||"").toUpperCase() as MockPosition;if(!MOCK_POSITIONS.includes(pos))continue;const key=String(row.owner_key||"");if(!groups.has(key))groups.set(key,{ownerName:String(row.owner_name||key),sampleSize:0,positionCounts:{QB:0,RB:0,WR:0,TE:0},rankDelta:[]});const g=groups.get(key)!;g.sampleSize++;g.positionCounts[pos]++;const pickNo=num(row.pick_no),boardRank=num(row.board_rank);if(pickNo!=null&&boardRank!=null)g.rankDelta.push(pickNo-boardRank)}const tendencies=[...groups.entries()].map(([ownerKey,g])=>{const share={QB:0,RB:0,WR:0,TE:0} as Record<MockPosition,number>;for(const pos of MOCK_POSITIONS)share[pos]=g.sampleSize?g.positionCounts[pos]/g.sampleSize:0;return {ownerKey,ownerName:g.ownerName,sampleSize:g.sampleSize,avgRankDelta:g.rankDelta.length?g.rankDelta.reduce((a,b)=>a+b,0)/g.rankDelta.length:null,positionShare:share}}),samples=tendencies.reduce((sum,t)=>sum+t.sampleSize,0);return {tendencies,summary:{samples,managers:tendencies.length,trained:samples>=8}}}
 async function boardFor(league:SleeperLeagueIntegration,draftClass:number){const request=new Request(`http://internal/api/final-board/live?view=${encodeURIComponent("league:"+league.key)}&draftClass=${encodeURIComponent(String(draftClass))}`),response=await getFinalBoard(request),body=await response.json();if(!response.ok)throw new Error(body?.error||"Could not load league draft board");const rows=Array.isArray(body?.rows)?body.rows:[];return rows.filter((r:any)=>MOCK_POSITIONS.includes(String(r.position||"").toUpperCase() as MockPosition)).filter((r:any)=>Number(r.overallRank)>0).map((r:any)=>({id:String(r.id),name:text(r.name),position:String(r.position).toUpperCase() as MockPosition,college:text(r.college),rank:Number(r.overallRank),positionRank:num(r.positionRank),tier:num(r.tier),grade:num(r.boardGrade),headshotUrl:r.headshot_url?String(r.headshot_url):null} satisfies MockCandidate)).sort((a:any,b:any)=>a.rank-b.rank)}
 async function leagueRoom(league:SleeperLeagueIntegration,draftClass:number){
   const root=`https://api.sleeper.app/v1/league/${league.leagueId}`;
-  const [leagueData,drafts,traded,rosters,users,playerDb,board,history]=await Promise.all([sleeperJson(root),sleeperJson(root+"/drafts"),sleeperJson(root+"/traded_picks").catch(()=>[]),sleeperJson(root+"/rosters"),sleeperJson(root+"/users"),sleeperJson("https://api.sleeper.app/v1/players/nfl"),boardFor(league,draftClass),tendenciesFor(league.key)]);
-  const draft=pickDraft(drafts,draftClass),teamsCount=Number(leagueData?.total_rosters||rosters.length||0),superflex=(Array.isArray(leagueData?.roster_positions)?leagueData.roster_positions:[]).some((x:any)=>String(x).toUpperCase()==="SUPER_FLEX"),teamViews=buildTeams(leagueData,rosters,users,playerDb,String(league.teamIdentity||""));
+  const [leagueData,drafts,traded,rosters,users,playerDb,board,history,dataset]=await Promise.all([sleeperJson(root),sleeperJson(root+"/drafts"),sleeperJson(root+"/traded_picks").catch(()=>[]),sleeperJson(root+"/rosters"),sleeperJson(root+"/users"),sleeperJson("https://api.sleeper.app/v1/players/nfl"),boardFor(league,draftClass),tendenciesFor(league.key),loadKtcDataset(false)]);
+  const draft=pickDraft(drafts,draftClass),teamsCount=Number(leagueData?.total_rosters||rosters.length||0),superflex=(Array.isArray(leagueData?.roster_positions)?leagueData.roster_positions:[]).some((x:any)=>String(x).toUpperCase()==="SUPER_FLEX"),strengths=buildLeagueStrengths({leagueData,rosters,users,playerDb,tradedPicks:traded,dataset,integration:league}),teamViews=buildTeams(strengths);
   if(!draft)return {league:{key:league.key,name:league.name,leagueId:league.leagueId,teams:teamsCount,rounds:0,draftId:null,draftStatus:"No draft configured",draftClass,superflex,tePremium:Boolean(league.tePremium)},slots:[],teams:teamViews,candidates:board,tendencies:history.tendencies,historySummary:history.summary};
   const rounds=Number(draft?.settings?.rounds||4),total=teamsCount*rounds,rawPicks=await sleeperJson(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`).catch(()=>[]),selectedByNo=new Map<number,any>(rawPicks.map((p:any)=>[Number(p.pick_no),p])),teamByRoster=new Map(teamViews.map(t=>[t.rosterId,t])),season=Number(draft?.season||leagueData?.season||draftClass);
   const slots=Array.from({length:total},(_,index)=>{const pickNo=index+1,round=Math.floor(index/teamsCount)+1,slot=slotForPick(pickNo,teamsCount,draft.type),originalRosterId=Number(draft?.slot_to_roster_id?.[slot]||slot),rosterId=currentOwner(originalRosterId,round,traded,season),selected=selectedByNo.get(pickNo),team=teamByRoster.get(rosterId);return {pickNo,round,slot,rosterId,team:team?.name||`Roster ${rosterId}`,isMine:Boolean(team?.isMine),livePlayerId:selected?.player_id?String(selected.player_id):null,livePlayer:selected?.metadata?`${selected.metadata.first_name||""} ${selected.metadata.last_name||""}`.trim():null,livePosition:selected?.metadata?.position?String(selected.metadata.position):null}});

@@ -1,5 +1,6 @@
 import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations";
 import {createKtcMatcher,getKtcPickValue,getKtcPickYears,loadKtcDataset} from "@/lib/ktc";
+import {buildLeagueStrengths} from "@/lib/league-strengths";
 
 type TradeAsset={
   id:string;
@@ -169,6 +170,15 @@ export async function GET(req:Request){
       loadKtcDataset(false),
     ]);
     const matcher=createKtcMatcher(dataset);
+    const strengths=buildLeagueStrengths({
+      leagueData,
+      rosters,
+      users,
+      playerDb,
+      tradedPicks:Array.isArray(tradedPicks)?tradedPicks:[],
+      dataset,
+      integration:league,
+    });
     const currentSeason=Number(leagueData?.season)||new Date().getFullYear();
     let years=getKtcPickYears(dataset).filter(y=>y>currentSeason);
     if(!years.length)years=[currentSeason+1,currentSeason+2,currentSeason+3];
@@ -185,6 +195,7 @@ export async function GET(req:Request){
       league:{key:league.key,name:String(leagueData?.name||league.name),leagueId:league.leagueId},
       myTeam:{rosterId:myRosterId,name:teamName(mine,users),assets:myAssets},
       teams,
+      leagueStrengths:strengths.rows,
       ktcUpdatedAt:dataset.fetchedAt,
       pickValueNote:"Future picks use KTC's Mid-round value until an actual draft slot is known.",
     };
