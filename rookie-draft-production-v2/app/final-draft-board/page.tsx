@@ -91,6 +91,15 @@ function gradeTone(value:number|null){
   if(value>=55)return "fringe";
   return "concern";
 }
+
+function previewIndustryForRow(row:ScoredRow){
+  const your=row.overallRank==null?null:Number(row.overallRank),yourPos=row.positionRank==null?null:Number(row.positionRank);
+  const seed=String(row.name||"Preview").split("").reduce((a:number,c:string)=>a+c.charCodeAt(0),0);
+  const pos=Math.max(1,(yourPos??1)+((seed%3)===0?0:1));
+  const fantasy=Math.max(pos,Math.max(1,(your??Math.max(3,pos))+1+(seed%4)));
+  const delta=your==null?null:fantasy-your;
+  return {fantasy,pos,delta};
+}
 function heatColor(ratio:number){
   const r=Math.max(0,Math.min(1,ratio));
   return `hsl(${Math.round(r*120)} 72% 48%)`;
@@ -247,6 +256,7 @@ export default function Page(){
             <th className="rank-col">#</th>
             <th>Pos Rank</th>
             <th>Prospect</th>
+            <th>Industry <small className="board-industry-preview-label">Preview</small></th>
             {showGradeDetails&&<th>Grade Used</th>}
             <th>Handcuff</th>
             <th className="board-grade-col">Board Grade</th>
@@ -256,7 +266,7 @@ export default function Page(){
               const tone=gradeTone(row.boardGrade),previous=visible[index-1];
               const startsTier=row.tier!=null&&(index===0||previous?.tier!==row.tier);
               return <Fragment key={row.id}>
-                {startsTier&&<tr className={"board-tier-row "+(compactTiers?"compact":"")}><td colSpan={showGradeDetails?6:5}>
+                {startsTier&&<tr className={"board-tier-row "+(compactTiers?"compact":"")}><td colSpan={showGradeDetails?7:6}>
                   <div
                     className={"board-tier-break "+(compactTiers?"compact":"")}
                     title={row.tier===1?"Tier 1 · Top grade cluster":"Tier "+row.tier+(row.tierGapBefore!=null?" · "+fmt(row.tierGapBefore,2)+" point drop from the previous prospect":"")}
@@ -277,6 +287,7 @@ export default function Page(){
                       {row.draftResult&&row.gradeSource==="Final"&&<small>{row.draftResult}</small>}
                     </div>
                   </td>
+                  <td>{(()=>{const ind=previewIndustryForRow(row);return <div className="board-industry-cell"><strong>#{ind.fantasy} <span>· {row.position}{ind.pos}</span></strong><small className={ind.delta==null?"":ind.delta>0?"higher":ind.delta<0?"lower":"aligned"}>{ind.delta==null?"Comparison pending":ind.delta===0?"Aligned":ind.delta>0?`You ▲${ind.delta}`:`You ▼${Math.abs(ind.delta)}`}</small></div>})()}</td>
                   {showGradeDetails&&<td>
                     {row.sourceGrade==null?<span className="board-incomplete">Incomplete scouting</span>:<div className="grade-used">
                       <span className={"grade-source "+(row.gradeSource==="Final"?"final":"pre")}>{row.gradeSource==="Final"?"Final Draft":"Pre-Draft"}</span>

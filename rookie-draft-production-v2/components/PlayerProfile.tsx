@@ -69,48 +69,34 @@ function GradeHighlights({d}:{d:any}){const g=d.grades,p=d.player,items=[{label:
 function draftResultParts(result:any,team:any){const raw=String(result??"").trim(),tm=String(team??"").trim();if(!raw||/^(pending|tbd|not drafted yet)$/i.test(raw))return {pending:true,pick:"Not drafted yet",team:""};let pick=raw;const direct=raw.match(/Pick\s+(\d+)/i),legacy=raw.match(/^(\d+)\.(\d+)/);if(direct)pick="Pick "+direct[1];else if(legacy)pick="Pick "+Number(legacy[2]);else if(raw.includes(","))pick=raw.slice(0,raw.lastIndexOf(",")).trim();return {pending:false,pick,team:tm||(raw.includes(",")?raw.slice(raw.lastIndexOf(",")+1).trim():"")}}
 function DraftResultSummary({d}:{d:any}){const g=d.grades,parts=draftResultParts(g.draftResult??g.values?.["Draft Result"],g.draftTeam);return parts.pending?<div className="profile-draft-pending">Not drafted yet</div>:<div className="profile-draft-result"><div className="profile-draft-logo"><img src={nflTeamLogo(parts.team)} alt=""/></div><div><span>{parts.pick}</span><strong>{parts.team||"NFL Team"}</strong></div></div>}
 function previewIndustryData(d:any){
-  const p=d.player||{},g=d.grades||{},values=g.values||{},pos=String(p.position||"").toUpperCase();
+  const p=d.player||{},g=d.grades||{},pos=String(p.position||"").toUpperCase();
   const overallRaw=Number(g.overallRank),posRaw=Number(g.boardPositionRank),posLabel=Number(String(p.positionRank||"").replace(/\D/g,""));
   const yourFantasy=Number.isFinite(overallRaw)?overallRaw:null,yourPos=Number.isFinite(posRaw)?posRaw:(Number.isFinite(posLabel)?posLabel:null);
   const seed=String(p.name||"Preview").split("").reduce((a:number,c:string)=>a+c.charCodeAt(0),0);
-  const f1=yourFantasy!=null?Math.max(1,yourFantasy+(seed%7)-3):8+(seed%11),f2=yourFantasy!=null?Math.max(1,yourFantasy+((seed*3)%9)-4):11+(seed%13);
-  const p1=yourPos!=null?Math.max(1,yourPos+(seed%5)-2):2+(seed%6),p2=yourPos!=null?Math.max(1,yourPos+((seed*5)%5)-2):3+(seed%7);
-  const projection=String(values["Draft Projection"]??values["NFL Draft Projection"]??"").trim()||(({QB:"Round 2",RB:"Round 2",WR:"Round 1–2",TE:"Day 2"} as Record<string,string>)[pos]||"Day 2");
-  const archetype=String(values["Archetype"]??"").trim()||(({QB:"Pocket Passer",RB:"Three-Down / Zone",WR:"X / Z",TE:"Move / Receiving"} as Record<string,string>)[pos]||"Role TBD");
-  const experts=[
-    {name:"Connor Rogers",published:f1+12+(seed%10),fantasy:f1,pos:p1},
-    {name:"Trevor Sikkema",published:f2+15+((seed*2)%11),fantasy:f2,pos:p2}
-  ];
-  const consensusFantasy=Math.round((f1+f2)/2),consensusPos=Math.round((p1+p2)/2);
-  return {pos,yourFantasy,yourPos,projection,archetype,experts,consensusFantasy,consensusPos};
-}
-function rankPhrase(y:number|null,c:number|null,kind:string){
-  if(y==null||c==null)return "Your rank will compare here once it is available.";
-  const diff=c-y;if(diff===0)return `You are aligned at ${kind} #${y}.`;
-  return diff>0?`You are ${diff} ${kind} spot${diff===1?"":"s"} higher.`:`You are ${Math.abs(diff)} ${kind} spot${Math.abs(diff)===1?"":"s"} lower.`;
+  const baseFantasy=yourFantasy??Math.max(3,8+(seed%8)),basePos=yourPos??Math.max(1,2+(seed%4));
+  const makeExpert=(name:string,fantasyOffset:number,posOffset:number,rawOffset:number)=>{const posRank=Math.max(1,basePos+posOffset),fantasyRank=Math.max(posRank,Math.max(1,baseFantasy+fantasyOffset));return {name,published:fantasyRank+rawOffset,fantasy:fantasyRank,pos:posRank}};
+  const experts=[makeExpert("Connor Rogers",2+(seed%3),1,13+(seed%5)),makeExpert("Trevor Sikkema",3+((seed*3)%4),1+((seed*5)%2),15+(seed%6))];
+  const consensusPos=Math.max(1,Math.round(experts.reduce((a:number,e:any)=>a+e.pos,0)/experts.length));
+  const consensusFantasy=Math.max(consensusPos,Math.round(experts.reduce((a:number,e:any)=>a+e.fantasy,0)/experts.length));
+  return {pos,yourFantasy,yourPos,experts,consensusFantasy,consensusPos};
 }
 function rankDelta(y:number|null,c:number){
-  if(y==null)return {text:"—",tone:""};
+  if(y==null)return {text:"Your rank unavailable",tone:""};
   const diff=c-y;if(diff===0)return {text:"Aligned",tone:"aligned"};
-  return diff>0?{text:`▲ ${diff} higher`,tone:"higher"}:{text:`▼ ${Math.abs(diff)} lower`,tone:"lower"};
-}
-function MarketContext({d}:{d:any}){
-  const x=previewIndustryData(d);
-  return <section className="profile-market-preview"><div className="profile-market-preview-head"><div><span className="ey">DRAFT MARKET</span><h2>External Context</h2></div><b>Preview</b></div><div className="profile-market-preview-grid"><div><span>Draft Projection</span><strong>{x.projection}</strong><small>NFLSE · automated source</small></div><div><span>Archetype</span><strong>{x.archetype}</strong><small>NFLSE · automated source</small></div></div></section>
+  return diff>0?{text:`You are ${diff} higher`,tone:"higher"}:{text:`You are ${Math.abs(diff)} lower`,tone:"lower"};
 }
 function Industry({d}:{d:any}){
   const x=previewIndustryData(d),fantasyDelta=rankDelta(x.yourFantasy,x.consensusFantasy),posDelta=rankDelta(x.yourPos,x.consensusPos);
   return <div className="profile-pane profile-industry-pane">
-    <div className="profile-industry-banner"><div><b>Visual preview</b><span>The layout is live. NFLSE and analyst values are sample data until the source ingestion is wired.</span></div><em>Does not affect grades</em></div>
-    <div className="profile-industry-top">
-      <article><span>Your Board</span><strong>{x.yourFantasy!=null?`Fantasy #${x.yourFantasy}`:"Fantasy —"}</strong><small>{x.yourPos!=null?`${x.pos}${x.yourPos}`:`${x.pos||"Pos"} —`} · Final Draft Board</small></article>
-      <article><span>Fantasy Consensus</span><strong>Fantasy #{x.consensusFantasy}</strong><small>{x.pos}{x.consensusPos} · tracked analysts</small></article>
-      <article><span>Draft Projection</span><strong>{x.projection}</strong><small>NFLSE predictive market</small></article>
-      <article><span>Archetype</span><strong>{x.archetype}</strong><small>NFLSE role classification</small></article>
+    <div className="profile-industry-banner"><div><b>Visual preview</b><span>Connor/Trevor ranks are sample values until live source ingestion is wired.</span></div><em>Expert rankings never affect grades</em></div>
+    <div className="profile-industry-explainer"><strong>What this tab means</strong><span>Experts rank every NFL prospect. We preserve their published NFL rank, then remove non-QB/RB/WR/TE players to create a fantasy-only rank that can be compared fairly with your board.</span></div>
+    <div className="profile-industry-top profile-industry-top-simple">
+      <article><span>Your Board</span><strong>{x.yourFantasy!=null?`Fantasy #${x.yourFantasy}`:"Fantasy —"}</strong><small>{x.yourPos!=null?`${x.pos}${x.yourPos}`:`${x.pos||"Pos"} —`} · your Final Draft Board</small></article>
+      <article><span>Tracked Expert Consensus</span><strong>Fantasy #{x.consensusFantasy}</strong><small>{x.pos}{x.consensusPos} · Connor + Trevor</small></article>
+      <article><span>Difference</span><strong className={fantasyDelta.tone}>{fantasyDelta.text}</strong><small className={posDelta.tone}>{posDelta.text} at {x.pos||"position"}</small></article>
     </div>
-    <div className="profile-consensus-callout"><div><span>YOU VS. TRACKED CONSENSUS</span><strong>{rankPhrase(x.yourFantasy,x.consensusFantasy,"fantasy")}</strong><small>{rankPhrase(x.yourPos,x.consensusPos,x.pos||"position")}</small></div><div className="profile-consensus-deltas"><b className={fantasyDelta.tone}>{fantasyDelta.text}<small>Fantasy</small></b><b className={posDelta.tone}>{posDelta.text}<small>{x.pos||"Position"}</small></b></div></div>
-    <section className="profile-expert-section"><div className="profile-expert-head"><div><span className="ey">EXPERT BOARDS</span><h2>How the people you trust see him</h2><p>Published overall rank is preserved, then each board is filtered to QB, RB, WR and TE for a fair comparison to your fantasy-only board.</p></div><span className="profile-preview-pill">Sample ranks</span></div><div className="profile-expert-table-wrap"><table className="profile-expert-table"><thead><tr><th>Analyst</th><th>Published OVR</th><th>Fantasy Rank</th><th>Pos Rank</th><th>Vs. You</th><th>Updated</th></tr></thead><tbody>{x.experts.map((e:any)=>{const delta=rankDelta(x.yourFantasy,e.fantasy);return <tr key={e.name}><td><div className="profile-expert-source"><strong>{e.name}</strong><span>NFL Stock Exchange</span></div></td><td>#{e.published}</td><td>#{e.fantasy}</td><td>{x.pos}{e.pos}</td><td><b className={"profile-expert-delta "+delta.tone}>{delta.text}</b></td><td><span className="profile-expert-updated">Preview</span></td></tr>})}</tbody></table></div></section>
-    <div className="profile-industry-foot"><b>Comparison rule</b><span>Connor, Trevor and future analysts can rank every NFL prospect. Their raw overall rank stays visible, but comparisons to your board use a derived fantasy rank after removing non-QB/RB/WR/TE prospects.</span></div>
+    <section className="profile-expert-section"><div className="profile-expert-head"><div><span className="ey">EXPERT BOARDS</span><h2>Your board vs. each analyst</h2><p>The comparison uses Fantasy-only Rank. Published NFL OVR stays visible only as context because their boards also contain OL, EDGE, CB, S and other non-fantasy positions.</p></div><span className="profile-preview-pill">Sample ranks</span></div><div className="profile-expert-table-wrap"><table className="profile-expert-table"><thead><tr><th>Analyst</th><th>Published NFL OVR</th><th>Fantasy-only Rank</th><th>Pos Rank</th><th>Compared with You</th></tr></thead><tbody>{x.experts.map((e:any)=>{const delta=rankDelta(x.yourFantasy,e.fantasy);return <tr key={e.name}><td><div className="profile-expert-source"><strong>{e.name}</strong><span>NFL Stock Exchange</span></div></td><td>#{e.published}</td><td>#{e.fantasy}</td><td>{x.pos}{e.pos}</td><td><b className={"profile-expert-delta "+delta.tone}>{delta.text}</b></td></tr>})}</tbody></table></div></section>
+    <div className="profile-industry-foot"><b>Consensus rule</b><span>The live version will build one consensus ordering from the experts you choose to include, then derive both Fantasy Rank and Position Rank from that same ordering so the numbers cannot contradict each other.</span></div>
   </div>
 }
 
@@ -119,7 +105,7 @@ function Summary({d}:{d:any}){
   useEffect(()=>{setSummary(typeof d.notesSummaryMeta==="object"&&d.notesSummaryMeta?d.notesSummaryMeta:{text:d.notesSummary,status:"unknown"})},[d.notesSummary,d.notesSummaryMeta]);
   async function refresh(){setRefreshing(true);setError("");try{const r=await fetch("/api/player-profile",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"refresh-summary",id:d.player.id})}),j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not refresh summary");setSummary(j.summary)}catch(e:any){setError(e?.message||"Could not refresh summary")}finally{setRefreshing(false)}}
   const status=String(summary?.status||"unknown"),generated=summary?.generatedAt?new Date(summary.generatedAt).toLocaleString():null,historical=Number(d.player.draft_class)<2027;
-  return <div className="profile-pane"><h2>Grades</h2><GradeHighlights d={d}/><MarketContext d={d}/><div className="profile-two"><section><h2>NFL Draft Result</h2><DraftResultSummary d={d}/></section><section className="profile-ai-summary"><div className="profile-ai-summary-head"><div><h2>AI Summary of Notes</h2><div className="profile-ai-meta"><span className={"profile-ai-state "+status}>{status==="fresh"?"Fresh":status==="stale"?"Needs refresh":status==="error"?"Unavailable":"No summary"}</span>{summary?.noteCount!=null&&<span>{summary.noteCount} note{summary.noteCount===1?"":"s"}</span>}{generated&&<span>Updated {generated}</span>}</div></div>{!historical&&<button className="ghost small" disabled={refreshing} onClick={()=>void refresh()}>{refreshing?"Refreshing…":"Refresh Summary"}</button>}</div><p>{summary?.text||d.notesSummary}</p>{error&&<div className="profile-transfer-error">{error}</div>}</section></div></div>
+  return <div className="profile-pane"><h2>Grades</h2><GradeHighlights d={d}/><div className="profile-two"><section><h2>NFL Draft Result</h2><DraftResultSummary d={d}/></section><section className="profile-ai-summary"><div className="profile-ai-summary-head"><div><h2>AI Summary of Notes</h2><div className="profile-ai-meta"><span className={"profile-ai-state "+status}>{status==="fresh"?"Fresh":status==="stale"?"Needs refresh":status==="error"?"Unavailable":"No summary"}</span>{summary?.noteCount!=null&&<span>{summary.noteCount} note{summary.noteCount===1?"":"s"}</span>}{generated&&<span>Updated {generated}</span>}</div></div>{!historical&&<button className="ghost small" disabled={refreshing} onClick={()=>void refresh()}>{refreshing?"Refreshing…":"Refresh Summary"}</button>}</div><p>{summary?.text||d.notesSummary}</p>{error&&<div className="profile-transfer-error">{error}</div>}</section></div></div>
 }
 function Timeline({d}:{d:any}){const events=Array.isArray(d.timeline)?d.timeline:[];return <div className="profile-pane profile-timeline-pane"><div className="profile-grade-detail-intro"><span className="ey">PROSPECT HISTORY</span><h2>Timeline</h2><p>Scouting games, transfers, milestones and workflow changes in chronological context.</p></div>{events.length?<div className="profile-timeline">{events.map((x:any,i:number)=><div className={"profile-timeline-item "+String(x.type||"event").toLowerCase()} key={String(x.id||i)+"-"+String(x.date||"")}><div className="profile-timeline-dot"/><div className="profile-timeline-copy"><div><span>{x.date?new Date(x.date).toLocaleString([],{year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"Date unavailable"}</span><b>{x.title}</b></div>{x.detail&&<p>{x.detail}</p>}</div></div>)}</div>:<div className="profile-grade-factor-empty">No timeline events are available yet.</div>}</div>}
 function factorDisplay(v:any){if(v==null||v==="")return "—";const n=Number(v);return Number.isFinite(n)?Number(n.toFixed(2)).toString():String(v)}
