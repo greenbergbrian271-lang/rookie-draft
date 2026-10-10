@@ -3,6 +3,13 @@ import {readFile} from "node:fs/promises";
 
 const read=(path)=>readFile(new URL("../"+path,import.meta.url),"utf8");
 const checks=[
+  ["lib/backup-data.ts",/historical_rankings/,"backup covers historical rankings"],
+  ["lib/backup-data.ts",/archived_players/,"backup covers archived players"],
+  ["lib/backup-data.ts",/pff_player_records/,"backup covers PFF import data"],
+  ["lib/backup-data.ts",/SETTINGS_EXCLUDED_KEYS=\[[^\]]*"integrations"/,"backup excludes integrations settings"],
+  ["lib/backup-data.ts",/no such table/,"backup tolerates lazily created tables"],
+  ["app/api/cron/critical-backup/route.ts",/readTables\(q,CORE_TABLES,true\)/,"nightly backup reads the full core table list"],
+  ["app/api/cron/critical-backup/route.ts",/status:500/,"nightly backup reports partial or unstored backups as failures"],
   ["proxy.ts",/Cross-site write blocked/,"same-origin write protection"],
   ["proxy.ts",/Owner authentication required/,"owner authentication protection"],
   ["lib/turso.ts",/create table if not exists audit_log/i,"audit schema"],
