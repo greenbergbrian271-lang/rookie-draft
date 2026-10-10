@@ -2,6 +2,29 @@
 import {createContext,useContext,useEffect,useState} from "react";
 import {nflTeamLogo} from "@/app/scouting/ScoutingShared";
 import PlayerImage from "@/components/PlayerImage";
+type ExpertRank = { overall:number; name:string; position:string; aliases:string[] };
+const CONNOR_2027:ExpertRank[] = [
+  {overall:1,name:"Jeremiah Smith",position:"WR",aliases:["Jeremiah Smith"]},
+  {overall:5,name:"Arch Manning",position:"QB",aliases:["Arch Manning"]},
+  {overall:6,name:"Cam Coleman",position:"WR",aliases:["Cam Coleman"]},
+  {overall:8,name:"CJ Carr",position:"QB",aliases:["CJ Carr","C.J. Carr"]},
+  {overall:9,name:"Dante Moore",position:"QB",aliases:["Dante Moore"]},
+  {overall:15,name:"Drew Mestemaker",position:"QB",aliases:["Drew Mestemaker"]},
+  {overall:17,name:"Jadan Bough",position:"RB",aliases:["Jadan Bough","Jadan Baugh"]},
+  {overall:18,name:"KJ Duff",position:"WR",aliases:["KJ Duff"]},
+  {overall:19,name:"Charlier Becker",position:"WR",aliases:["Charlier Becker","Charlie Becker"]},
+  {overall:22,name:"Kewan Lacy",position:"RB",aliases:["Kewan Lacy"]},
+  {overall:25,name:"Mario Craver",position:"WR",aliases:["Mario Craver"]},
+  {overall:35,name:"Trey’Dez Green",position:"TE",aliases:["Trey’Dez Green","Trey'Dez Green","Trey Dez Green"]},
+  {overall:37,name:"Jamari Johnson",position:"TE",aliases:["Jamari Johnson"]},
+  {overall:40,name:"Trinidad Chambliss",position:"QB",aliases:["Trinidad Chambliss"]},
+  {overall:41,name:"Ryan Coleman-Williams",position:"WR",aliases:["Ryan Coleman-Williams","Ryan Coleman Williams"]},
+  {overall:43,name:"Bryant Wesco",position:"WR",aliases:["Bryant Wesco","Bryant Wesco Jr."]},
+  {overall:44,name:"LaNorris Sellers",position:"QB",aliases:["LaNorris Sellers"]},
+  {overall:46,name:"Jayden Maiava",position:"QB",aliases:["Jayden Maiava"]},
+  {overall:48,name:"Nick Marsh",position:"WR",aliases:["Nick Marsh"]}
+];
+
 
 type Ctx={openPlayer:(id:string|number)=>void};
 const C=createContext<Ctx>({openPlayer:()=>{}});
@@ -77,21 +100,28 @@ function Industry({d}:{d:any}){
   const p=d.player||{},g=d.grades||{},pos=String(p.position||"").toUpperCase();
   const yourFantasy=verifiedRank(g.overallRank);
   const yourPos=verifiedRank(g.boardPositionRank)??verifiedRank(p.positionRank);
+  const normName=(v:any)=>String(v??"").toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+  const key=normName(p.name);
+  const connor=CONNOR_2027.find(x=>x.aliases.some(a=>normName(a)===key));
+  const fantasyPool=CONNOR_2027.filter(x=>["QB","RB","WR","TE"].includes(x.position)).sort((a,b)=>a.overall-b.overall);
+  const fantasyRank=connor&&["QB","RB","WR","TE"].includes(connor.position)?fantasyPool.findIndex(x=>x.overall===connor.overall)+1:null;
+  const positionRank=connor&&["QB","RB","WR","TE"].includes(connor.position)?fantasyPool.filter(x=>x.position===connor.position&&x.overall<connor.overall).length+1:null;
+  const delta=yourFantasy!=null&&fantasyRank!=null?fantasyRank-yourFantasy:null;
   return <div className="profile-pane profile-industry-pane">
-    <div className="profile-industry-banner"><div><b>Data accuracy</b><span>Placeholder expert ranks have been removed. The source links below are references only; rankings have not yet been imported into the app.</span></div><em>Does not affect grades</em></div>
-    <div className="profile-industry-explainer"><strong>What this tab means</strong><span>Experts rank every NFL prospect. We preserve each expert’s published overall rank, then calculate a separate fantasy-only rank using QB, RB, WR and TE prospects. Until verified source data is connected, consensus and comparisons stay unavailable rather than guessing.</span></div>
+    <div className="profile-industry-banner"><div><b>Verified source data</b><span>Connor Rogers’ September 3, 2026 preseason Top 50 is imported from NBC Sports. Fantasy-only ranks are derived by filtering that published board to QB, RB, WR and TE.</span></div><em>Does not affect grades</em></div>
+    <div className="profile-industry-explainer"><strong>How to read this</strong><span>Published NFL overall rank is preserved as context. Fantasy-only rank is the player’s order after non-fantasy positions are removed from Connor’s board. Consensus stays unavailable until a second independent, verified expert board is imported.</span></div>
     <div className="profile-industry-top profile-industry-top-simple">
       <article><span>Your Board</span><strong>{yourFantasy!=null?`Fantasy #${yourFantasy}`:"Fantasy —"}</strong><small>{yourPos!=null?`${pos}${yourPos}`:`${pos||"Position"} —`} · your Final Draft Board</small></article>
-      <article><span>Tracked Expert Consensus</span><strong>Not available</strong><small>Waiting for verified expert rankings</small></article>
-      <article><span>Difference</span><strong className="pending">Not calculated</strong><small>Requires a verified fantasy-only consensus rank</small></article>
+      <article><span>Connor Rogers · Fantasy</span><strong>{fantasyRank!=null?`#${fantasyRank}`:"Not ranked"}</strong><small>{positionRank!=null?`${connor?.position}${positionRank}`:"Not in published Top 50"} · derived from published board</small></article>
+      <article><span>You vs. Connor</span><strong className={delta==null?"pending":delta<0?"positive":delta>0?"negative":""}>{delta==null?"Not calculated":delta===0?"Even":delta>0?`You are ${delta} higher`:`You are ${Math.abs(delta)} lower`}</strong><small>{delta==null?"Requires both ranks":"Compared on fantasy-only ranks"}</small></article>
     </div>
-    <section className="profile-expert-section"><div className="profile-expert-head"><div><span className="ey">EXPERT BOARDS</span><h2>Your board vs. each analyst</h2><p>Published NFL overall rank will remain visible as context. The fair comparison is your fantasy-only rank against each analyst’s derived fantasy-only rank—not their full-board rank.</p></div><span className="profile-preview-pill profile-source-pending-pill">Source pending</span></div>
-      <div className="profile-expert-table-wrap"><table className="profile-expert-table"><thead><tr><th>Analyst</th><th>Published NFL OVR</th><th>Fantasy-only Rank</th><th>Pos Rank</th><th>Compared with You</th><th>Source</th></tr></thead><tbody>
-        <tr><td><div className="profile-expert-source"><strong>Connor Rogers</strong><span>NBC Sports · 2027 preseason top 50</span></div></td><td>Not imported</td><td>—</td><td>—</td><td><b className="profile-expert-delta pending">Unavailable</b></td><td><a className="profile-source-link" href="https://www.nbcsports.com/college-football/news/2027-nfl-draft-connor-rogers-preseason-top-50-rankings" target="_blank" rel="noreferrer">Open published board ↗</a></td></tr>
-        <tr><td><div className="profile-expert-source"><strong>Trevor Sikkema</strong><span>NFL Stock Exchange · 2027 top-50 video</span></div></td><td>Not imported</td><td>—</td><td>—</td><td><b className="profile-expert-delta pending">Unavailable</b></td><td><a className="profile-source-link" href="https://www.youtube.com/watch?v=iKGoXN-voiQ" target="_blank" rel="noreferrer">Open source video ↗</a></td></tr>
+    <section className="profile-expert-section"><div className="profile-expert-head"><div><span className="ey">EXPERT BOARDS</span><h2>Your board vs. each analyst</h2><p>Published NFL overall rank is the source’s actual rank. Fantasy-only and position ranks are derived from the source ordering, not copied or guessed.</p></div><span className="profile-preview-pill profile-source-pending-pill">Partial coverage</span></div>
+      <div className="profile-expert-table-wrap"><table className="profile-expert-table"><thead><tr><th>Analyst / source</th><th>Published NFL OVR</th><th>Fantasy-only Rank</th><th>Pos Rank</th><th>Compared with You</th><th>Source</th></tr></thead><tbody>
+        <tr><td><div className="profile-expert-source"><strong>Connor Rogers</strong><span>NBC Sports · Sep 3, 2026 · preseason Top 50</span></div></td><td>{connor?`#${connor.overall}`:"Not in Top 50"}</td><td>{fantasyRank!=null?`#${fantasyRank}`:"—"}</td><td>{positionRank!=null?`${connor?.position}${positionRank}`:"—"}</td><td><b className={"profile-expert-delta "+(delta==null?"pending":delta<0?"positive":delta>0?"negative":"")}>{delta==null?"Unavailable":delta===0?"Even":delta>0?`You are ${delta} higher`:`You are ${Math.abs(delta)} lower`}</b></td><td><a className="profile-source-link" href="https://www.nbcsports.com/college-football/news/2027-nfl-draft-connor-rogers-preseason-top-50-rankings" target="_blank" rel="noreferrer">Open published board ↗</a></td></tr>
+        <tr><td><div className="profile-expert-source"><strong>Trevor Sikkema</strong><span>NFL Stock Exchange · individual board not yet verified</span></div></td><td>—</td><td>—</td><td>—</td><td><b className="profile-expert-delta pending">Unavailable</b></td><td><a className="profile-source-link" href="https://www.youtube.com/watch?v=iKGoXN-voiQ" target="_blank" rel="noreferrer">Open source video ↗</a></td></tr>
       </tbody></table></div>
     </section>
-    <div className="profile-industry-foot"><b>Consensus rule</b><span>Once real rankings are imported, the app will preserve each analyst’s published NFL rank and derive Fantasy Rank and Position Rank from the same filtered QB/RB/WR/TE ordering. No synthetic rankings or consensus differences will be shown.</span></div>
+    <div className="profile-industry-foot"><b>Consensus rule</b><span>No consensus is shown yet: one verified expert board is not enough for consensus. Trevor’s individual ranks will remain blank until they can be extracted and checked against his actual published/video rankings. Expert data never affects scouting grades.</span></div>
   </div>
 }
 
