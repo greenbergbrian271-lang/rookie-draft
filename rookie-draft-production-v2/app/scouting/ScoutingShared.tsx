@@ -88,11 +88,34 @@ export function DraftAdjustmentPanel({preDraft,finalGrade,draftResult,draftTeam,
 }
 
 function splitMulti(value:any){return String(value??"").split(/\s*[|,]\s*/).map(x=>x.trim()).filter(Boolean)}
-export function MultiSelectField({label,value,options,onCommit}:{label:string,value:any,options:readonly string[],onCommit:(v:string)=>void|Promise<any>}){
+// Scout Inputs auto-populated from NFLSE (see lib/nflse.ts). A manual value always wins; NFLSE values live in
+// separate "NFLSE ..." evaluation categories and are display-only: they never enter grade calculations.
+export function scoutInput(vals:Record<string,any>,playerId:any,cat:"Archetype"|"Draft Projection"):{value:string,source:"Scout"|"NFLSE"}{
+  const has=(v:any)=>v!==undefined&&v!==null&&String(v).trim()!=="";
+  const manual=vals[playerId+"|"+cat];if(has(manual))return {value:String(manual),source:"Scout"};
+  const auto=vals[playerId+"|NFLSE "+cat];if(has(auto))return {value:String(auto),source:"NFLSE"};
+  return {value:"",source:"Scout"};
+}
+
+export function NflseSyncButton({draftClass}:{draftClass:number}){
+  const [state,setState]=useState<"idle"|"working"|"done"|"error">("idle"),[msg,setMsg]=useState("");
+  async function run(){
+    setState("working");setMsg("");
+    try{
+      const r=await fetch("/api/nflse-sync?draftClass="+draftClass,{method:"POST"}),j=await r.json();
+      if(!r.ok)throw new Error(j?.error||"Sync failed");
+      setState("done");setMsg(j.counts.matched+" matched · "+j.counts.unmatched+" not on NFLSE board");
+      setTimeout(()=>location.reload(),1200);
+    }catch(e:any){setState("error");setMsg(e?.message||"Sync failed")}
+  }
+  return <button type="button" className="status" onClick={run} disabled={state==="working"} title="Pull Draft Projection and Archetype from NFLSE. Your manual inputs are never overwritten.">{state==="working"?"Syncing NFLSE…":state==="done"?"NFLSE synced · "+msg:state==="error"?"NFLSE error: "+msg:"↻ Sync from NFLSE"}</button>
+}
+
+export function MultiSelectField({label,value,options,onCommit,source}:{label:string,value:any,options:readonly string[],onCommit:(v:string)=>void|Promise<any>,source?:string}){
   const [open,setOpen]=useState(false);
   const selected=useMemo(()=>splitMulti(value),[value]);
   const toggle=(option:string)=>{const next=selected.includes(option)?selected.filter(x=>x!==option):[...selected,option];onCommit(next.join(" | "))};
-  return <label className="qb-field qb-multi-field"><span>{label}<em>Scout</em></span><div className="qb-multi-select">
+  return <label className="qb-field qb-multi-field"><span>{label}<em>{source||"Scout"}</em></span><div className="qb-multi-select">
     <button type="button" className="qb-multi-trigger" onClick={e=>{e.preventDefault();setOpen(x=>!x)}}>{selected.length?selected.join(", "):"Select…"}<b>▾</b></button>
     {open&&<div className="qb-multi-menu">{options.map(option=><button type="button" key={option} className={selected.includes(option)?"selected":""} onClick={e=>{e.preventDefault();toggle(option)}}><span>{selected.includes(option)?"✓":""}</span>{option}</button>)}</div>}
   </div></label>

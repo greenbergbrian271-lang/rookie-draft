@@ -7,7 +7,7 @@ import {qbAnalyticalGrade} from "@/lib/analytical-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 import PriorFilmReport from "@/components/PriorFilmReport";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed,scoutInput} from "./ScoutingShared";
 
 type Player={
   id:string|number;
@@ -325,7 +325,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
         <div className="qb-context-grid">
           <ConstrainedField label="Expected role" value={inputValue(evalFor(p,"Expected Role"))} options={[...ROLE_OPTIONS]} onLocal={v=>local(p,"Expected Role",v)} onCommit={v=>persist(p,"Expected Role",v)}/>
           <ConstrainedField label="Archetype" value={inputValue(evalFor(p,"Archetype"))} options={[...ARCHETYPE_OPTIONS]} onLocal={v=>local(p,"Archetype",v)} onCommit={v=>persist(p,"Archetype",v)}/>
-          <ConstrainedField label="Draft projection" value={inputValue(evalFor(p,"Draft Projection"))} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
+          <ConstrainedField label="Draft projection" source={scoutInput(vals,p.id,"Draft Projection").source} value={scoutInput(vals,p.id,"Draft Projection").value} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
         </div>
         <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
           <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
@@ -398,7 +398,7 @@ function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedF
     {key:"gamesWatched",group:"Profile",label:"Games Watched",numeric:true,get:gameCountFor},
     {key:"role",group:"Profile",label:"Role",get:p=>inputValue(vals[p.id+"|Expected Role"])||"—"},
     {key:"archetype",group:"Profile",label:"Archetype",get:p=>inputValue(vals[p.id+"|Archetype"])||"—"},
-    {key:"draftProjection",group:"Profile",label:"Draft Projection",get:p=>inputValue(vals[p.id+"|Draft Projection"])||"—"},
+    {key:"draftProjection",group:"Profile",label:"Draft Projection",get:p=>scoutInput(vals,p.id,"Draft Projection").value||"—"},
     {key:"draftResult",group:"Profile",label:"Draft Result",get:p=>draftContextFor(p).result||"—"},
     ...FILM.map(label=>({key:"film-"+label,group:"Film",label,numeric:true,get:(p:Player)=>num(vals[p.id+"|"+label]),format:(v:any)=>v==null?"—":Number(v).toFixed(2)})),
     {key:"comp",group:"Production",label:"Comp %",numeric:true,get:(p:Player)=>num(importedFor(p)["Completion %"],true),format:(v:any)=>v==null?"—":(Number(v)*100).toFixed(1)+"%"},
@@ -479,11 +479,11 @@ function GradeCard({label,value,accent,hint}:{label:string,value:number|null,acc
 function GradePill({value}:{value:number|null}){return <div className="qb-grade-pill"><span>Grade</span><b>{value==null?"—":value.toFixed(2)}</b></div>}
 function Field({label,source,children}:{label:string,source:string,children:React.ReactNode}){return <label className="qb-field"><span>{label}<em>{source}</em></span>{children}</label>}
 function ReadOnly({label,value}:{label:string,value:any}){return <div className="qb-readonly"><span>{label}<em>Data</em></span><strong>{value==null||value===""?"—":String(value)}</strong></div>}
-function ConstrainedField({label,value,options,onLocal,onCommit}:{label:string,value:string,options:string[],onLocal:(v:string)=>void,onCommit:(v:string)=>void|Promise<any>}){
+function ConstrainedField({label,value,options,onLocal,onCommit,source}:{label:string,value:string,options:string[],onLocal:(v:string)=>void,onCommit:(v:string)=>void|Promise<any>,source?:string}){
   const isCustom=Boolean(value)&&!options.includes(value);
   const [other,setOther]=useState(isCustom);
   useEffect(()=>setOther(Boolean(value)&&!options.includes(value)),[value,options]);
-  return <Field label={label} source="Scout"><div className="qb-constrained">
+  return <Field label={label} source={source||"Scout"}><div className="qb-constrained">
     <select value={other?"Other":value} onChange={e=>{if(e.target.value==="Other"){setOther(true);onLocal("")}else{setOther(false);onLocal(e.target.value);onCommit(e.target.value)}}}>
       <option value="">Select…</option>{options.map(x=><option key={x}>{x}</option>)}<option>Other</option>
     </select>

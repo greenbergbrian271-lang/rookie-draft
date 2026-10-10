@@ -8,7 +8,7 @@ import {wrProductionGrade} from "@/lib/wr-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 import PriorFilmReport from "@/components/PriorFilmReport";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,ScoutingPlayerHero,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,ScoutingPlayerHero,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed,scoutInput} from "./ScoutingShared";
 
 type Player={
   id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;
@@ -349,8 +349,8 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         <div className="qb-section-head"><div><span className="ey">Scout Inputs</span><h2>Film Evaluation</h2><p>Seven WR traits retain the workbook weights while using the same focused interaction model as QB scouting.</p></div><div className="qb-completion">{filmComplete}/7 complete</div></div>
         <div className="qb-context-grid">
           <ConstrainedField label="Expected role" value={inputValue(evalFor(p,"Expected Role"))} options={[...ROLE_OPTIONS]} onLocal={v=>local(p,"Expected Role",v)} onCommit={v=>persist(p,"Expected Role",v)}/>
-          <MultiSelectField label="Archetype" value={evalFor(p,"Archetype")} options={ARCHETYPE_OPTIONS} onCommit={v=>persist(p,"Archetype",v)}/>
-          <ConstrainedField label="Draft projection" value={inputValue(evalFor(p,"Draft Projection"))} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
+          <MultiSelectField label="Archetype" source={scoutInput(vals,p.id,"Archetype").source} value={scoutInput(vals,p.id,"Archetype").value} options={ARCHETYPE_OPTIONS} onCommit={v=>persist(p,"Archetype",v)}/>
+          <ConstrainedField label="Draft projection" source={scoutInput(vals,p.id,"Draft Projection").source} value={scoutInput(vals,p.id,"Draft Projection").value} options={[...PROJECTION_OPTIONS]} onLocal={v=>local(p,"Draft Projection",v)} onCommit={v=>persist(p,"Draft Projection",v)}/>
         </div>
         <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
           <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
@@ -409,7 +409,7 @@ function CompareView({players,allPlayers,compareIds,setCompareIds,vals,importedF
   const [open,setOpen]=useState(false),[sortKey,setSortKey]=useState("rank"),[sortDir,setSortDir]=useState<"asc"|"desc">("asc");
   const metrics:M[]=[
     {key:"scouting",group:"Grades",label:"Scouting",numeric:true,get:scoutingFor,format:fmt},{key:"production",group:"Grades",label:"Production",numeric:true,get:productionFor,format:fmt},{key:"analytical",group:"Grades",label:"Analytical",numeric:true,get:analyticalFor,format:fmt},{key:"predraft",group:"Grades",label:"Pre-Draft",numeric:true,get:preDraftFor,format:fmt},{key:"final",group:"Grades",label:"Final",numeric:true,get:finalGradeFor,format:fmt},
-    {key:"games",group:"Profile",label:"Games Watched",numeric:true,get:gameCountFor},{key:"role",group:"Profile",label:"Role",get:p=>vals[p.id+"|Expected Role"]||"—"},{key:"archetype",group:"Profile",label:"Archetype",get:p=>vals[p.id+"|Archetype"]||"—"},{key:"proj",group:"Profile",label:"Draft Projection",get:p=>vals[p.id+"|Draft Projection"]||"—"},{key:"draftResult",group:"Profile",label:"Draft Result",get:p=>draftContextFor(p).result||"—"},
+    {key:"games",group:"Profile",label:"Games Watched",numeric:true,get:gameCountFor},{key:"role",group:"Profile",label:"Role",get:p=>vals[p.id+"|Expected Role"]||"—"},{key:"archetype",group:"Profile",label:"Archetype",get:p=>scoutInput(vals,p.id,"Archetype").value||"—"},{key:"proj",group:"Profile",label:"Draft Projection",get:p=>scoutInput(vals,p.id,"Draft Projection").value||"—"},{key:"draftResult",group:"Profile",label:"Draft Result",get:p=>draftContextFor(p).result||"—"},
     ...FILM.map(label=>({key:"film-"+label,group:"Film",label,numeric:true,get:(p:Player)=>num(vals[p.id+"|"+label]),format:(v:any)=>v==null?"—":Number(v).toFixed(2)})),
     ...STATS.map(([label,key,pct])=>({key:"stat-"+key,group:"Production",label,numeric:true,get:(p:Player)=>num(sourceValue(importedFor(p),key),pct),format:(v:any)=>v==null?"—":pct?(Number(v)*100).toFixed(1)+"%":Number(v).toFixed(label.includes("Yards")||label.includes("YPTPA")?2:0)})),
     ...ANALYTICS.map(a=>({key:"a-"+a.key,group:"Analytics",label:a.label+" %ile",numeric:true,get:(p:Player)=>{const m=metricDataFor(p).find((x:any)=>x.key===a.key);return m?.percentile==null?null:m.percentile*100},format:(v:any)=>v==null?"—":Math.round(Number(v)).toString()}))
@@ -426,8 +426,8 @@ function GradePill({value}:{value:number|null}){return <div className="qb-grade-
 function Field({label,source,children}:{label:string,source:string,children:React.ReactNode}){return <label className="qb-field"><span>{label}<em>{source}</em></span>{children}</label>}
 function ReadOnly({label,value}:{label:string,value:any}){return <div className="qb-readonly"><span>{label}<em>Data</em></span><strong>{value==null||value===""?"—":String(value)}</strong></div>}
 function Stat({label,value}:{label:string,value:any}){return <div className="qb-stat-card"><span>{label}</span><strong>{value}</strong></div>}
-function ConstrainedField({label,value,options,onLocal,onCommit}:{label:string,value:string,options:string[],onLocal:(v:string)=>void,onCommit:(v:string)=>void|Promise<any>}){
+function ConstrainedField({label,value,options,onLocal,onCommit,source}:{label:string,value:string,options:string[],onLocal:(v:string)=>void,onCommit:(v:string)=>void|Promise<any>,source?:string}){
   const isCustom=Boolean(value)&&!options.includes(value),[other,setOther]=useState(isCustom);
   useEffect(()=>setOther(Boolean(value)&&!options.includes(value)),[value,options]);
-  return <Field label={label} source="Scout"><div className="qb-constrained"><select value={other?"Other":value} onChange={e=>{if(e.target.value==="Other"){setOther(true);onLocal("")}else{setOther(false);onLocal(e.target.value);onCommit(e.target.value)}}}><option value="">Select…</option>{options.map(x=><option key={x}>{x}</option>)}<option>Other</option></select>{other&&<input value={value} onChange={e=>onLocal(e.target.value)} onBlur={e=>onCommit(e.target.value)} placeholder={"Other "+label.toLowerCase()+"…"}/>}</div></Field>
+  return <Field label={label} source={source||"Scout"}><div className="qb-constrained"><select value={other?"Other":value} onChange={e=>{if(e.target.value==="Other"){setOther(true);onLocal("")}else{setOther(false);onLocal(e.target.value);onCommit(e.target.value)}}}><option value="">Select…</option>{options.map(x=><option key={x}>{x}</option>)}<option>Other</option></select>{other&&<input value={value} onChange={e=>onLocal(e.target.value)} onBlur={e=>onCommit(e.target.value)} placeholder={"Other "+label.toLowerCase()+"…"}/>}</div></Field>
 }
