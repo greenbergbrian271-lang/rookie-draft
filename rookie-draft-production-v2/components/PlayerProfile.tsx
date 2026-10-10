@@ -68,35 +68,30 @@ function gradePct(value:any){const n=Number(value);return Number.isFinite(n)?Mat
 function GradeHighlights({d}:{d:any}){const g=d.grades,p=d.player,items=[{label:"Scouting",value:g.scouting,key:"scouting"},{label:"Production",value:g.production,key:"production",hide:p.position==="QB"},{label:"Analytical",value:g.analytical,key:"analytical"},{label:"Pre-Draft",value:g.pre,key:"predraft"},{label:"Final",value:g.final,key:"final"}].filter(x=>!x.hide);return <div className="profile-grade-showcase">{items.map(x=><div className={"profile-grade-highlight "+x.key} key={x.key}><div><span>{x.label} Grade</span>{x.key==="final"&&<em>Composite</em>}</div><strong>{fmt(x.value)}</strong><div className="profile-grade-meter"><i style={{width:gradePct(x.value)+"%"}}/></div></div>)}</div>}
 function draftResultParts(result:any,team:any){const raw=String(result??"").trim(),tm=String(team??"").trim();if(!raw||/^(pending|tbd|not drafted yet)$/i.test(raw))return {pending:true,pick:"Not drafted yet",team:""};let pick=raw;const direct=raw.match(/Pick\s+(\d+)/i),legacy=raw.match(/^(\d+)\.(\d+)/);if(direct)pick="Pick "+direct[1];else if(legacy)pick="Pick "+Number(legacy[2]);else if(raw.includes(","))pick=raw.slice(0,raw.lastIndexOf(",")).trim();return {pending:false,pick,team:tm||(raw.includes(",")?raw.slice(raw.lastIndexOf(",")+1).trim():"")}}
 function DraftResultSummary({d}:{d:any}){const g=d.grades,parts=draftResultParts(g.draftResult??g.values?.["Draft Result"],g.draftTeam);return parts.pending?<div className="profile-draft-pending">Not drafted yet</div>:<div className="profile-draft-result"><div className="profile-draft-logo"><img src={nflTeamLogo(parts.team)} alt=""/></div><div><span>{parts.pick}</span><strong>{parts.team||"NFL Team"}</strong></div></div>}
-function previewIndustryData(d:any){
-  const p=d.player||{},g=d.grades||{},pos=String(p.position||"").toUpperCase();
-  const overallRaw=Number(g.overallRank),posRaw=Number(g.boardPositionRank),posLabel=Number(String(p.positionRank||"").replace(/\D/g,""));
-  const yourFantasy=Number.isFinite(overallRaw)?overallRaw:null,yourPos=Number.isFinite(posRaw)?posRaw:(Number.isFinite(posLabel)?posLabel:null);
-  const seed=String(p.name||"Preview").split("").reduce((a:number,c:string)=>a+c.charCodeAt(0),0);
-  const baseFantasy=yourFantasy??Math.max(3,8+(seed%8)),basePos=yourPos??Math.max(1,2+(seed%4));
-  const makeExpert=(name:string,fantasyOffset:number,posOffset:number,rawOffset:number)=>{const posRank=Math.max(1,basePos+posOffset),fantasyRank=Math.max(posRank,Math.max(1,baseFantasy+fantasyOffset));return {name,published:fantasyRank+rawOffset,fantasy:fantasyRank,pos:posRank}};
-  const experts=[makeExpert("Connor Rogers",2+(seed%3),1,13+(seed%5)),makeExpert("Trevor Sikkema",3+((seed*3)%4),1+((seed*5)%2),15+(seed%6))];
-  const consensusPos=Math.max(1,Math.round(experts.reduce((a:number,e:any)=>a+e.pos,0)/experts.length));
-  const consensusFantasy=Math.max(consensusPos,Math.round(experts.reduce((a:number,e:any)=>a+e.fantasy,0)/experts.length));
-  return {pos,yourFantasy,yourPos,experts,consensusFantasy,consensusPos};
-}
-function rankDelta(y:number|null,c:number){
-  if(y==null)return {text:"Your rank unavailable",tone:""};
-  const diff=c-y;if(diff===0)return {text:"Aligned",tone:"aligned"};
-  return diff>0?{text:`You are ${diff} higher`,tone:"higher"}:{text:`You are ${Math.abs(diff)} lower`,tone:"lower"};
+function verifiedRank(value:any){
+  if(value===null||value===undefined||String(value).trim()==="")return null;
+  const n=Number(String(value).replace(/[^0-9]/g,""));
+  return Number.isInteger(n)&&n>0?n:null;
 }
 function Industry({d}:{d:any}){
-  const x=previewIndustryData(d),fantasyDelta=rankDelta(x.yourFantasy,x.consensusFantasy),posDelta=rankDelta(x.yourPos,x.consensusPos);
+  const p=d.player||{},g=d.grades||{},pos=String(p.position||"").toUpperCase();
+  const yourFantasy=verifiedRank(g.overallRank);
+  const yourPos=verifiedRank(g.boardPositionRank)??verifiedRank(p.positionRank);
   return <div className="profile-pane profile-industry-pane">
-    <div className="profile-industry-banner"><div><b>Visual preview</b><span>Connor/Trevor ranks are sample values until live source ingestion is wired.</span></div><em>Expert rankings never affect grades</em></div>
-    <div className="profile-industry-explainer"><strong>What this tab means</strong><span>Experts rank every NFL prospect. We preserve their published NFL rank, then remove non-QB/RB/WR/TE players to create a fantasy-only rank that can be compared fairly with your board.</span></div>
+    <div className="profile-industry-banner"><div><b>Data accuracy</b><span>Placeholder expert ranks have been removed. The source links below are references only; rankings have not yet been imported into the app.</span></div><em>Does not affect grades</em></div>
+    <div className="profile-industry-explainer"><strong>What this tab means</strong><span>Experts rank every NFL prospect. We preserve each expert’s published overall rank, then calculate a separate fantasy-only rank using QB, RB, WR and TE prospects. Until verified source data is connected, consensus and comparisons stay unavailable rather than guessing.</span></div>
     <div className="profile-industry-top profile-industry-top-simple">
-      <article><span>Your Board</span><strong>{x.yourFantasy!=null?`Fantasy #${x.yourFantasy}`:"Fantasy —"}</strong><small>{x.yourPos!=null?`${x.pos}${x.yourPos}`:`${x.pos||"Pos"} —`} · your Final Draft Board</small></article>
-      <article><span>Tracked Expert Consensus</span><strong>Fantasy #{x.consensusFantasy}</strong><small>{x.pos}{x.consensusPos} · Connor + Trevor</small></article>
-      <article><span>Difference</span><strong className={fantasyDelta.tone}>{fantasyDelta.text}</strong><small className={posDelta.tone}>{posDelta.text} at {x.pos||"position"}</small></article>
+      <article><span>Your Board</span><strong>{yourFantasy!=null?`Fantasy #${yourFantasy}`:"Fantasy —"}</strong><small>{yourPos!=null?`${pos}${yourPos}`:`${pos||"Position"} —`} · your Final Draft Board</small></article>
+      <article><span>Tracked Expert Consensus</span><strong>Not available</strong><small>Waiting for verified expert rankings</small></article>
+      <article><span>Difference</span><strong className="pending">Not calculated</strong><small>Requires a verified fantasy-only consensus rank</small></article>
     </div>
-    <section className="profile-expert-section"><div className="profile-expert-head"><div><span className="ey">EXPERT BOARDS</span><h2>Your board vs. each analyst</h2><p>The comparison uses Fantasy-only Rank. Published NFL OVR stays visible only as context because their boards also contain OL, EDGE, CB, S and other non-fantasy positions.</p></div><span className="profile-preview-pill">Sample ranks</span></div><div className="profile-expert-table-wrap"><table className="profile-expert-table"><thead><tr><th>Analyst</th><th>Published NFL OVR</th><th>Fantasy-only Rank</th><th>Pos Rank</th><th>Compared with You</th></tr></thead><tbody>{x.experts.map((e:any)=>{const delta=rankDelta(x.yourFantasy,e.fantasy);return <tr key={e.name}><td><div className="profile-expert-source"><strong>{e.name}</strong><span>NFL Stock Exchange</span></div></td><td>#{e.published}</td><td>#{e.fantasy}</td><td>{x.pos}{e.pos}</td><td><b className={"profile-expert-delta "+delta.tone}>{delta.text}</b></td></tr>})}</tbody></table></div></section>
-    <div className="profile-industry-foot"><b>Consensus rule</b><span>The live version will build one consensus ordering from the experts you choose to include, then derive both Fantasy Rank and Position Rank from that same ordering so the numbers cannot contradict each other.</span></div>
+    <section className="profile-expert-section"><div className="profile-expert-head"><div><span className="ey">EXPERT BOARDS</span><h2>Your board vs. each analyst</h2><p>Published NFL overall rank will remain visible as context. The fair comparison is your fantasy-only rank against each analyst’s derived fantasy-only rank—not their full-board rank.</p></div><span className="profile-preview-pill profile-source-pending-pill">Source pending</span></div>
+      <div className="profile-expert-table-wrap"><table className="profile-expert-table"><thead><tr><th>Analyst</th><th>Published NFL OVR</th><th>Fantasy-only Rank</th><th>Pos Rank</th><th>Compared with You</th><th>Source</th></tr></thead><tbody>
+        <tr><td><div className="profile-expert-source"><strong>Connor Rogers</strong><span>NBC Sports · 2027 preseason top 50</span></div></td><td>Not imported</td><td>—</td><td>—</td><td><b className="profile-expert-delta pending">Unavailable</b></td><td><a className="profile-source-link" href="https://www.nbcsports.com/college-football/news/2027-nfl-draft-connor-rogers-preseason-top-50-rankings" target="_blank" rel="noreferrer">Open published board ↗</a></td></tr>
+        <tr><td><div className="profile-expert-source"><strong>Trevor Sikkema</strong><span>NFL Stock Exchange · 2027 top-50 video</span></div></td><td>Not imported</td><td>—</td><td>—</td><td><b className="profile-expert-delta pending">Unavailable</b></td><td><a className="profile-source-link" href="https://www.youtube.com/watch?v=iKGoXN-voiQ" target="_blank" rel="noreferrer">Open source video ↗</a></td></tr>
+      </tbody></table></div>
+    </section>
+    <div className="profile-industry-foot"><b>Consensus rule</b><span>Once real rankings are imported, the app will preserve each analyst’s published NFL rank and derive Fantasy Rank and Position Rank from the same filtered QB/RB/WR/TE ordering. No synthetic rankings or consensus differences will be shown.</span></div>
   </div>
 }
 

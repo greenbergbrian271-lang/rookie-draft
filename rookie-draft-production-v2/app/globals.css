@@ -638,3 +638,14 @@
 .profile-industry-explainer{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:12px 14px;border:1px solid #2b4c70;border-radius:10px;background:#09192d}.profile-industry-explainer strong{color:#d7e7f8;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.profile-industry-explainer span{color:#91a8c5;font-size:9px;line-height:1.5}.profile-industry-top-simple{grid-template-columns:repeat(3,minmax(0,1fr))}.profile-industry-top-simple article:nth-child(3) strong.higher,.profile-industry-top-simple article:nth-child(3) small.higher{color:#70dba8}.profile-industry-top-simple article:nth-child(3) strong.lower,.profile-industry-top-simple article:nth-child(3) small.lower{color:#ff91a1}.profile-industry-top-simple article:nth-child(3) strong.aligned,.profile-industry-top-simple article:nth-child(3) small.aligned{color:#ffd166}
 .board-industry-preview-label{display:inline-block;margin-left:4px;padding:2px 5px;border:1px solid #2c7775;border-radius:999px;color:#64ddd8;font-size:6px;font-weight:950;text-transform:uppercase;vertical-align:1px}.board-industry-cell{display:grid;gap:3px;min-width:92px}.board-industry-cell strong{color:#e7f2ff;font-size:11px;font-variant-numeric:tabular-nums}.board-industry-cell strong span{color:#7895b7;font-size:8px}.board-industry-cell small{font-size:8px;font-weight:900}.board-industry-cell small.higher{color:#70dba8}.board-industry-cell small.lower{color:#ff91a1}.board-industry-cell small.aligned{color:#ffd166}
 @media(max-width:900px){.profile-industry-top-simple{grid-template-columns:1fr}.profile-industry-explainer{grid-template-columns:1fr}}
+
+/* Industry data integrity: never display fabricated rankings while source ingestion is pending */
+.profile-industry-top-simple article:nth-child(3) strong.pending,
+.profile-industry-top-simple article:nth-child(3) small.pending,
+.profile-expert-delta.pending{color:#9bb0c9}
+.profile-source-pending-pill{border-color:#6b5a30;color:#f4c66a;background:rgba(244,198,106,.06)}
+.profile-source-link{color:#68ddd7;font-size:8px;font-weight:900;text-decoration:none;white-space:nowrap}
+.profile-source-link:hover{text-decoration:underline}
+.profile-expert-table td{vertical-align:middle}
+.board-industry-preview-label{border-color:#6b5a30;color:#f4c66a}
+.board-industry-cell small.pending{color:#8fa7c4}
