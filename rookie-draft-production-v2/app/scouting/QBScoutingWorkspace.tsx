@@ -1,4 +1,5 @@
 "use client";
+import {GameNoteField,NewGameForm} from "./GameNoteField";
 
 import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
@@ -128,6 +129,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
   const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
   const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed(draftClass);
+  const sessionCounts=Object.keys(sessions).sort().map(k=>k+":"+sessions[k].length).join("|");
 
   useEffect(()=>{window.scrollTo({top:0,left:0,behavior:"auto"})},[]);
 
@@ -242,8 +244,8 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
     if(ga==null)return 1;if(gb==null)return -1;
     return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
-  }),[players,vals,imports,glossary,sessions,draftPicks,gradeOverrides,archiveMode]);
-  const visiblePlayers=useMemo(()=>zeroGamesOnly?rankedPlayers.filter(p=>gameCountFor(p)<1):rankedPlayers,[rankedPlayers,zeroGamesOnly,sessions]);
+  }),[players,vals,imports,glossary,sessionCounts,draftPicks,gradeOverrides,archiveMode]);
+  const visiblePlayers=useMemo(()=>zeroGamesOnly?rankedPlayers.filter(p=>gameCountFor(p)<1):rankedPlayers,[rankedPlayers,zeroGamesOnly,sessionCounts]);
   const filtered=useMemo(()=>{const q=norm(search);return visiblePlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[visiblePlayers,search]);
 
   const combinePopulation=useMemo(()=>({
@@ -273,9 +275,9 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     }
     await fetch("/api/scouting-sessions",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:session.id,opponent:next.opponent,gameDate:next.game_date,rawNotes:next.raw_notes,overallWriteup:next.overall_writeup})});
   }
-  async function addSession(p:Player){
+  async function addSession(p:Player,override?:{opponent:string;notes:string}){
     if(archiveMode)return;
-    const id=String(p.id),draft=newGame[id]||{opponent:"",notes:""};
+    const id=String(p.id),draft=override||newGame[id]||{opponent:"",notes:""};
     if(!draft.opponent.trim()&&!draft.notes.trim())return;
     if(demoMode){
       const s:Session={id:"demo-"+Date.now(),opponent:draft.opponent||"New game",raw_notes:draft.notes,legacy:true};
@@ -342,8 +344,8 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
         </div>
         <div className="qb-game-log">
           <div className="qb-section-head compact"><div><span className="ey">Game Log</span><h2>Scouting Commentary</h2><p>One entry per game, newest first.</p></div><div className="qb-game-log-actions"><button className="ghost" onClick={()=>setNewGameOpen(x=>({...x,[id]:!x[id]}))}>+ Add game</button><button type="button" className="ghost qb-game-log-toggle" onClick={e=>{const log=e.currentTarget.closest(".qb-game-log");log?.classList.toggle("collapsed");const root=e.currentTarget.closest(".qb-scouting-pane");const logs=Array.from(root?.querySelectorAll(".qb-game-log")||[]);const allCollapsed=logs.length>0&&logs.every(item=>item.classList.contains("collapsed"));root?.querySelector(".qb-game-log-global-toggle")?.setAttribute("aria-pressed",String(allCollapsed))}}><span className="qb-game-log-toggle-expanded">Minimize game cards</span><span className="qb-game-log-toggle-collapsed">Show game cards</span></button></div></div>
-          {newGameOpen[id]&&<div className="qb-game-note new"><input value={draft.opponent} onChange={e=>setNewGame(x=>({...x,[id]:{...draft,opponent:e.target.value}}))} placeholder="Game label — e.g. 2026 · Ohio State"/><textarea value={draft.notes} onChange={e=>setNewGame(x=>({...x,[id]:{...draft,notes:e.target.value}}))} placeholder="Notes from this game…"/><div className="row-actions"><button onClick={()=>addSession(p)}>Add to top</button><button className="ghost" onClick={()=>setNewGameOpen(x=>({...x,[id]:false}))}>Cancel</button></div></div>}
-          {(sessions[id]||[]).length?(sessions[id]||[]).map((s,i)=><div className="qb-game-note" key={String(s.id)}><div className="qb-game-note-head"><span>{i===0?"Latest":"Game "+(i+1)}</span><input value={s.opponent||""} onChange={e=>setSessions(x=>({...x,[id]:(x[id]||[]).map(y=>String(y.id)===String(s.id)?{...y,opponent:e.target.value}:y)}))} onBlur={e=>saveSession(p,s,{opponent:e.target.value})} placeholder="Season · Opponent"/></div><textarea value={s.raw_notes||""} onChange={e=>setSessions(x=>({...x,[id]:(x[id]||[]).map(y=>String(y.id)===String(s.id)?{...y,raw_notes:e.target.value}:y)}))} onBlur={e=>saveSession(p,s,{raw_notes:e.target.value})}/></div>):<div className="qb-game-empty">No game notes yet. Add the first game above.</div>}
+          {newGameOpen[id]&&<NewGameForm opponentPlaceholder="Game label — e.g. 2026 · Ohio State" notesPlaceholder="Notes from this game…" onAdd={d=>addSession(p,d)} onCancel={()=>setNewGameOpen(x=>({...x,[id]:false}))}/>}
+          {(sessions[id]||[]).length?(sessions[id]||[]).map((s,i)=><div className="qb-game-note" key={String(s.id)}><div className="qb-game-note-head"><span>{i===0?"Latest":"Game "+(i+1)}</span><GameNoteField as="input" value={s.opponent||""} onCommit={v=>saveSession(p,s,{opponent:v})} placeholder="Season · Opponent"/></div><GameNoteField value={s.raw_notes||""} onCommit={v=>saveSession(p,s,{raw_notes:v})}/></div>):<div className="qb-game-empty">No game notes yet. Add the first game above.</div>}
         </div>
       </div>}
 
