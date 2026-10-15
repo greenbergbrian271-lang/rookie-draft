@@ -30,13 +30,18 @@ export function nflTeamLogo(team:any){
 }
 
 
+const draftFeedCache=new Map<number,{picks:DraftPick[];updatedAt:string|null;sig:string;at:number}>();
 export function useDraftFeed(draftClass=2027){
-  const [picks,setPicks]=useState<DraftPick[]>([]);
-  const [updatedAt,setUpdatedAt]=useState<string|null>(null);
+  const seed=draftFeedCache.get(draftClass);
+  const [picks,setPicks]=useState<DraftPick[]>(seed?.picks||[]);
+  const [updatedAt,setUpdatedAt]=useState<string|null>(seed?.updatedAt??null);
   useEffect(()=>{
     let live=true;
-    const load=()=>fetch("/api/nfl-draft-results?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!live)return;if(Array.isArray(j?.picks))setPicks(j.picks);else setPicks([]);setUpdatedAt(String(j?.updatedAt||new Date().toISOString()))}).catch(()=>{if(live)setPicks([])});
-    load();
+    // Only touch state when the picks really changed: the old 60s poll swapped in a new array every minute, forcing a full re-grade/re-render of every card for nothing.
+    const apply=(next:DraftPick[],at:string)=>{const sig=JSON.stringify(next),cur=draftFeedCache.get(draftClass);if(cur&&cur.sig===sig){draftFeedCache.set(draftClass,{...cur,at:Date.now()});return}draftFeedCache.set(draftClass,{picks:next,updatedAt:at,sig,at:Date.now()});if(live){setPicks(next);setUpdatedAt(at)}};
+    const load=()=>fetch("/api/nfl-draft-results?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!live)return;apply(Array.isArray(j?.picks)?j.picks:[],String(j?.updatedAt||new Date().toISOString()))}).catch(()=>{if(live&&!draftFeedCache.has(draftClass))setPicks([])});
+    const cur=draftFeedCache.get(draftClass);
+    if(!cur||Date.now()-cur.at>60000)load();
     const timer=draftClass>=2027?setInterval(load,60000):null;
     return()=>{live=false;if(timer)clearInterval(timer)};
   },[draftClass]);
