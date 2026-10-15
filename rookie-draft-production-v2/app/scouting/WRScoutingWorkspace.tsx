@@ -386,7 +386,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
         </div>
         <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
           <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
-          <GradeSlider className="qb-grade-slider heat" value={n??50} onCommit={value=>persist(p,trait,value}/>
+          <GradeSlider className="qb-grade-slider heat" value={n??50} onCommit={value=>persist(p,trait,value)}/>
           <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
           <input className="qb-grade-number" type="number" min="0" max="100" step=".01" value={inputValue(evalFor(p,trait))} onChange={e=>local(p,trait,e.target.value)} onBlur={e=>persist(p,trait,e.target.value===""?"":Math.round(Number(e.target.value)*100)/100)} placeholder="—"/>
         </div>})}</div>
