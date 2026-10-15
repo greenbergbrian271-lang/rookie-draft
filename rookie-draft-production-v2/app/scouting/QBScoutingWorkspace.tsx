@@ -9,7 +9,7 @@ import {qbAnalyticalGrade} from "@/lib/analytical-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 import PriorFilmReport from "@/components/PriorFilmReport";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed,GradeSlider,useGradeMemo} from "./ScoutingShared";
 
 type Player={
   id:string|number;
@@ -129,7 +129,11 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const [sessions,setSessions]=useState<Record<string,Session[]>>(()=>demoMode||archiveMode?{}:seedSessions(players));
   const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
   const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
-  const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed(draftClass);
+  const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed(draftClass,glossary);
+  const gradeOverrideSignature=JSON.stringify(gradeOverrides),priorReportSignature=archiveMode?JSON.stringify(priorReports):"";
+  const gradeContext=useMemo(()=>({players,imports,glossary,draftPicks,gradeOverrideSignature,priorReportSignature,archiveMode,demoMode}),[players,imports,glossary,draftPicks,gradeOverrideSignature,priorReportSignature,archiveMode,demoMode]);
+  const memoGrade=useGradeMemo(gradeContext,vals,sessions,gradeOverrides);
+
   const sessionCounts=Object.keys(sessions).sort().map(k=>k+":"+sessions[k].length).join("|");
   useEffect(()=>{if(demoMode||archiveMode)return;for(const id of Object.keys(sessions))rememberSessions(id,sessions[id])},[sessions,demoMode,archiveMode]);
 
@@ -195,8 +199,11 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     return out;
   }
   function manualScoutingFor(p:Player){
+    return memoGrade("manualScoutingFor",p,()=>{
     const grades=FILM.map(x=>num(evalFor(p,x))??NaN);
     return workbookScoutingGrade("QB",grades,fieldsFor(p),(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+  
+    });
   }
   function metricDataFor(p:Player){
     const imp=importedFor(p),all=percentileImports.filter(r=>r&&norm(r.Player||String(r["Player, College"]||"").split(",")[0]));
@@ -220,27 +227,42 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     });
   }
   function analyticalFor(p:Player){
+    return memoGrade("analyticalFor",p,()=>{
     if(archiveMode)return archivedGrade(p,"analytical") as number|null;
     const seed=manualScoutingFor(p)??Number.NaN,metrics=metricDataFor(p),imp=importedFor(p);
     const record=Object.fromEntries(metrics.map(x=>[x.sheet,x.percentile])) as Record<string,number|null>;
     record.pressureToSack=num(imp?.["Pressure-to-Sack %"],true);
     const grade=qbAnalyticalGrade(seed,record,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
     return Number.isFinite(grade)?grade:null;
+  
+    });
   }
   function scoutingFor(p:Player){
+    return memoGrade("scoutingFor",p,()=>{
     if(archiveMode)return archivedGrade(p,"scouting") as number|null;
     const manual=manualScoutingFor(p);if(gameCountFor(p)>=1)return manual;
     return analyticalFor(p);
+  
+    });
   }
   function preDraftFor(p:Player){
+    return memoGrade("preDraftFor",p,()=>{
     if(archiveMode)return archivedGrade(p,"pre") as number|null;
     const scout=scoutingFor(p);if(scout==null)return null;
     return preDraftGrade("QB",scout,null,analyticalFor(p),false,(glossary.length?glossary:undefined) as GlossaryRows|undefined);
+  
+    });
   }
   function draftContextFor(p:Player){const fields=fieldsFor(p);return resolveDraftContext("QB",p.name,draftPicks,{result:fields["Draft Result"],teamScore:fields["Team Score (10)"],draftCapitalScore:fields["Draft Capital Score (10)"]})}
-  function finalGradeFor(p:Player){if(archiveMode)return archivedGrade(p,"final") as number|null;const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("QB",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre}
+  function finalGradeFor(p:Player){
+    return memoGrade("finalGradeFor",p,()=>{if(archiveMode)return archivedGrade(p,"final") as number|null;const pre=preDraftFor(p);if(pre==null)return null;const d=draftContextFor(p);return d.finalized?draftAdjustedFinalGrade("QB",pre,d.teamScore,d.draftCapitalScore,(glossary.length?glossary:undefined) as GlossaryRows|undefined):pre
+    });
+  }
 
-  function rankingGradeFor(p:Player){return finalGradeFor(p)}
+  function rankingGradeFor(p:Player){
+    return memoGrade("rankingGradeFor",p,()=>{return finalGradeFor(p)
+    });
+  }
   const rankedPlayers=useMemo(()=>[...players].sort((a,b)=>{
     const ga=rankingGradeFor(a),gb=rankingGradeFor(b);
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
@@ -333,7 +355,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
         </div>
         <div className="qb-film-grid">{FILM.map(trait=>{const n=num(evalFor(p,trait));return <div className="qb-trait-card" key={trait} style={{"--heat":heatColor((n??50)/100)} as any}>
           <div className="qb-trait-head"><div><span>{trait}</span><small>{scoreLabel(n)}</small></div><strong>{n==null?"—":n.toFixed(2)}</strong></div>
-          <input className="qb-grade-slider heat" style={{color:heatColor((n??50)/100)}} type="range" min="0" max="100" step=".25" value={n??50} onChange={e=>local(p,trait,Number(e.target.value))} onPointerUp={e=>persist(p,trait,Number((e.target as HTMLInputElement).value))}/>
+          <GradeSlider className="qb-grade-slider heat" style={{color:heatColor((n??50)/100)}} value={n??50} onCommit={value=>persist(p,trait,value)}/>
           <div className="qb-trait-scale"><span>0</span><span>50</span><span>100</span></div>
           <input className="qb-grade-number" type="number" min="0" max="100" step=".01" value={inputValue(evalFor(p,trait))} onChange={e=>local(p,trait,e.target.value)} onBlur={e=>persist(p,trait,e.target.value===""?"":Math.round(Number(e.target.value)*100)/100)} placeholder="—"/>
         </div>})}</div>
