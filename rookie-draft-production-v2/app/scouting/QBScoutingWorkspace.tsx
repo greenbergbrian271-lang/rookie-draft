@@ -1,5 +1,6 @@
 "use client";
 import {GameNoteField,NewGameForm} from "./GameNoteField";
+import {cachedColleges,loadColleges,loadSessions,rememberSessions,seedSessions} from "./scouting-cache";
 
 import {Fragment,useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
@@ -125,11 +126,12 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
   const [mode,setMode]=useState<Mode>("Evaluate");
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [saveState,setSaveState]=useState<"saved"|"saving"|"error">("saved");
-  const [sessions,setSessions]=useState<Record<string,Session[]>>({});
+  const [sessions,setSessions]=useState<Record<string,Session[]>>(()=>demoMode||archiveMode?{}:seedSessions(players));
   const [newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({});
   const [newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
   const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed(draftClass);
   const sessionCounts=Object.keys(sessions).sort().map(k=>k+":"+sessions[k].length).join("|");
+  useEffect(()=>{if(demoMode||archiveMode)return;for(const id of Object.keys(sessions))rememberSessions(id,sessions[id])},[sessions,demoMode,archiveMode]);
 
   useEffect(()=>{window.scrollTo({top:0,left:0,behavior:"auto"})},[]);
 
@@ -175,7 +177,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
         setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]});
         continue;
       }
-      fetch("/api/scouting-sessions?playerId="+encodeURIComponent(id),{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((rows:any[])=>{
+      loadSessions(id,draftClass).then((rows:any[])=>{
         const live=Array.isArray(rows)?rows:[],fallback=!live.length&&legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[];
         setSessions(x=>x[id]?x:{...x,[id]:live.length?live:fallback});
       }).catch(()=>setSessions(x=>x[id]?x:{...x,[id]:legacy?[{id:"legacy-"+id,opponent:legacyLabel||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]}));

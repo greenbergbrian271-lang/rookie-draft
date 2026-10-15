@@ -2,7 +2,18 @@ import {ensureTursoSchema,rows} from "@/lib/turso";
 
 export async function GET(req:Request){
   try{
-    const id=new URL(req.url).searchParams.get("playerId");
+    const params=new URL(req.url).searchParams,id=params.get("playerId"),draftClass=Number(params.get("draftClass")||0);
+    if(!id&&draftClass){
+      // Batched load: every player's sessions for a class in one query (used by /scouting to avoid one request per player)
+      const c=await ensureTursoSchema();
+      const all=rows(await c.execute({
+        sql:"select s.id,s.player_id,s.game_date,s.opponent,s.raw_notes,s.overall_writeup,s.grade_snapshot,s.created_at from scouting_sessions s join players p on p.id=s.player_id where p.draft_class=? order by coalesce(s.game_date,s.created_at) desc,s.id desc",
+        args:[draftClass]
+      }));
+      const byPlayer:Record<string,any[]>={};
+      for(const r of all){(byPlayer[String(r.player_id)]||=[]).push(r)}
+      return Response.json({byPlayer});
+    }
     if(!id)return Response.json({error:"playerId required"},{status:400});
     const c=await ensureTursoSchema();
     return Response.json(rows(await c.execute({

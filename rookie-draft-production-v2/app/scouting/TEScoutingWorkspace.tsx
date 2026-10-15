@@ -1,5 +1,6 @@
 "use client";
 import {GameNoteField,NewGameForm} from "./GameNoteField";
+import {cachedColleges,loadColleges,loadSessions,rememberSessions,seedSessions} from "./scouting-cache";
 
 import {useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
@@ -77,12 +78,13 @@ export default function TEScoutingWorkspace({players,vals,setVals,imports,glossa
   const [mode,setMode]=useState<Mode>("Evaluate"),[tab,setTab]=useState<Tab>("Film"),[search,setSearch]=useState(""),[selectedId,setSelectedId]=useState("");
   const [zeroGamesOnly,setZeroGamesOnly]=useState(false);
   const [compareIds,setCompareIds]=useState<string[]>([]),[saveState,setSaveState]=useState<"saved"|"saving"|"error">("saved");
-  const [sessions,setSessions]=useState<Record<string,Session[]>>({}),[newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({}),[newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
-  const [colleges,setColleges]=useState<any[]>([]);
+  const [sessions,setSessions]=useState<Record<string,Session[]>>(()=>demoMode||archiveMode?{}:seedSessions(players)),[newGameOpen,setNewGameOpen]=useState<Record<string,boolean>>({}),[newGame,setNewGame]=useState<Record<string,{opponent:string;notes:string}>>({});
+  const [colleges,setColleges]=useState<any[]>(()=>cachedColleges()||[]);
   const {picks:draftPicks,updatedAt:draftUpdatedAt}=useDraftFeed(draftClass);
   const sessionCounts=Object.keys(sessions).sort().map(k=>k+":"+sessions[k].length).join("|");
+  useEffect(()=>{if(demoMode||archiveMode)return;for(const id of Object.keys(sessions))rememberSessions(id,sessions[id])},[sessions,demoMode,archiveMode]);
 
-  useEffect(()=>{fetch("/api/college-stats",{cache:"no-store"}).then(r=>r.json()).then(j=>Array.isArray(j)&&setColleges(j)).catch(()=>{})},[]);
+  useEffect(()=>{loadColleges().then(j=>setColleges(cur=>cur===j?cur:j))},[]);
   useEffect(()=>{if(!players.length){setSelectedId("");return}if(!players.some(p=>String(p.id)===selectedId))setSelectedId(String(players[0].id));setCompareIds(cur=>{const valid=cur.filter(id=>players.some(p=>String(p.id)===id));return valid.length?valid:players.map(p=>String(p.id))})},[players,selectedId]);
   useEffect(()=>{window.scrollTo({top:0,left:0,behavior:"auto"})},[]);
 
@@ -99,7 +101,7 @@ export default function TEScoutingWorkspace({players,vals,setVals,imports,glossa
     return v;
   };
 
-  useEffect(()=>{for(const p of players){const id=String(p.id);if(sessions[id])continue;const legacy=String(evalFor(p,"__COMMENTARY__")||"").trim(),label=String(evalFor(p,"__GAME_LABEL__")||"").trim(),historical=evalFor(p,"__HISTORICAL_SESSIONS__");if(archiveMode){const archived=Array.isArray(historical)?historical:[];setSessions(x=>x[id]?x:{...x,[id]:archived.length?archived:(legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[])});continue}if(demoMode){const seeded=p.name==="Kenyon Sadiq"?KENYON_GAME_SESSIONS:(legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]);setSessions(x=>x[id]?x:{...x,[id]:seeded});continue}fetch("/api/scouting-sessions?playerId="+encodeURIComponent(id),{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((rows:any[])=>{const live=Array.isArray(rows)?rows:[],fallback=!live.length&&legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[];setSessions(x=>x[id]?x:{...x,[id]:live.length?live:fallback})}).catch(()=>{})}},[players,vals,demoMode,archiveMode]);
+  useEffect(()=>{for(const p of players){const id=String(p.id);if(sessions[id])continue;const legacy=String(evalFor(p,"__COMMENTARY__")||"").trim(),label=String(evalFor(p,"__GAME_LABEL__")||"").trim(),historical=evalFor(p,"__HISTORICAL_SESSIONS__");if(archiveMode){const archived=Array.isArray(historical)?historical:[];setSessions(x=>x[id]?x:{...x,[id]:archived.length?archived:(legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[])});continue}if(demoMode){const seeded=p.name==="Kenyon Sadiq"?KENYON_GAME_SESSIONS:(legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[]);setSessions(x=>x[id]?x:{...x,[id]:seeded});continue}loadSessions(id,draftClass).then((rows:any[])=>{const live=Array.isArray(rows)?rows:[],fallback=!live.length&&legacy?[{id:"legacy-"+id,opponent:label||"Legacy scouting note",raw_notes:legacy,legacy:true}]:[];setSessions(x=>x[id]?x:{...x,[id]:live.length?live:fallback})}).catch(()=>{})}},[players,vals,demoMode,archiveMode]);
 
   function gameCountFor(p:Player){if(archiveMode){const n=Number(evalFor(p,"Games watched")??evalFor(p,"Games Watched"));if(Number.isFinite(n))return n}return (sessions[String(p.id)]||[]).length}
   function fieldsFor(p:Player){const out:any={...importedFor(p)};for(const cat of [...FILM,"Expected Role","Archetype","Draft Projection","Early Declare","Special Teams","Injury Concerns","Off-Field?","All Star Game?","Combine Invite?","Draft Result","Team Score (10)","Draft Capital Score (10)"]){const v=evalFor(p,cat);if(v!==undefined&&v!==null&&v!=="")out[cat]=v}out["Games watched"]=gameCountFor(p);return out}
