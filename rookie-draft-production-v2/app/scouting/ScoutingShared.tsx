@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 import PlayerName from "@/components/PlayerName";
 import PlayerImage from "@/components/PlayerImage";
 
@@ -30,24 +30,95 @@ export function nflTeamLogo(team:any){
 }
 
 
-const draftFeedCache=new Map<number,{picks:DraftPick[];updatedAt:string|null;sig:string;at:number}>();
-export function useDraftFeed(draftClass=2027){
+type DraftFeedCache={picks:DraftPick[];updatedAt:string|null;sig:string;at:number};
+const draftFeedCache=new Map<number,DraftFeedCache>();
+function draftCacheKey(draftClass:number){return "rookie-draft-feed-cache:"+draftClass}
+function parseDraftWindowTime(value:any):number|null{
+  if(value==null||value==="")return null;
+  if(typeof value==="number"&&Number.isFinite(value)){
+    if(value>1e12)return value;
+    if(value>1e9)return value*1000;
+    if(value>20000)return new Date(Date.UTC(1899,11,30)+value*86400000).getTime();
+    return null;
+  }
+  const raw=String(value).trim();
+  const m=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?$/i);
+  if(m){
+    let hour=Number(m[4]||0);const minute=Number(m[5]||0),second=Number(m[6]||0),ampm=(m[7]||"").toUpperCase();
+    if(ampm==="PM"&&hour<12)hour+=12;if(ampm==="AM"&&hour===12)hour=0;
+    const d=new Date(Number(m[3]),Number(m[1])-1,Number(m[2]),hour,minute,second);
+    return Number.isNaN(d.getTime())?null:d.getTime();
+  }
+  const parsed=new Date(raw);return Number.isNaN(parsed.getTime())?null:parsed.getTime();
+}
+function readDraftFeedCache(draftClass:number):DraftFeedCache|null{
+  try{
+    const raw=window.localStorage.getItem(draftCacheKey(draftClass));if(!raw)return null;
+    const parsed=JSON.parse(raw);if(!Array.isArray(parsed?.picks))return null;
+    const picks=parsed.picks as DraftPick[];
+    return {picks,updatedAt:typeof parsed.updatedAt==="string"?parsed.updatedAt:null,sig:JSON.stringify(picks),at:Number(parsed.at)||0};
+  }catch{return null}
+}
+function writeDraftFeedCache(draftClass:number,cache:DraftFeedCache){
+  try{window.localStorage.setItem(draftCacheKey(draftClass),JSON.stringify(cache))}catch{}
+}
+function draftWindowValues(glossary:any[][]){
+  const get=(label:string)=>glossary.find(row=>Array.isArray(row)&&norm(row[0])===norm(label))?.[1];
+  return {start:parseDraftWindowTime(get("Draft Start Time")),end:parseDraftWindowTime(get("Draft End Time"))};
+}
+export function useDraftFeed(draftClass=2027,glossary:any[][]=[]){
   const seed=draftFeedCache.get(draftClass);
   const [picks,setPicks]=useState<DraftPick[]>(seed?.picks||[]);
   const [updatedAt,setUpdatedAt]=useState<string|null>(seed?.updatedAt??null);
+  const {start,end}=draftWindowValues(glossary||[]);
   useEffect(()=>{
     let live=true;
-    // Only touch state when the picks really changed: the old 60s poll swapped in a new array every minute, forcing a full re-grade/re-render of every card for nothing.
-    const apply=(next:DraftPick[],at:string)=>{const sig=JSON.stringify(next),cur=draftFeedCache.get(draftClass);if(cur&&cur.sig===sig){draftFeedCache.set(draftClass,{...cur,at:Date.now()});return}draftFeedCache.set(draftClass,{picks:next,updatedAt:at,sig,at:Date.now()});if(live){setPicks(next);setUpdatedAt(at)}};
-    const load=()=>fetch("/api/nfl-draft-results?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!live)return;apply(Array.isArray(j?.picks)?j.picks:[],String(j?.updatedAt||new Date().toISOString()))}).catch(()=>{if(live&&!draftFeedCache.has(draftClass))setPicks([])});
-    const cur=draftFeedCache.get(draftClass);
-    if(!cur||Date.now()-cur.at>60000)load();
-    const timer=draftClass>=2027?setInterval(load,60000):null;
+    const inDraftWindow=()=>draftClass>=2027&&start!=null&&end!=null&&Date.now()>=start&&Date.now()<=end;
+    const apply=(next:DraftPick[],at:string)=>{
+      const sig=JSON.stringify(next),cur=draftFeedCache.get(draftClass),now=Date.now();
+      if(cur&&cur.sig===sig){
+        const same={...cur,at:now};draftFeedCache.set(draftClass,same);writeDraftFeedCache(draftClass,same);return;
+      }
+      const nextCache={picks:next,updatedAt:at,sig,at:now};
+      draftFeedCache.set(draftClass,nextCache);writeDraftFeedCache(draftClass,nextCache);
+      if(live){setPicks(next);setUpdatedAt(at)}
+    };
+    let cur=draftFeedCache.get(draftClass);
+    if(!cur){cur=readDraftFeedCache(draftClass)||undefined;if(cur){draftFeedCache.set(draftClass,cur);setPicks(cur.picks);setUpdatedAt(cur.updatedAt)}}
+    const load=()=>fetch("/api/nfl-draft-results?draftClass="+encodeURIComponent(String(draftClass)),{cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("Draft feed request failed");return r.json()})
+      .then(j=>apply(Array.isArray(j?.picks)?j.picks:[],String(j?.updatedAt||new Date().toISOString())))
+      .catch(()=>{if(live&&!draftFeedCache.has(draftClass))setPicks([])});
+    // Seed an empty cache once. Outside the glossary window, a populated cache remains static.
+    if(!cur||inDraftWindow())void load();
+    // This timer only checks the clock; it never requests the feed while outside the window.
+    const timer=draftClass>=2027?setInterval(()=>{if(inDraftWindow())void load()},60000):null;
     return()=>{live=false;if(timer)clearInterval(timer)};
-  },[draftClass]);
+  },[draftClass,start,end]);
   return {picks,updatedAt};
 }
 export function useDraftPicks(){return useDraftFeed().picks}
+export function GradeSlider({value,onCommit,className,style}:{value:number;onCommit:(value:number)=>void|Promise<any>;className?:string;style?:React.CSSProperties}){
+  const [draft,setDraft]=useState(value),current=useRef(value),committed=useRef(value),interacting=useRef(false);
+  useEffect(()=>{if(!interacting.current){current.current=value;committed.current=value;setDraft(value)}},[value]);
+  const commit=()=>{const next=current.current;interacting.current=false;if(next!==committed.current){committed.current=next;void onCommit(next)}};
+  return <input className={className} style={style} type="range" min="0" max="100" step=".25" value={draft}
+    onPointerDown={()=>{interacting.current=true}}
+    onChange={e=>{const next=Number(e.currentTarget.value);current.current=next;setDraft(next)}}
+    onPointerUp={commit} onPointerCancel={commit} onKeyUp={commit} onBlur={commit}/>;
+}
+export function useGradeMemo(context:any,vals:Record<string,any>,sessions:Record<string,any>,overrides:Record<string,any>){
+  const cache=useRef(new Map<string,{signature:string;value:any}>()),contextRef=useRef(context);
+  if(contextRef.current!==context){cache.current.clear();contextRef.current=context}
+  return function memoGrade<T>(kind:string,p:any,calculate:()=>T):T{
+    const id=String(p.id),name=String(p.name||"");
+    const relevant=Object.entries(vals).filter(([key])=>key.startsWith(id+"|")||key.startsWith(name+"|")).sort(([a],[b])=>a.localeCompare(b));
+    const signature=JSON.stringify([relevant,Array.isArray(sessions[id])?sessions[id].length:0,overrides[id]??overrides[name]??null]);
+    const key=kind+":"+id,previous=cache.current.get(key);
+    if(previous&&previous.signature===signature)return previous.value as T;
+    const value=calculate();cache.current.set(key,{signature,value});return value;
+  };
+}
 function nflPickLabel(overall:number,team:string,round?:number){
   const r=round||Math.floor((overall-1)/32)+1;
   return r+"."+String(overall).padStart(2,"0")+", "+team;
