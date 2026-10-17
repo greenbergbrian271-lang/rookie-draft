@@ -1,8 +1,9 @@
 "use client";
 
 import {useEffect,useMemo,useState} from "react";
+import LeagueRostersView from "./league-rosters-view";
 
-type Tab="league"|"managers"|"market"|"process";
+type Tab="league"|"rosters"|"managers"|"market"|"process";
 const fmt=new Intl.NumberFormat("en-US");
 const money=(n:any)=>fmt.format(Math.round(Number(n)||0));
 const pct=(n:any)=>Number.isFinite(Number(n))?(Number(n)*100).toFixed(0)+"%":"—";
@@ -25,7 +26,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
   useEffect(()=>{setCache({});setTab("league");setError("")},[leagueKey,refreshToken]);
 
   useEffect(()=>{
-    if(!leagueKey||cache[tab])return;
+    if(!leagueKey||tab==="rosters"||cache[tab])return;
     let live=true;setLoading(true);setError("");
     fetch("/api/dynasty-intelligence?leagueKey="+encodeURIComponent(leagueKey)+"&mode="+tab,{cache:"no-store"})
       .then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not load intelligence");return j})
@@ -78,11 +79,11 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
     <div className="di-head">
       <div><span>Intelligence Views</span><h2>League, manager, market & process signals</h2></div>
       <div className="di-tabs">
-        {(["league","managers","market","process"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x==="league"?"League Overview":x==="managers"?"Manager Tendencies":x==="market"?"Market":"Scouting Process"}</button>)}
+        {(["league","rosters","managers","market","process"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x==="league"?"League Overview":x==="rosters"?"League Rosters":x==="managers"?"Manager Tendencies":x==="market"?"Market":"Scouting Process"}</button>)}
       </div>
     </div>
     {error&&<div className="di-state error">{error}</div>}
-    {loading&&!data?<div className="di-state">Building intelligence…</div>:data?<div className="di-grid">
+    {tab==="rosters"?<LeagueRostersView leagueKey={leagueKey}/>:loading&&!data?<div className="di-state">Building intelligence…</div>:data?<div className="di-grid">
 
       {tab==="league"&&<>
         <Card title="League Demand Map" wide>
