@@ -28,7 +28,7 @@ function LeagueSwitcher({leagues,active,onChange}:{leagues:any[];active:string;o
 }
 
 function Metric({label,value,detail}:{label:string;value:any;detail?:string}){
-  return <div className={styles.metric}><span>{label}</span><strong>{value}</strong>{detail&&<small>{detail}</small>}</div>;
+  return <div className="profile-grade-highlight nfl-profile-metric"><div><span>{label}</span></div><strong>{value}</strong>{detail&&<small>{detail}</small>}</div>;
 }
 
 export function NFLPlayerProfileProvider({children}:{children:React.ReactNode}){
@@ -148,54 +148,63 @@ export function NFLPlayerProfileProvider({children}:{children:React.ReactNode}){
           {ncaaLoading&&!ncaaData?<div className={styles.loading}>Loading NCAA player card…</div>:ncaaData?.player?<Profile d={ncaaData} tab={ncaaTab} setTab={setNcaaTab} open={openNCAAPlayer} applyTransfer={applyNCAATransfer} reload={reloadNCAA} setProfileStatus={setNcaaStatus}/>:<div className={styles.error}>{ncaaStatus?.text||"Could not load the NCAA player card."}</div>}
           {ncaaStatus&&<div className={styles.ncaaStatus+" "+(ncaaStatus.kind==="success"?styles.success:styles.warning)}>{ncaaStatus.text}</div>}
         </div>:loading&&!data?<div className={styles.loading}>Loading NFL player card…</div>:error&&!data?<div className={styles.error}>{error}</div>:data?.player?<div className={styles.content}>
-          <div className={styles.hero}>
-            {player.headshotUrl?<img src={player.headshotUrl} alt="" className={styles.headshot} onError={event=>{event.currentTarget.style.visibility="hidden"}}/>:<div className={styles.initials}>{String(player.name||"NFL").split(" ").map((part:string)=>part[0]||"").join("").slice(0,2)}</div>}
-            <div className={styles.heroInfo}>
-              <span className={styles.eyebrow}>{player.position} · {player.teamName||player.team}{player.number!=null?" · #"+player.number:""}</span>
-              <h1>{player.name}</h1>
-              <div className={styles.meta}>{[player.college,player.age?"Age "+player.age:"",player.yearsExp!=null?Number(player.yearsExp)===0?"Rookie":player.yearsExp+" yrs experience":"",player.injuryStatus&&player.injuryStatus!=="Healthy"?player.injuryStatus:""].filter(Boolean).join(" · ")}</div>
+          <div className="player-profile-hero nfl-profile-hero">
+            <div className="profile-photo-wrap">
+              {player.headshotUrl?<img src={player.headshotUrl} alt="" className="profile-photo nfl-profile-photo" onError={event=>{event.currentTarget.style.visibility="hidden"}}/>:<div className="profile-photo profile-photo-fallback nfl-profile-photo-fallback">{String(player.name||"NFL").split(" ").map((part:string)=>part[0]||"").join("").slice(0,2)}</div>}
             </div>
+            <div className="nfl-profile-hero-info">
+              <div className="ey">{player.position} · {player.teamName||player.team}{player.number!=null?" · #"+player.number:""}</div>
+              <h1>{player.name}</h1>
+              <div className="profile-meta-actions"><div className="muted">{[player.college,player.age?"Age "+player.age:"",player.yearsExp!=null?Number(player.yearsExp)===0?"Rookie":player.yearsExp+" yrs experience":"",player.injuryStatus&&player.injuryStatus!=="Healthy"?player.injuryStatus:""].filter(Boolean).join(" · ")}</div></div>
+            </div>
+            <div className="profile-final"><span>Overall Rank</span><strong>{rank(activeLeague?.summary?.overallRank)}</strong></div>
           </div>
-          <div className={styles.tabs} role="tablist" aria-label="NFL player card sections">
-            {["Summary","History","Stats","Team"].map(section=><button key={section} type="button" role="tab" aria-selected={tab===section} className={tab===section?styles.tabActive:""} onClick={()=>setTab(section)}>{section}</button>)}
+          <div className="profile-tabs" role="tablist" aria-label="NFL player card sections">
+            {["Summary","History","Stats","Team"].map(section=><button key={section} type="button" role="tab" aria-selected={tab===section} className={tab===section?"active":""} onClick={()=>setTab(section)}>{section}</button>)}
           </div>
-          {tab==="Summary"&&<div className={styles.pane}>
-            <div className={styles.metrics}>
+          {tab==="Summary"&&<div className="profile-pane">
+            <h2>Season Overview</h2>
+            <div className="profile-grade-showcase nfl-metric-showcase">
               <Metric label="OVR Rank" value={rank(activeLeague?.summary?.overallRank)}/>
               <Metric label="POS Rank" value={rank(activeLeague?.summary?.positionRank)}/>
               <Metric label="Fantasy Points / Game" value={fmt(activeLeague?.summary?.fantasyPointsPerGame)}/>
             </div>
-            <section className={styles.upcoming}>
-              <div className={styles.sectionHeading}><span>UPCOMING GAME</span><small>{activeLeague?.label||"Default league"}</small></div>
-              {player.upcomingGame?<><strong className={styles.opponent}>{player.upcomingGame.label}</strong><div className={styles.muted}>{prettyDate(player.upcomingGame.date)} · {player.upcomingGame.homeAway==="home"?"Home":player.upcomingGame.homeAway==="away"?"Away":"Venue TBD"}</div></>:<div className={styles.muted}>No upcoming game is available from the current schedule feed.</div>}
-            </section>
+            <div className="profile-two nfl-upcoming-row">
+              <section className="nfl-upcoming-card">
+                <div className="profile-grade-detail-intro"><span className="ey">UPCOMING GAME</span><h2>Upcoming Game</h2></div>
+                {player.upcomingGame?<><strong className={styles.opponent}>{player.upcomingGame.label}</strong><div className="muted">{prettyDate(player.upcomingGame.date)} · {player.upcomingGame.homeAway==="home"?"Home":player.upcomingGame.homeAway==="away"?"Away":"Venue TBD"}</div></>:<div className="muted">No upcoming game is available from the current schedule feed.</div>}
+              </section>
+            </div>
           </div>}
-          {tab==="History"&&<div className={styles.pane}>
+          {tab==="History"&&<div className="profile-pane">
             <LeagueSwitcher leagues={data.leagues||[]} active={leagueKey} onChange={setLeagueKey}/>
-            <div className={styles.sectionHeading}><span>TRANSACTION HISTORY</span><small>{activeLeague?.label||""}</small></div>
-            {historyLoading&&!historyCache[activeLeague?.key||""]?<div className={styles.loading}>Loading transaction history…</div>:historyError&&!historyCache[activeLeague?.key||""]?<div className={styles.error}>{historyError}</div>:(historyCache[activeLeague?.key||""]||activeLeague?.transactions||[]).length?<div className={styles.historyList}>{(historyCache[activeLeague?.key||""]||activeLeague?.transactions||[]).map((item:any,index:number)=><article className={styles.historyItem} key={String(item.id||index)+"-"+String(item.date||"")}><div className={styles.historyTop}><strong>{item.title||"Transaction"}</strong><time>{prettyDate(item.date)}</time></div><div className={styles.historyDetail}>{item.detail||"Transaction recorded"}{item.season?" · "+item.season+" season":""}</div></article>)}</div>:<div className={styles.empty}>No transactions involving this player were found in the stored history for this league.</div>}
+            <div className="stats-head"><div><h2>Transaction History</h2><p className="muted">{activeLeague?.label||""}</p></div></div>
+            {historyLoading&&!historyCache[activeLeague?.key||""]?<div className={styles.loading}>Loading transaction history…</div>:historyError&&!historyCache[activeLeague?.key||""]?<div className={styles.error}>{historyError}</div>:(historyCache[activeLeague?.key||""]||activeLeague?.transactions||[]).length?<div className="profile-transfer-history">{(historyCache[activeLeague?.key||""]||activeLeague?.transactions||[]).map((item:any,index:number)=><div className="nfl-history-row" key={String(item.id||index)+"-"+String(item.date||"")}><span>{prettyDate(item.date)}</span><strong>{item.title||"Transaction"}<small>{item.detail||"Transaction recorded"}{item.season?" · "+item.season+" season":""}</small></strong></div>)}</div>:<div className="empty">No transactions involving this player were found in the stored history for this league.</div>}
           </div>}
-          {tab==="Stats"&&<div className={styles.pane}>
+          {tab==="Stats"&&<div className="profile-pane">
             <LeagueSwitcher leagues={data.leagues||[]} active={leagueKey} onChange={setLeagueKey}/>
-            <div className={styles.metrics+" "+styles.statsMetrics}>
+            <div className="profile-grade-showcase nfl-metric-showcase nfl-stats-metric-showcase">
               <Metric label="Fantasy Points" value={fmt(activeLeague?.summary?.fantasyPoints)}/>
               <Metric label="Fantasy Points / Game" value={fmt(activeLeague?.summary?.fantasyPointsPerGame)}/>
               <Metric label="Overall Rank" value={rank(activeLeague?.summary?.overallRank)}/>
               <Metric label="Position Rank" value={rank(activeLeague?.summary?.positionRank)}/>
             </div>
-            <div className={styles.sectionHeading}><span>WEEKLY GAME LOG</span><small>{data.season} season · {activeLeague?.scoringSource||"League scoring"}</small></div>
-            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Week</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.weekly||[]).slice().reverse().map((week:any)=><tr key={week.week}><td>Week {week.week}</td><td className={styles.points}>{fmt(week.points)}</td></tr>)}</tbody></table></div>
+            <section className="stats-section"><h3>Weekly Game Log <small>{data.season} season · {activeLeague?.scoringSource||"League scoring"}</small></h3>
+              <div className="stats-table-wrap"><table className="stats-table"><thead><tr><th>Week</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.weekly||[]).slice().reverse().map((week:any)=><tr key={week.week}><td>Week {week.week}</td><td className="nfl-points">{fmt(week.points)}</td></tr>)}</tbody></table></div>
+            </section>
           </div>}
-          {tab==="Team"&&<div className={styles.pane}>
+          {tab==="Team"&&<div className="profile-pane">
             <LeagueSwitcher leagues={data.leagues||[]} active={leagueKey} onChange={setLeagueKey}/>
-            <div className={styles.teamIntro}><div><span className={styles.eyebrow}>CURRENT OFFENSE</span><h2>{player.teamName||player.team} fantasy-eligible teammates</h2></div><span className={styles.muted}>{positions.join(" · ")}</span></div>
-            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Player</th><th>Pos</th><th>Pos Rank</th><th>Fantasy PPG</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.teammates||[]).map((mate:any)=><tr key={mate.id}><td><NFLPlayerName name={mate.name} playerId={mate.id}>{mate.name}</NFLPlayerName></td><td><span className={styles["pos"+mate.position]}>{mate.position}</span></td><td>{rank(mate.positionRank)}</td><td>{fmt(mate.fantasyPointsPerGame)}</td><td>{fmt(mate.fantasyPoints)}</td></tr>)}</tbody></table></div>
-            <div className={styles.sectionHeading}><span>TEAM OFFENSE RANKS</span><small>Current season · NFL teams</small></div>
-            <div className={styles.rankGrid}>
-              {[["Offensive Yards","offensiveYards","yards"],["Pass Yards","passYards","yards"],["Pass Attempts","passAttempts","att."],["Pass TDs","passTDs","TDs"],["Rush Yards","rushYards","yards"],["Rush Attempts","rushAttempts","att."],["Rush TDs","rushTDs","TDs"]].map(([label,key,unit]:any)=><div className={styles.rankCard} key={key}><span>{label}</span><strong>{rank(activeLeague?.teamRanks?.[key]?.rank)}</strong><small>{activeLeague?.teamRanks?.[key]?.value==null?"Stats unavailable":Number(activeLeague.teamRanks[key].value).toLocaleString()+" "+unit}</small></div>)}
-            </div>
-            <div className={styles.sectionHeading}><span>WEEKLY GAME LOG</span><small>Fantasy points · {activeLeague?.label||""}</small></div>
-            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Week</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.weekly||[]).slice().reverse().map((week:any)=><tr key={"team-week-"+week.week}><td>Week {week.week}</td><td className={styles.points}>{fmt(week.points)}</td></tr>)}</tbody></table></div>
+            <div className="stats-head"><div><h2>{player.teamName||player.team} fantasy-eligible teammates</h2><p className="muted">{positions.join(" · ")}</p></div></div>
+            <div className="stats-table-wrap"><table className="stats-table"><thead><tr><th>Player</th><th>Pos</th><th>Pos Rank</th><th>Fantasy PPG</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.teammates||[]).map((mate:any)=><tr key={mate.id}><td><NFLPlayerName name={mate.name} playerId={mate.id}>{mate.name}</NFLPlayerName></td><td><span className={styles["pos"+mate.position]}>{mate.position}</span></td><td>{rank(mate.positionRank)}</td><td>{fmt(mate.fantasyPointsPerGame)}</td><td>{fmt(mate.fantasyPoints)}</td></tr>)}</tbody></table></div>
+            <section className="stats-section"><h3>Team Offense Ranks <small>Current season · NFL teams</small></h3>
+              <div className="profile-grade-factor-grid nfl-rank-grid">
+                {[[ "Offensive Yards","offensiveYards","yards"],["Pass Yards","passYards","yards"],["Pass Attempts","passAttempts","att."],["Pass TDs","passTDs","TDs"],["Rush Yards","rushYards","yards"],["Rush Attempts","rushAttempts","att."],["Rush TDs","rushTDs","TDs"]].map(([label,key,unit]:any)=><div className="profile-grade-factor-card nfl-rank-card" key={key}><div><span>{label}</span></div><strong>{rank(activeLeague?.teamRanks?.[key]?.rank)}</strong><small>{activeLeague?.teamRanks?.[key]?.value==null?"Stats unavailable":Number(activeLeague.teamRanks[key].value).toLocaleString()+" "+unit}</small></div>)}
+              </div>
+            </section>
+            <section className="stats-section"><h3>Weekly Game Log <small>Fantasy points · {activeLeague?.label||""}</small></h3>
+              <div className="stats-table-wrap"><table className="stats-table"><thead><tr><th>Week</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.weekly||[]).slice().reverse().map((week:any)=><tr key={"team-week-"+week.week}><td>Week {week.week}</td><td className="nfl-points">{fmt(week.points)}</td></tr>)}</tbody></table></div>
+            </section>
           </div>}
         </div>:null}
       </div>
