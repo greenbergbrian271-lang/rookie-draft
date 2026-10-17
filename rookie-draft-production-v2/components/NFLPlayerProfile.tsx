@@ -22,8 +22,8 @@ export function NFLPlayerName({name,playerId,children,className}:{name:string;pl
 
 function LeagueSwitcher({leagues,active,onChange}:{leagues:any[];active:string;onChange:(key:string)=>void}){
   if(!leagues?.length)return null;
-  return <div className={styles.leagueSwitch} role="tablist" aria-label="Fantasy league scoring">
-    {leagues.map(league=><button type="button" key={league.key} role="tab" aria-selected={active===league.key} className={active===league.key?styles.leagueActive:""} onClick={()=>onChange(league.key)}>{league.label}</button>)}
+  return <div className="profile-tabs nfl-league-tabs" role="tablist" aria-label="Fantasy league scoring">
+    {leagues.map(league=><button type="button" key={league.key} role="tab" aria-selected={active===league.key} className={active===league.key?"active":""} onClick={()=>onChange(league.key)}>{league.label}</button>)}
   </div>;
 }
 
