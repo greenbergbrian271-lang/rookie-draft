@@ -433,7 +433,7 @@ renderEnv();renderDepth();renderCapital();renderWeightsEditor();renderFormulaSum
 document.addEventListener('click',function(event){
   const target=event.target instanceof Element?event.target:null;
   if(!target)return;
-  const node=target.closest('.draft-table tbody tr td:nth-child(3), .best-prospect .best-name, .dc-player .dc-name');
+  const node=target.closest('.draft-table tbody tr td:nth-child(3), .best-prospect .best-name, .dc-player .dc-name, .ol-card strong');
   if(!node)return;
   const name=(node.textContent||'').trim();
   if(!name||name==='—'||name==='-')return;
