@@ -98,15 +98,22 @@ function teamRanksFor(team:string,teamTotals:Record<string,Record<string,number>
 
 const ESPN_TEAM_IDS:Record<string,string>={ARI:"22",ATL:"1",BAL:"33",BUF:"2",CAR:"29",CHI:"3",CIN:"4",CLE:"5",DAL:"6",DEN:"7",DET:"8",GB:"9",HOU:"34",IND:"11",JAX:"30",KC:"12",LAC:"24",LAR:"14",LV:"13",MIA:"15",MIN:"16",NE:"17",NO:"18",NYG:"19",NYJ:"20",PHI:"21",PIT:"23",SF:"25",SEA:"26",TB:"27",TEN:"10",WAS:"28"};
 
-async function activeTeamEspnIds(team:string){
-  const teamId=ESPN_TEAM_IDS[normalizeTeam(team)];
-  if(!teamId)return new Set<string>();
+async function activeTeamEspnRoster(team:string){
+  const teamId=ESPN_TEAM_IDS[normalizeTeam(team)],ids=new Set<string>(),names=new Set<string>();
+  if(!teamId)return {ids,names};
   try{
     const payload=await cachedJson("https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/"+teamId+"/roster",3600);
-    const groups=Array.isArray(payload?.athletes)?payload.athletes:Array.isArray(payload?.items)?payload.items:Array.isArray(payload?.roster)?payload.roster:[];
-    const athletes=groups.flatMap((entry:any)=>Array.isArray(entry?.items)?entry.items:Array.isArray(entry?.athletes)?entry.athletes:[entry]);
-    return new Set<string>(athletes.map((athlete:any)=>String(athlete?.id||athlete?.athlete?.id||"")).filter(Boolean));
-  }catch{return new Set<string>()}
+    const raw=payload?.athletes;
+    const groups=Array.isArray(raw)?raw:raw&&typeof raw==="object"?Object.values(raw):Array.isArray(payload?.items)?payload.items:Array.isArray(payload?.roster)?payload.roster:[];
+    const athletes=groups.flatMap((entry:any)=>Array.isArray(entry?.items)?entry.items:Array.isArray(entry?.athletes)?entry.athletes:entry?.id?[entry]:[]);
+    for(const athlete of athletes){
+      const id=String(athlete?.id||athlete?.athlete?.id||"");
+      const athleteName=String(athlete?.fullName||athlete?.displayName||[athlete?.firstName,athlete?.lastName].filter(Boolean).join(" ")||"");
+      if(id)ids.add(id);
+      if(athleteName)names.add(normalizeName(athleteName));
+    }
+  }catch{}
+  return {ids,names};
 }
 
 async function upcomingGame(team:string,season:number){
@@ -199,7 +206,7 @@ export async function GET(req:Request){
     }
     for(const row of Object.values(teamTotals))row.offensiveYards=row.passYards+row.rushYards;
 
-    const [ncaaRow,upcoming,teamRosterIds]=await Promise.all([
+    const [ncaaRow,upcoming,teamRoster]=await Promise.all([
       (async()=>{
         try{
           const db=await ensureTursoSchema();
@@ -208,7 +215,7 @@ export async function GET(req:Request){
         }catch{return null}
       })(),
       upcomingGame(team,season),
-      activeTeamEspnIds(team),
+      activeTeamEspnRoster(team),
     ]);
 
     const leagueResults=leagues.map((league,index)=>{
@@ -237,7 +244,7 @@ export async function GET(req:Request){
         ranked.filter(row=>positionOf(playerDb[row.id])===pos).forEach((row,index)=>{positionRanks[row.id]=index+1});
       }
       const selected=totals.get(playerId)||{total:0,games:0,weekly:{}};
-      const teammates=Object.entries(playerDb).filter(([id,p]:[string,any])=>id!==playerId&&normalizeTeam(p?.team||p?.team_abbr||"")===team&&ELIGIBLE.has(positionOf(p))&&(teamRosterIds.size&&p?.espn_id?teamRosterIds.has(String(p.espn_id)):isCurrentNFLPlayer(p))).map(([id,p]:[string,any])=>{
+      const teammates=Object.entries(playerDb).filter(([id,p]:[string,any])=>id!==playerId&&normalizeTeam(p?.team||p?.team_abbr||"")===team&&ELIGIBLE.has(positionOf(p))&&(teamRoster.ids.size?(p?.espn_id?teamRoster.ids.has(String(p.espn_id)):teamRoster.names.has(normalizeName(fullName(p)))):isCurrentNFLPlayer(p))).map(([id,p]:[string,any])=>{
         const stats=totals.get(id)||{total:0,games:0,weekly:{}};
         return {id,name:fullName(p)||id,position:positionOf(p),team,positionRank:positionRanks[id]||null,fantasyPoints:Number(stats.total.toFixed(2)),fantasyPointsPerGame:stats.games?Number((stats.total/stats.games).toFixed(2)):0,headshotUrl:headshotUrl(p,id)};
       }).sort((a,b)=>a.position.localeCompare(b.position)||number(a.positionRank||999)-number(b.positionRank||999)||a.name.localeCompare(b.name));
