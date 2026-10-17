@@ -140,10 +140,10 @@ export function NFLPlayerProfileProvider({children}:{children:React.ReactNode}){
     {selection&&<div className={styles.backdrop} onMouseDown={event=>event.target===event.currentTarget&&close()}>
       <div className={"player-profile-modal "+styles.modal} role="dialog" aria-modal="true" aria-label={(player?.name||selection.name)+" player card"}>
         <button type="button" className={"player-profile-close "+styles.close} onClick={close} aria-label="Close player card">×</button>
-        <div className={styles.sportSwitch} role="tablist" aria-label="Player level">
+        {data?.ncaaPlayerId&&<div className={styles.sportSwitch} role="tablist" aria-label="Player level">
           <button type="button" role="tab" aria-selected={sport==="NFL"} className={sport==="NFL"?styles.sportActive:""} onClick={()=>setSport("NFL")}><img src="/nfl-logos/nfl.svg" alt="" className={styles.sportLogo}/><span>NFL</span></button>
-          {data?.ncaaPlayerId&&<button type="button" role="tab" aria-selected={sport==="NCAA"} className={sport==="NCAA"?styles.sportActive:""} onClick={()=>void selectNCAA()}><img src="/nfl-logos/ncaa.svg" alt="" className={styles.sportLogo}/><span>NCAA</span></button>}
-        </div>
+          <button type="button" role="tab" aria-selected={sport==="NCAA"} className={sport==="NCAA"?styles.sportActive:""} onClick={()=>void selectNCAA()}><img src="/nfl-logos/ncaa.svg" alt="" className={styles.sportLogo}/><span>NCAA</span></button>
+        </div>}
         {sport==="NCAA"?<div className={styles.ncaaWrap}>
           {ncaaLoading&&!ncaaData?<div className={styles.loading}>Loading NCAA player card…</div>:ncaaData?.player?<Profile d={ncaaData} tab={ncaaTab} setTab={setNcaaTab} open={openNCAAPlayer} applyTransfer={applyNCAATransfer} reload={reloadNCAA} setProfileStatus={setNcaaStatus}/>:<div className={styles.error}>{ncaaStatus?.text||"Could not load the NCAA player card."}</div>}
           {ncaaStatus&&<div className={styles.ncaaStatus+" "+(ncaaStatus.kind==="success"?styles.success:styles.warning)}>{ncaaStatus.text}</div>}
