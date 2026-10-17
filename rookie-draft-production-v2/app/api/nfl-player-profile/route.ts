@@ -1,6 +1,5 @@
 import {ensureTursoSchema} from "@/lib/turso";
 import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations";
-import {playerTransactionHistory} from "@/lib/dynasty-manager-intel";
 
 export const dynamic="force-dynamic";
 
@@ -12,6 +11,10 @@ const TEAM_NAMES:Record<string,string>={ARI:"Cardinals",ATL:"Falcons",BAL:"Raven
 const text=(v:any)=>v==null?"":String(v).trim();
 const number=(v:any)=>v==null||v===""?0:(Number.isFinite(Number(v))?Number(v):0);
 const positionOf=(p:any)=>String(p?.position||"").toUpperCase();
+const isCurrentNFLPlayer=(p:any)=>{
+  const status=String(p?.status||"").toLowerCase();
+  return p?.active!==false&&!["retired","inactive","practice squad","free agent"].includes(status);
+};
 const fullName=(p:any)=>text(p?.full_name)||[p?.first_name,p?.last_name].map(text).filter(Boolean).join(" ")||text(p?.search_full_name);
 const normalizeName=(v:any)=>String(v||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
 const normalizeTeam=(v:any)=>{const team=String(v||"").toUpperCase();return ({WSH:"WAS",JAC:"JAX",OAK:"LV",SD:"LAC",STL:"LAR"} as Record<string,string>)[team]||team};
@@ -93,28 +96,38 @@ function teamRanksFor(team:string,teamTotals:Record<string,Record<string,number>
   };
 }
 
-async function upcomingGame(team:string){
+const ESPN_TEAM_IDS:Record<string,string>={ARI:"22",ATL:"1",BAL:"33",BUF:"2",CAR:"29",CHI:"3",CIN:"4",CLE:"5",DAL:"6",DEN:"7",DET:"8",GB:"9",HOU:"34",IND:"11",JAX:"30",KC:"12",LAC:"24",LAR:"14",LV:"13",MIA:"15",MIN:"16",NE:"17",NO:"18",NYG:"19",NYJ:"20",PHI:"21",PIT:"23",SF:"25",SEA:"26",TB:"27",TEN:"10",WAS:"28"};
+
+async function upcomingGame(team:string,season:number){
   if(!team||team==="FA")return null;
   const now=new Date(),end=new Date(now);
   end.setDate(end.getDate()+45);
   const stamp=(date:Date)=>date.toISOString().slice(0,10).replace(/-/g,"");
-  const url="https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates="+stamp(now)+"-"+stamp(end)+"&limit=100";
-  try{
-    const payload=await cachedJson(url,1800);
-    const events=Array.isArray(payload?.events)?payload.events:[];
-    const choices=events.map((event:any)=>{
-      const kickoff=Date.parse(String(event?.date||""));
-      if(!Number.isFinite(kickoff)||kickoff<now.getTime()-4*60*60*1000)return null;
-      const state=String(event?.status?.type?.state||"").toLowerCase();
-      if(state==="post")return null;
-      const competitors=event?.competitions?.[0]?.competitors||[];
-      const ours=competitors.find((c:any)=>normalizeTeam(c?.team?.abbreviation)===normalizeTeam(team));
-      const opponent=competitors.find((c:any)=>c!==ours);
-      if(!ours||!opponent)return null;
-      return {opponent:String(opponent?.team?.displayName||opponent?.team?.name||opponent?.team?.abbreviation||"Opponent"),abbreviation:String(opponent?.team?.abbreviation||""),homeAway:String(ours?.homeAway||""),date:String(event.date),label:(ours.homeAway==="home"?"vs ":"@ ")+String(opponent?.team?.displayName||opponent?.team?.abbreviation||"Opponent")};
-    }).filter(Boolean).sort((a:any,b:any)=>Date.parse(a.date)-Date.parse(b.date));
-    return choices[0]||null;
-  }catch{return null}
+  const teamId=ESPN_TEAM_IDS[normalizeTeam(team)];
+  const urls:string[]=[];
+  if(teamId)urls.push("https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/"+teamId+"/schedule?season="+season);
+  urls.push("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates="+stamp(now)+"-"+stamp(end)+"&limit=100");
+  for(const url of urls){
+    try{
+      const payload=await cachedJson(url,1800);
+      const events=Array.isArray(payload?.events)?payload.events:Array.isArray(payload?.items)?payload.items:[];
+      const choices=events.map((event:any)=>{
+        const competition=event?.competitions?.[0]||event;
+        const kickoff=Date.parse(String(event?.date||competition?.date||""));
+        if(!Number.isFinite(kickoff)||kickoff<now.getTime()-4*60*60*1000)return null;
+        const state=String(event?.status?.type?.state||competition?.status?.type?.state||"").toLowerCase();
+        if(state==="post"||event?.completed===true)return null;
+        const competitors=competition?.competitors||event?.competitors||[];
+        const ours=competitors.find((c:any)=>normalizeTeam(c?.team?.abbreviation)===normalizeTeam(team));
+        const opponent=competitors.find((c:any)=>c!==ours);
+        if(!ours||!opponent)return null;
+        const opponentName=String(opponent?.team?.displayName||opponent?.team?.name||opponent?.team?.abbreviation||"Opponent");
+        return {opponent:opponentName,abbreviation:String(opponent?.team?.abbreviation||""),homeAway:String(ours?.homeAway||""),date:String(event?.date||competition?.date||""),label:(ours.homeAway==="home"?"vs ":"@ ")+opponentName};
+      }).filter(Boolean).sort((a:any,b:any)=>Date.parse(a.date)-Date.parse(b.date));
+      if(choices.length)return choices[0];
+    }catch{}
+  }
+  return null;
 }
 
 export async function GET(req:Request){
@@ -183,7 +196,7 @@ export async function GET(req:Request){
           return result.rows[0]||null;
         }catch{return null}
       })(),
-      upcomingGame(team),
+      upcomingGame(team,season),
     ]);
 
     const leagueResults=leagues.map((league,index)=>{
@@ -212,7 +225,7 @@ export async function GET(req:Request){
         ranked.filter(row=>positionOf(playerDb[row.id])===pos).forEach((row,index)=>{positionRanks[row.id]=index+1});
       }
       const selected=totals.get(playerId)||{total:0,games:0,weekly:{}};
-      const teammates=Object.entries(playerDb).filter(([id,p]:[string,any])=>id!==playerId&&normalizeTeam(p?.team||p?.team_abbr||"")===team&&ELIGIBLE.has(positionOf(p))).map(([id,p]:[string,any])=>{
+      const teammates=Object.entries(playerDb).filter(([id,p]:[string,any])=>id!==playerId&&normalizeTeam(p?.team||p?.team_abbr||"")===team&&ELIGIBLE.has(positionOf(p))&&isCurrentNFLPlayer(p)).map(([id,p]:[string,any])=>{
         const stats=totals.get(id)||{total:0,games:0,weekly:{}};
         return {id,name:fullName(p)||id,position:positionOf(p),team,positionRank:positionRanks[id]||null,fantasyPoints:Number(stats.total.toFixed(2)),fantasyPointsPerGame:stats.games?Number((stats.total/stats.games).toFixed(2)):0,headshotUrl:headshotUrl(p,id)};
       }).sort((a,b)=>a.position.localeCompare(b.position)||number(a.positionRank||999)-number(b.positionRank||999)||a.name.localeCompare(b.name));
