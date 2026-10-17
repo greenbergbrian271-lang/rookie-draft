@@ -2,6 +2,7 @@ import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations"
 import {playerTransactionHistory} from "@/lib/dynasty-manager-intel";
 
 export const dynamic="force-dynamic";
+export const maxDuration=60;
 
 export async function GET(req:Request){
   try{

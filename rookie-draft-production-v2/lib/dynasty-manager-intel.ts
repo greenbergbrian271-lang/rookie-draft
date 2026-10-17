@@ -125,7 +125,7 @@ export async function managerIntelMode(league:SleeperLeagueIntegration){
 
 
 export async function playerTransactionHistory(league:SleeperLeagueIntegration,playerId:string){
-  const seasons=await historySeasons(league.leagueId,3),events:any[]=[];
+  const seasons=await historySeasons(league.leagueId,10),events:any[]=[];
   for(const season of seasons){
     const rosters=new Map<number,any>((season.rosters||[]).map((row:any)=>[Number(row.roster_id),row] as [number,any]));
     const users=new Map<string,any>((season.users||[]).map((row:any)=>[String(row.user_id),row] as [string,any]));
