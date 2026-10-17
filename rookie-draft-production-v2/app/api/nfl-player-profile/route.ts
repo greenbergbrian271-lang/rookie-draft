@@ -37,6 +37,7 @@ function statValue(stats:Record<string,any>,...keys:string[]){
 
 function hasPlayed(stats:Record<string,any>){
   if(statValue(stats,"gp","games_played","games")>0)return true;
+  if(stats?.pts_ppr!=null||stats?.pts_half_ppr!=null||stats?.pts_std!=null)return true;
   return Object.entries(stats||{}).some(([key,value])=>!key.startsWith("pts_")&&value!=null&&Number.isFinite(Number(value))&&Number(value)!==0);
 }
 
@@ -174,8 +175,7 @@ export async function GET(req:Request){
     }
     for(const row of Object.values(teamTotals))row.offensiveYards=row.passYards+row.rushYards;
 
-    const [transactionLists,ncaaRow,upcoming]=await Promise.all([
-      Promise.all(leagues.map(league=>league.leagueId?playerTransactionHistory(league,playerId).catch(()=>[]):Promise.resolve([]))),
+    const [ncaaRow,upcoming]=await Promise.all([
       (async()=>{
         try{
           const db=await ensureTursoSchema();
@@ -223,7 +223,6 @@ export async function GET(req:Request){
         weekly:weeks.map(week=>({week:week.week,points:Number(number(selected.weekly[week.week]).toFixed(2))})),
         teammates,
         teamRanks:teamRanksFor(team,teamTotals),
-        transactions:transactionLists[index]||[],
       };
     });
     const displayPlayer={

@@ -44,10 +44,13 @@ export function NFLPlayerProfileProvider({children}:{children:React.ReactNode}){
   const [ncaaTab,setNcaaTab]=useState("Summary");
   const [ncaaLoading,setNcaaLoading]=useState(false);
   const [ncaaStatus,setNcaaStatus]=useState<ProfileStatus|null>(null);
+  const [historyCache,setHistoryCache]=useState<Record<string,any[]>>({});
+  const [historyLoading,setHistoryLoading]=useState(false);
+  const [historyError,setHistoryError]=useState("");
 
   const openNFLPlayer=useCallback((name:string,playerId?:string|number)=>{
     setSelection({name:String(name||"").trim(),playerId:playerId==null?undefined:String(playerId)});
-    setData(null);setNcaaData(null);setTab("Summary");setSport("NFL");setLeagueKey("");setLoading(true);setError("");setNcaaStatus(null);
+    setData(null);setNcaaData(null);setTab("Summary");setSport("NFL");setLeagueKey("");setLoading(true);setError("");setNcaaStatus(null);setHistoryCache({});setHistoryLoading(false);setHistoryError("");
   },[]);
 
   useEffect(()=>{
@@ -76,6 +79,21 @@ export function NFLPlayerProfileProvider({children}:{children:React.ReactNode}){
     }).catch((failure:any)=>{if(live)setError(failure?.message||"Could not load NFL player profile")}).finally(()=>{if(live)setLoading(false)});
     return()=>{live=false};
   },[selection]);
+
+  useEffect(()=>{
+    if(tab!=="History"||!data?.player?.id||!leagueKey||historyCache[leagueKey])return;
+    let live=true;
+    setHistoryLoading(true);setHistoryError("");
+    const query=new URLSearchParams({playerId:String(data.player.id),leagueKey});
+    fetch("/api/nfl-player-profile/history?"+query.toString(),{cache:"no-store"}).then(async response=>{
+      const result=await response.json();
+      if(!response.ok)throw new Error(result?.error||"Could not load transaction history");
+      return result;
+    }).then(result=>{
+      if(live)setHistoryCache(current=>({...current,[leagueKey]:Array.isArray(result?.transactions)?result.transactions:[]}));
+    }).catch((failure:any)=>{if(live)setHistoryError(failure?.message||"Could not load transaction history")}).finally(()=>{if(live)setHistoryLoading(false)});
+    return()=>{live=false};
+  },[tab,data?.player?.id,leagueKey,historyCache]);
 
   async function loadNCAA(){
     const ncaaId=data?.ncaaPlayerId;
@@ -155,7 +173,7 @@ export function NFLPlayerProfileProvider({children}:{children:React.ReactNode}){
           {tab==="History"&&<div className={styles.pane}>
             <LeagueSwitcher leagues={data.leagues||[]} active={leagueKey} onChange={setLeagueKey}/>
             <div className={styles.sectionHeading}><span>TRANSACTION HISTORY</span><small>{activeLeague?.label||""}</small></div>
-            {activeLeague?.transactions?.length?<div className={styles.historyList}>{activeLeague.transactions.map((item:any,index:number)=><article className={styles.historyItem} key={String(item.id||index)+"-"+String(item.date||"")}><div className={styles.historyTop}><strong>{item.title||"Transaction"}</strong><time>{prettyDate(item.date)}</time></div><div className={styles.historyDetail}>{item.detail||"Transaction recorded"}{item.season?" · "+item.season+" season":""}</div></article>)}</div>:<div className={styles.empty}>No transactions involving this player were found in the stored history for this league.</div>}
+            {historyLoading&&!historyCache[activeLeague?.key||""]?<div className={styles.loading}>Loading transaction history…</div>:historyError&&!historyCache[activeLeague?.key||""]?<div className={styles.error}>{historyError}</div>:(historyCache[activeLeague?.key||""]||activeLeague?.transactions||[]).length?<div className={styles.historyList}>{(historyCache[activeLeague?.key||""]||activeLeague?.transactions||[]).map((item:any,index:number)=><article className={styles.historyItem} key={String(item.id||index)+"-"+String(item.date||"")}><div className={styles.historyTop}><strong>{item.title||"Transaction"}</strong><time>{prettyDate(item.date)}</time></div><div className={styles.historyDetail}>{item.detail||"Transaction recorded"}{item.season?" · "+item.season+" season":""}</div></article>)}</div>:<div className={styles.empty}>No transactions involving this player were found in the stored history for this league.</div>}
           </div>}
           {tab==="Stats"&&<div className={styles.pane}>
             <LeagueSwitcher leagues={data.leagues||[]} active={leagueKey} onChange={setLeagueKey}/>
@@ -174,7 +192,7 @@ export function NFLPlayerProfileProvider({children}:{children:React.ReactNode}){
             <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Player</th><th>Pos</th><th>Pos Rank</th><th>Fantasy PPG</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.teammates||[]).map((mate:any)=><tr key={mate.id}><td><NFLPlayerName name={mate.name} playerId={mate.id}>{mate.name}</NFLPlayerName></td><td><span className={styles["pos"+mate.position]}>{mate.position}</span></td><td>{rank(mate.positionRank)}</td><td>{fmt(mate.fantasyPointsPerGame)}</td><td>{fmt(mate.fantasyPoints)}</td></tr>)}</tbody></table></div>
             <div className={styles.sectionHeading}><span>TEAM OFFENSE RANKS</span><small>Current season · NFL teams</small></div>
             <div className={styles.rankGrid}>
-              {[["Offensive Yards","offensiveYards"],["Pass Yards","passYards"],["Pass Attempts","passAttempts"],["Pass TDs","passTDs"],["Rush Yards","rushYards"],["Rush Attempts","rushAttempts"],["Rush TDs","rushTDs"]].map(([label,key]:any)=><div className={styles.rankCard} key={key}><span>{label}</span><strong>{rank(activeLeague?.teamRanks?.[key]?.rank)}</strong><small>{activeLeague?.teamRanks?.[key]?.value==null?"Stats unavailable":Number(activeLeague.teamRanks[key].value).toLocaleString()+" yards/plays/TDs"}</small></div>)}
+              {[["Offensive Yards","offensiveYards","yards"],["Pass Yards","passYards","yards"],["Pass Attempts","passAttempts","att."],["Pass TDs","passTDs","TDs"],["Rush Yards","rushYards","yards"],["Rush Attempts","rushAttempts","att."],["Rush TDs","rushTDs","TDs"]].map(([label,key,unit]:any)=><div className={styles.rankCard} key={key}><span>{label}</span><strong>{rank(activeLeague?.teamRanks?.[key]?.rank)}</strong><small>{activeLeague?.teamRanks?.[key]?.value==null?"Stats unavailable":Number(activeLeague.teamRanks[key].value).toLocaleString()+" "+unit}</small></div>)}
             </div>
             <div className={styles.sectionHeading}><span>WEEKLY GAME LOG</span><small>Fantasy points · {activeLeague?.label||""}</small></div>
             <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Week</th><th>Fantasy Points</th></tr></thead><tbody>{(activeLeague?.weekly||[]).slice().reverse().map((week:any)=><tr key={"team-week-"+week.week}><td>Week {week.week}</td><td className={styles.points}>{fmt(week.points)}</td></tr>)}</tbody></table></div>
