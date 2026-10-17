@@ -5,6 +5,7 @@ import TradeCalculator from "./trade-calculator";
 import RosterTradeIdeas from "./trade-ideas-launcher";
 import MyTeamInsights from "./my-team-insights";
 import ShopPlayerButton from "./shop-player-button";
+import {NFLPlayerName} from "@/components/NFLPlayerProfile";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
 type TradeAsset={
@@ -372,7 +373,7 @@ export default function Page(){
                   {sortedPlayers.map((p,i)=>{
                     const hasKtc=Number.isFinite(Number(p.ktc));
                     return <tr key={p.name+"-"+i}>
-                      <td><strong>{p.name}</strong>{tradeAssetByName.get(tradePrefKey(p.name))&&<ShopPlayerButton leagueKey={roster.key} asset={tradeAssetByName.get(tradePrefKey(p.name))!}/>}</td>
+                      <td><NFLPlayerName name={p.name}>{p.name}</NFLPlayerName>{tradeAssetByName.get(tradePrefKey(p.name))&&<ShopPlayerButton leagueKey={roster.key} asset={tradeAssetByName.get(tradePrefKey(p.name))!}/>}</td>
                       <td><PositionBadge position={p.position}/></td>
                       <td>{p.team||"—"}</td>
                       <td>{p.age||"—"}</td>

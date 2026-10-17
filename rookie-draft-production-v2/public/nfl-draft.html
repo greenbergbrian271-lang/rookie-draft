@@ -429,6 +429,16 @@ const emptyTitle=document.getElementById('draftEmptyTitle');if(emptyTitle)emptyT
 const statusSub=document.getElementById('draftStatusSub');if(statusSub)statusSub.textContent=draftClass+' selections have not started';
 renderEnv();renderDepth();renderCapital();renderWeightsEditor();renderFormulaSummary();renderGradeWarehouse();
 (async function bootstrap(){await Promise.all([loadFinalBoardProspects(),loadNflGrades()]);await syncDraftFeed();if(draftClass>=2027)setInterval(syncDraftFeed,60000)})();
+
+document.addEventListener('click',function(event){
+  const target=event.target instanceof Element?event.target:null;
+  if(!target)return;
+  const node=target.closest('.draft-table tbody tr td:nth-child(3), .best-prospect .best-name, .dc-player .dc-name');
+  if(!node)return;
+  const name=(node.textContent||'').trim();
+  if(!name||name==='—'||name==='-')return;
+  window.parent.postMessage({type:'rookie-draft:open-nfl-player',name:name},window.location.origin);
+},true);
 </script>
 </body>
 </html>

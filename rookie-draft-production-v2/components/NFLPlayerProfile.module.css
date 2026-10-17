@@ -1,0 +1,67 @@
+.backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.78);backdrop-filter:blur(6px)}
+.modal.player-profile-modal{width:min(1120px,96vw);max-height:94vh;overflow:auto;background:#071426;border:1px solid #31527f;border-radius:18px;box-shadow:0 28px 90px rgba(0,0,0,.55)}
+.close.player-profile-close{position:absolute;right:14px;top:12px;z-index:10;background:#10223d;border:1px solid #31527f;color:#e8f1ff}
+.sportSwitch{display:flex;align-items:center;gap:8px;padding:14px 20px 0;border-bottom:1px solid #20395f}
+.sportSwitch button{display:flex;align-items:center;gap:8px;padding:8px 13px;margin-bottom:-1px;background:transparent;border:1px solid transparent;border-bottom:3px solid transparent;border-radius:9px 9px 0 0;color:#91a7c4;font-size:12px;font-weight:950}
+.sportSwitch button.sportActive{background:#10223d;color:#fff;border-color:#31527f;border-bottom-color:#20e2dd}
+.sportLogo{width:28px;height:24px;object-fit:contain}
+.ncaaWrap{padding:0 0 8px}
+.content{min-width:0}
+.hero{display:flex;align-items:center;gap:20px;padding:22px 28px 18px}
+.headshot{width:104px;height:116px;object-fit:cover;object-position:top;border-radius:13px;background:#132a49;border:1px solid #29476e}
+.initials{width:104px;height:116px;display:grid;place-items:center;border-radius:13px;background:#132a49;color:#eaf2ff;font-size:30px;font-weight:950}
+.heroInfo{min-width:0;padding-right:46px}
+.eyebrow{display:block;color:#6de3dc;font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}
+.hero h1{margin:6px 0 5px;font-size:clamp(24px,4vw,34px);line-height:1.1;color:#f5f9ff}
+.meta{font-size:12px;color:#9cb0ca}
+.tabs{display:flex;gap:2px;padding:0 22px;border-bottom:1px solid #20395f;overflow:auto}
+.tabs button{flex:0 0 auto;padding:13px 18px;border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:#91a7c4;font-weight:900}
+.tabs button.tabActive{color:#fff;border-bottom-color:#20e2dd}
+.pane{padding:20px 26px 28px}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.metric{min-width:0;padding:15px 16px;background:linear-gradient(145deg,#102440,#0a192d);border:1px solid #28466d;border-radius:12px}
+.metric>span{display:block;color:#91a7c4;font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase;margin-bottom:8px}
+.metric strong{display:block;color:#f7fbff;font-size:clamp(22px,3vw,32px);line-height:1.1;font-variant-numeric:tabular-nums}
+.metric small{display:block;color:#8197b5;font-size:10px;margin-top:6px}
+.upcoming{margin-top:18px;padding:18px;background:radial-gradient(circle at 100% 0,rgba(32,226,221,.09),transparent 48%),#0b1b31;border:1px solid #28466d;border-radius:13px;min-height:116px}
+.sectionHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 10px}
+.sectionHeading>span{font-size:10px;font-weight:950;letter-spacing:.11em;color:#8fa7c8;text-transform:uppercase}
+.sectionHeading small{font-size:10px;color:#7189aa;text-align:right}
+.opponent{display:block;margin:6px 0 8px;font-size:25px;color:#fff}
+.muted{color:#8fa7c8;font-size:12px}
+.leagueSwitch{display:flex;gap:6px;overflow:auto;padding:5px;margin:0 0 18px;background:#081426;border:1px solid #20395f;border-radius:11px;width:max-content;max-width:100%}
+.leagueSwitch button{flex:0 0 auto;background:transparent;border:1px solid transparent;color:#91a7c4;padding:8px 12px;border-radius:7px;white-space:nowrap;font-size:11px;font-weight:850}
+.leagueSwitch button.leagueActive{background:#173253;border-color:#31577f;color:#fff;box-shadow:inset 0 0 0 1px rgba(32,226,221,.12)}
+.historyList{display:grid;gap:8px}
+.historyItem{padding:13px 14px;border:1px solid #20395f;background:#0b1b31;border-radius:10px}
+.historyTop{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.historyTop strong{font-size:13px;color:#f1f6ff}
+.historyTop time{font-size:10px;color:#8197b5;white-space:nowrap}
+.historyDetail{font-size:12px;color:#a8bad2;margin-top:6px}
+.empty{padding:24px 16px;border:1px dashed #31527f;border-radius:10px;color:#8fa7c8;text-align:center;font-size:12px}
+.tableWrap{overflow:auto;border:1px solid #20395f;border-radius:10px}
+.table{width:100%;border-collapse:collapse;font-size:12px}
+.table th{position:sticky;top:0;background:#132844;color:#91a7c4;text-align:left;padding:10px 12px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.table td{padding:10px 12px;border-top:1px solid #18304f;color:#e9f1fb;white-space:nowrap}
+.table tbody tr:nth-child(odd){background:#0b1a30}
+.table tbody tr:nth-child(even){background:#0e2039}
+.points{font-weight:950;font-variant-numeric:tabular-nums;color:#fff!important}
+.statsMetrics{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px}
+.teamIntro{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:4px 0 12px}
+.teamIntro h2{font-size:19px;margin:5px 0 0}
+.rankGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0 0 20px}
+.rankCard{padding:12px;background:#0b1b31;border:1px solid #20395f;border-radius:10px;min-width:0}
+.rankCard span{display:block;font-size:10px;color:#8fa7c8;font-weight:900;margin-bottom:7px}
+.rankCard strong{display:block;font-size:24px;color:#fff}
+.rankCard small{display:block;color:#7189aa;font-size:9px;margin-top:5px}
+.posQB,.posRB,.posWR,.posTE{display:inline-flex;justify-content:center;min-width:32px;padding:4px 6px;border-radius:5px;font-size:10px;font-weight:950;color:#071426}
+.posQB{background:#fc2b6d;color:#fff}.posRB{background:#20ceb7}.posWR{background:#58a7ff}.posTE{background:#fead58}
+.loading,.error{padding:40px 22px;text-align:center;color:#a9bdd8}
+.error{color:#ffb6c2}
+.ncaaStatus{margin:0 24px 14px;padding:9px 12px;border-radius:8px;font-size:11px}
+.success{background:#123b2c;border:1px solid #247a55;color:#bff4d7}
+.warning{background:#33291a;border:1px solid #725b2d;color:#f8dfaa}
+:global(.nfl-player-name-link){display:inline;padding:0;margin:0;background:transparent!important;border:0!important;border-radius:0!important;color:#d9eaff!important;font:inherit;font-weight:800;text-align:left;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(113,190,255,.55);text-underline-offset:3px;cursor:pointer}
+:global(.nfl-player-name-link:hover){color:#6de3dc!important;text-decoration-style:solid}
+:global(.nfl-player-name-link:focus-visible){outline:2px solid #20e2dd;outline-offset:3px;border-radius:3px}
+@media(max-width:760px){.backdrop{padding:6px}.modal.player-profile-modal{width:100%;max-height:98vh;border-radius:12px}.hero{align-items:flex-start;gap:12px;padding:18px 14px 14px}.headshot,.initials{width:76px;height:88px;flex:0 0 auto}.heroInfo{padding-right:30px}.hero h1{font-size:23px}.meta{font-size:10px}.sportSwitch{padding:10px 12px 0}.sportSwitch button{padding:7px 9px}.pane{padding:15px 12px 20px}.metrics,.statsMetrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metric{padding:12px}.metric strong{font-size:23px}.rankGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.tabs{padding:0 8px}.tabs button{padding:12px 13px}.leagueSwitch{width:100%}.leagueSwitch button{padding:8px 9px}.historyTop{align-items:flex-start;flex-direction:column;gap:4px}.teamIntro{align-items:flex-start;flex-direction:column}.table{font-size:11px}.table td,.table th{padding:9px 8px}}

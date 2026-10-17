@@ -1,4 +1,5 @@
 "use client";
+import {NFLPlayerName} from "@/components/NFLPlayerProfile";
 
 import {useEffect,useMemo,useState} from "react";
 
@@ -107,7 +108,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
         </Card>
 
         <Card title="Trade Deadline Mode" wide>
-          {(data.deadline||[]).length?<div className="di-opps">{data.deadline.slice(0,8).map((o:any,i:number)=><div key={i}><b>{o.buyer.name}</b><span>needs {o.position} (#{o.buyerRank})</span><em>→ {o.seller.name}: {o.candidates.map((c:any)=>c.name).join(", ")}</em></div>)}</div>:<p className="muted">No clean contender-to-rebuilder matches right now.</p>}
+          {(data.deadline||[]).length?<div className="di-opps">{data.deadline.slice(0,8).map((o:any,i:number)=><div key={i}><b>{o.buyer.name}</b><span>needs {o.position} (#{o.buyerRank})</span><em>→ {o.seller.name}: {o.candidates.map((c:any,i:number)=><span key={String(c.id||c.name)+i}>{i>0?", ":""}<NFLPlayerName name={c.name}>{c.name}</NFLPlayerName></span>)}</em></div>)}</div>:<p className="muted">No clean contender-to-rebuilder matches right now.</p>}
         </Card>
       </>}
 
@@ -153,7 +154,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
 
         <Card title="Comparable Trades" wide>
           <input className="di-search" value={tradeSearch} onChange={e=>setTradeSearch(e.target.value)} placeholder="Search a player or position, e.g. QB or Caleb Williams"/>
-          <div className="di-trades">{comparable.map((t:any)=><div key={"c"+t.id}><b>{new Date(t.created).toLocaleDateString()}</b>{t.sides.map((s:any)=><span key={s.ownerId}><strong>{s.name}</strong> received {[...(s.playersIn||[]),...(s.picksIn||[])].map((a:any)=>a.name).join(" + ")||"—"}</span>)}</div>)}</div>
+          <div className="di-trades">{comparable.map((t:any)=><div key={"c"+t.id}><b>{new Date(t.created).toLocaleDateString()}</b>{t.sides.map((s:any)=><span key={s.ownerId}><strong>{s.name}</strong> received {[...(s.playersIn||[]).map((a:any)=>({name:a.name,player:true})),...(s.picksIn||[]).map((a:any)=>({name:a.name,player:false}))].map((a:any,i:number)=><span key={String(a.name)+i}>{i>0?" + ":""}{a.player?<NFLPlayerName name={a.name}>{a.name}</NFLPlayerName>:a.name}</span>)}</span>)}</div>)}</div>
         </Card>
       </>}
 
@@ -172,16 +173,16 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
         </Card>
 
         <Card title="Buy Low / Sell High">
-          {(data.movement30?.rows||[]).length?<>{data.movement30.rows.filter((x:any)=>x.onMyRoster&&x.changePct>0).slice(0,4).map((x:any)=><p className="di-line" key={"s"+x.name}><strong>Sell high · {x.name}</strong><span>+{Number(x.changePct).toFixed(1)}%</span></p>)}{data.movement30.rows.filter((x:any)=>x.changePct<0).slice(0,4).map((x:any)=><p className="di-line" key={"b"+x.name}><strong>Buy low · {x.name}</strong><span>{Number(x.changePct).toFixed(1)}%</span></p>)}</>:<p className="muted">Import KTC player histories to activate the 30-day market signals immediately.</p>}
+          {(data.movement30?.rows||[]).length?<>{data.movement30.rows.filter((x:any)=>x.onMyRoster&&x.changePct>0).slice(0,4).map((x:any)=><p className="di-line" key={"s"+x.name}><strong>Sell high · <NFLPlayerName name={x.name}>{x.name}</NFLPlayerName></strong><span>+{Number(x.changePct).toFixed(1)}%</span></p>)}{data.movement30.rows.filter((x:any)=>x.changePct<0).slice(0,4).map((x:any)=><p className="di-line" key={"b"+x.name}><strong>Buy low · <NFLPlayerName name={x.name}>{x.name}</NFLPlayerName></strong><span>{Number(x.changePct).toFixed(1)}%</span></p>)}</>:<p className="muted">Import KTC player histories to activate the 30-day market signals immediately.</p>}
         </Card>
 
         <Card title="Emerging Player Radar">
-          {(data.emerging?.adds||[]).slice(0,8).map((x:any)=><p className="di-line" key={x.id}><strong>{x.name} · {x.position}</strong><span>+{fmt.format(x.count)} adds · {money(x.value)}</span></p>)}
+          {(data.emerging?.adds||[]).slice(0,8).map((x:any)=><p className="di-line" key={x.id}><strong><NFLPlayerName name={x.name}>{x.name}</NFLPlayerName> · {x.position}</strong><span>+{fmt.format(x.count)} adds · {money(x.value)}</span></p>)}
         </Card>
 
 
         <Card title="Market vs My Board" wide>
-          <div className="di-table-wrap"><table className="di-table"><thead><tr><th>Player</th><th>Pos</th><th>My Rank</th><th>ADP</th><th>Gap</th></tr></thead><tbody>{(data.marketGaps||[]).slice(0,16).map((x:any)=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.position}</td><td>{x.myRank}</td><td>{x.adpRank}</td><td className={x.delta>0?"up":"down"}>{x.delta>0?"+":""}{x.delta}</td></tr>)}</tbody></table></div>
+          <div className="di-table-wrap"><table className="di-table"><thead><tr><th>Player</th><th>Pos</th><th>My Rank</th><th>ADP</th><th>Gap</th></tr></thead><tbody>{(data.marketGaps||[]).slice(0,16).map((x:any)=><tr key={x.id}><td><strong><NFLPlayerName name={x.name}>{x.name}</NFLPlayerName></strong></td><td>{x.position}</td><td>{x.myRank}</td><td>{x.adpRank}</td><td className={x.delta>0?"up":"down"}>{x.delta>0?"+":""}{x.delta}</td></tr>)}</tbody></table></div>
         </Card>
       </>}
 

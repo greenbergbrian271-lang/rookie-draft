@@ -122,3 +122,31 @@ export async function managerIntelMode(league:SleeperLeagueIntegration){
   try{const r=await c.execute({sql:"select owner_name,owner_key,count(*) as sample_size from mock_draft_history where league_key=? group by owner_name,owner_key",args:[league.key]});draftTendencies=r.rows.map((x:any)=>({ownerName:String(x.owner_name),ownerKey:String(x.owner_key),sampleSize:Number(x.sample_size)||0}))}catch{}
   return {league:{key:league.key,name:String(base.leagueData?.name||league.name)},...analysis,draftTendencies,seasons:seasons.map(s=>Number(s?.meta?.season)).filter(Boolean)};
 }
+
+
+export async function playerTransactionHistory(league:SleeperLeagueIntegration,playerId:string){
+  const seasons=await historySeasons(league.leagueId,3),events:any[]=[];
+  for(const season of seasons){
+    const rosters=new Map<number,any>((season.rosters||[]).map((row:any)=>[Number(row.roster_id),row] as [number,any]));
+    const users=new Map<string,any>((season.users||[]).map((row:any)=>[String(row.user_id),row] as [string,any]));
+    const ownerName=(rosterId:number)=>{
+      const roster=rosters.get(rosterId),ownerId=String(roster?.owner_id||"");
+      return intelOwnerName(users.get(ownerId),{roster_id:rosterId});
+    };
+    for(const tx of season.transactions||[]){
+      if(tx?.status&&String(tx.status).toLowerCase()!=="complete")continue;
+      const adds=tx?.adds||{},drops=tx?.drops||{};
+      const hasAdd=Object.prototype.hasOwnProperty.call(adds,playerId),hasDrop=Object.prototype.hasOwnProperty.call(drops,playerId);
+      if(!hasAdd&&!hasDrop)continue;
+      const addRoster=hasAdd?Number(adds[playerId]):NaN,dropRoster=hasDrop?Number(drops[playerId]):NaN;
+      const from=Number.isFinite(dropRoster)?ownerName(dropRoster):"";
+      const to=Number.isFinite(addRoster)?ownerName(addRoster):"";
+      const type=String(tx?.type||"transaction");
+      const title=type==="trade"?"Trade":type==="waiver"?"Waiver claim":type==="free_agent"?"Free-agent move":type.charAt(0).toUpperCase()+type.slice(1);
+      const detail=from&&to&&from!==to?"From "+from+" to "+to:to?(type==="trade"?"Moved to ":"Added by ")+to:from?(type==="trade"?"Moved from ":"Dropped by ")+from:"Transaction recorded";
+      const created=Number(tx?.created||0);
+      events.push({id:String(tx?.transaction_id||created),date:created?new Date(created).toISOString():null,created,season:Number(season?.meta?.season)||0,title,detail,type,leagueKey:league.key,leagueName:String(season?.meta?.name||league.name)});
+    }
+  }
+  return events.sort((a,b)=>Number(b.created||0)-Number(a.created||0));
+}
