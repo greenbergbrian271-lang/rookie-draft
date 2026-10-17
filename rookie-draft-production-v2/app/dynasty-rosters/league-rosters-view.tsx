@@ -122,7 +122,7 @@ export default function LeagueRostersView({leagueKey}:{leagueKey:string}){
           </table></div>
         </section>
 
-        <HandcuffPanel title="Handcuff Bonus Players" items={team.bonus} note="Depth players below the 2,500 KTC bench minimum. Reference only: they do not count for handcuff boosts."/>
+        <HandcuffPanel title="Handcuff Bonus Players" items={team.bonus} note="Rookies on this roster. Reference only: they never affect Draft Day."/>
       </div>
 
       <aside className="lr-side">

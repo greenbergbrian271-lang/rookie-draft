@@ -73,9 +73,9 @@ function PositionBadge({position}:{position:string}){
   return <span className={"dynasty-pos "+posClass(position)}>{position}</span>;
 }
 
-function HandcuffList({title,items,coverage=false}:{title:string;items:HandcuffItem[];coverage?:boolean}){
+function HandcuffList({title,items,coverage=false,note}:{title:string;items:HandcuffItem[];coverage?:boolean;note?:string}){
   return <section className="dynasty-panel">
-    <div className="dynasty-panel-title">{title}<span>{items.length}</span></div>
+    <div className="dynasty-panel-title"><div className="dynasty-panel-title-main"><div><span className="dynasty-panel-name">{title}</span>{note&&<em className="dynasty-panel-note">{note}</em>}</div></div><span>{items.length}</span></div>
     {items.length?<div className="dynasty-handcuff-list">
       {items.map((item,i)=><div className="dynasty-handcuff-row" key={title+"-"+i}>
         <PositionBadge position={item.slot||"Bench"}/>
@@ -93,8 +93,7 @@ function HandcuffBonusList({items}:{items:HandcuffItem[]}){
   return <section className="dynasty-panel dynasty-bonus-panel">
     <div className="dynasty-panel-title">
       <div className="dynasty-panel-title-main">
-        <span className="dynasty-panel-name">Handcuff Bonus Players</span>
-        <span className="trade-pref-legend">Extra handcuff targets that qualify beyond the core starter and bench lists</span>
+        <div><span className="dynasty-panel-name">Handcuff Bonus Players</span><em className="dynasty-panel-note">Extra handcuff targets that qualify beyond the core starter and bench lists</em></div>
       </div>
       <span>{players.length} players</span>
     </div>
@@ -272,6 +271,12 @@ export default function Page(){
   },[rosters]);
   const playerLeagueCounts=useMemo(()=>Object.fromEntries([...playerLeagueExposure.entries()].map(([key,row])=>[key,row.count])),[playerLeagueExposure]);
   const currentExposure=useMemo(()=>roster?(roster.players||[]).map(player=>playerLeagueExposure.get(tradePrefKey(player.name))).filter((row):row is {name:string;count:number;leagues:string[]}=>Boolean(row&&row.count>1)).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name)):[],[roster,playerLeagueExposure]);
+  const handcuffTag=(name:string)=>{
+    const key=tradePrefKey(name);
+    if((roster?.starters||[]).some(i=>tradePrefKey(i.name)===key))return "Starter";
+    if((roster?.benchPlayers||[]).some(i=>tradePrefKey(i.name)===key))return "Bench";
+    return "";
+  };
   const totalPickValue=useMemo(()=>tradeAssets.picks.reduce((sum,p)=>sum+(Number(p.value)||0),0),[tradeAssets.picks]);
   const tradeAssetByName=useMemo(()=>new Map((tradeAssets.players||[]).map(asset=>[tradePrefKey(asset.name),asset])),[tradeAssets.players]);
   const sortedPlayers=useMemo(()=>{
@@ -353,8 +358,7 @@ export default function Page(){
           <section className="dynasty-panel dynasty-roster-panel">
             <div className="dynasty-panel-title">
               <div className="dynasty-panel-title-main">
-                <span className="dynasty-panel-name">Roster</span>
-                <span className="trade-pref-legend">⇄ = sync this preference to every league where you own that player</span>
+                <div><span className="dynasty-panel-name">Roster</span><em className="dynasty-panel-note">Handcuff column: Starter or Bench (2,500+ KTC) means a rookie on that NFL team boosts that player. ⇄ syncs a trade preference to every league you own that player in</em></div>
               </div>
               <span>{roster.players.length} players · click any column to sort · preferences feed Trade Ideas</span>
             </div>
@@ -366,6 +370,7 @@ export default function Page(){
                   <SortHeader label="Team" col="team"/>
                   <SortHeader label="Age" col="age" center/>
                   <SortHeader label="KTC Value" col="ktc" center/>
+                  <th className="center trade-pref-head">Handcuff</th>
                   <th className="center trade-pref-head">Trade Preference</th>
                 </tr></thead>
                 <tbody>
@@ -379,6 +384,7 @@ export default function Page(){
                       <td className="ktc">
                         {hasKtc?fmtKtc(p.ktc):<span className="ktc-missing" title="No KTC match found after the latest KTC refresh. The player name was checked using normalized names, aliases, and first/last-name matching.">N/A <span className="ktc-help">?</span></span>}
                       </td>
+                      <td>{handcuffTag(p.name)?<span className={"dynasty-tag "+handcuffTag(p.name).toLowerCase()}>{handcuffTag(p.name)}</span>:<span className="dynasty-dash">—</span>}</td>
                       <td className="trade-pref-cell">
                         <div className="trade-pref-stack">
                           <select
@@ -441,8 +447,8 @@ export default function Page(){
           <aside className="dynasty-side">
             <HandcuffList title="Starters to Handcuff" items={roster.starters}/>
             <HandcuffList title="Bench Players to Handcuff" items={roster.benchPlayers}/>
-            <HandcuffList title="Starting Handcuffs" items={roster.startingCoverage} coverage/>
-            <HandcuffList title="Bench Handcuffs" items={roster.benchCoverage} coverage/>
+            <HandcuffList title="Starting Handcuffs" items={roster.startingCoverage} coverage note="NFL teams covered by your starters"/>
+            <HandcuffList title="Bench Handcuffs" items={roster.benchCoverage} coverage note="NFL teams covered by 2,500+ KTC bench players"/>
           </aside>
         </div>
 
@@ -486,7 +492,7 @@ export default function Page(){
       .sort-header:hover,.sort-header.active{color:#fff!important;background:#193457!important}
       .sort-arrow{font-size:9px;opacity:.8}
       .dynasty-roster-table th:nth-child(2),.dynasty-roster-table th:nth-child(4),.dynasty-roster-table th:nth-child(5),.dynasty-roster-table th:nth-child(6),
-      .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5),.dynasty-roster-table td:nth-child(6){text-align:center}
+      .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5),.dynasty-roster-table td:nth-child(6),.dynasty-roster-table th:nth-child(7),.dynasty-roster-table td:nth-child(7){text-align:center}
       .dynasty-roster-table td{padding:8px 11px;border-bottom:1px solid #18304f;color:#e9f1fb}
       .dynasty-roster-table tbody tr:nth-child(odd) td{background:#0b1a30}
       .dynasty-roster-table tbody tr:nth-child(even) td{background:#0e2039}
@@ -566,6 +572,41 @@ export default function Page(){
         .dynasty-handcuff-copy{display:block}
         .dynasty-handcuff-copy span{display:block;margin-top:2px}
       }
+
+      .dynasty-page .dynasty-panel{background:#0c1930;border:1px solid #20395f;border-radius:10px}
+      .dynasty-panel-title{background:#10213a!important;border-bottom:1px solid #20395f;color:#fff!important;padding:9px 12px!important}
+      .dynasty-panel-title>span{color:#8fa7c8!important;font-size:10px!important;font-weight:700!important;white-space:nowrap}
+      .dynasty-panel-name{font-size:12px!important;text-transform:uppercase;letter-spacing:.05em;font-weight:900!important;color:#fff!important}
+      .dynasty-panel-note{display:block;margin-top:2px;color:#7890b1;font-size:9px;font-style:normal;font-weight:600;letter-spacing:0;text-transform:none}
+      .dynasty-tabs button{padding:8px 12px;font-size:11px}
+      .dynasty-meta{background:#10213a;border:1px solid #20395f;border-radius:9px;padding:8px 10px}
+      .dynasty-meta span{color:#7890b1;font-size:9px;letter-spacing:.05em;font-weight:700;margin-bottom:3px}
+      .dynasty-meta strong{font-size:14px}
+      .dynasty-meta.updated strong{font-size:12px}
+      .dynasty-roster-table{font-family:inherit;font-size:12px}
+      .dynasty-roster-table th{background:#0c1930;color:#7890b1;border-bottom:1px solid #18304f;font-size:9px;letter-spacing:0}
+      .sort-header{color:#7890b1!important;font-size:9px;letter-spacing:0;padding:7px 10px}
+      .sort-header:hover,.sort-header.active{color:#20e2dd!important;background:transparent!important}
+      .dynasty-roster-table td{padding:7px 10px}
+      .dynasty-roster-table td:first-child strong{font-size:12px}
+      .dynasty-roster-table .ktc{font-weight:700}
+      .dynasty-pos{min-width:34px;border-radius:6px;padding:3px 6px;font-size:10px;font-weight:900;background:#1b2f4d;color:#cfe0f5}
+      .dynasty-pos.qb{background:#5a2a3d;color:#ffc3d2}
+      .dynasty-pos.rb,.dynasty-pos.bench{background:#1f4d3d;color:#a8f0d0}
+      .dynasty-pos.wr{background:#1f3f6b;color:#b7d4ff}
+      .dynasty-pos.te{background:#5a4620;color:#ffe0a0}
+      .dynasty-pos.other{background:#33305a;color:#d4ceff}
+      .slot-icon{border-radius:6px;color:#e8f1ff;font-size:9px;width:44px!important;height:auto!important;min-height:26px;background:#33305a;border:0;box-shadow:none}
+      .slot-wrt,.slot-qwrt{height:auto}
+      .slot-w{background:#1f3f6b;color:#b7d4ff}.slot-r{background:#1f4d3d;color:#a8f0d0}.slot-t{background:#5a4620;color:#ffe0a0}.slot-q{background:#5a2a3d;color:#ffc3d2}
+      .dynasty-tag{display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+      .dynasty-tag.starter{background:#173d63;color:#b9dcff;border:1px solid #31577f}
+      .dynasty-tag.bench{background:#2d3a1c;color:#d6f0a0;border:1px solid #556b2e}
+      .dynasty-dash{color:#4d6485}
+      .dynasty-handcuff-row{grid-template-columns:44px minmax(0,1fr);min-height:42px;padding:6px 12px}
+      .dynasty-bonus-row{grid-template-columns:44px minmax(0,1fr);min-height:42px;padding:6px 12px}
+      .dynasty-handcuff-copy strong{font-size:12px}
+      .dynasty-empty{padding:14px;font-size:11px;color:#6f89aa}
     `}</style>
   </div>;
 }

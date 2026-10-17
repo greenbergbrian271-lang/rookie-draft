@@ -121,7 +121,7 @@ export async function buildLeagueRosters(league:SleeperLeagueIntegration){
       const ktcValue=match?(league.tePremium?match.player.tepValue:match.player.value):null;
       return {
         playerId:id,name,position,team:TEAM_NAMES[String(p.team||"")]||String(p.team||"FA"),
-        age:p.age==null?"":String(p.age),ktcValue,ktcStatus:match?.method||"unmatched",
+        age:p.age==null?"":String(p.age),rookie:p.years_exp===0,ktcValue,ktcStatus:match?.method||"unmatched",
         status:(reserve.has(id)?"IR / Reserve":taxi.has(id)?"Taxi":"Roster") as LeagueRosterPlayer["status"],
       };
     }).filter(Boolean) as any[];
@@ -138,9 +138,9 @@ export async function buildLeagueRosters(league:SleeperLeagueIntegration){
     }
     const benchTeams=[...new Set(bench.map(p=>p.team).filter(Boolean))];
 
-    // Bonus = deep depth: not a starter, below the bench minimum. Display only.
-    const bonus:HandcuffItem[]=raw.filter(p=>!starterIds.has(p.playerId)&&!benchIds.has(p.playerId)&&p.team&&p.team!=="FA")
-      .sort((a,b)=>Number(b.ktcValue||0)-Number(a.ktcValue||0)).map(p=>({slot:p.position,name:p.name,team:p.team}));
+    // Bonus = rookies (Sleeper years_exp 0) on this roster, best KTC first. Display only.
+    const bonus:HandcuffItem[]=raw.filter(p=>p.rookie)
+      .sort((a,b)=>Number(b.ktcValue||0)-Number(a.ktcValue||0)||a.name.localeCompare(b.name)).map(p=>({slot:p.position,name:p.name,team:p.team}));
 
     const players:LeagueRosterPlayer[]=raw.map(p=>({
       name:p.name,position:p.position,team:p.team,age:p.age,
