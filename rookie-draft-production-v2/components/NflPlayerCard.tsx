@@ -233,7 +233,7 @@ function Team({d,league,setLeague,open}:{d:any;league:string;setLeague:(k:string
       <tbody>{d.gameLog.map((g:any)=><tr key={g.week} className={!g.played?"dim":""}>
         <td>{g.week}</td>
         <td>{g.bye?"BYE":g.opp?`${g.home===false?"@":g.home?"vs":""} ${g.opp}`.trim():dash}</td>
-        <td>{g.played?g.line:(g.bye?"Bye week":"Did not play")}</td>
+        <td>{g.played?g.line:(g.bye?"Bye week":g.upcoming?"Upcoming":"Did not play")}</td>
         <td><b>{g.played?f1(g.pts?.[league]):dash}</b></td></tr>)}</tbody></table></div>
   </div>;
 }

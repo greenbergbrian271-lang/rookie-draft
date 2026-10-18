@@ -96,7 +96,8 @@ export async function GET(req:Request){
       const opp=row?.opp||(game&&t?(game.home===t?game.away:game.home):null);
       const pts:Record<string,number>={};
       if(row)for(const l of leagues)pts[l.integration.key]=scoreStats(row.stats,l.scoring,position);
-      return {week:w,opp,home,played:Boolean(row),bye:!game&&!row&&Boolean(t),line:row?statLine(position,row.stats):null,pts};
+      const upcoming=!row&&Boolean(game)&&String(game?.status||"").toLowerCase()!=="complete"&&w>=currentWeek&&seasonType==="regular";
+      return {week:w,opp,home,played:Boolean(row),upcoming,bye:!game&&!row&&Boolean(t),line:row?statLine(position,row.stats):null,pts};
     });
 
     const teamRanks=buildTeamRanks(stats,teamAbbr);

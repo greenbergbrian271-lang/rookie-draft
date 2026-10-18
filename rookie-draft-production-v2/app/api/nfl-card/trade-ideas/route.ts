@@ -102,3 +102,9 @@ export async function POST(req:Request){
     return Response.json({error:"Could not generate trade ideas",detail:e?.message},{status:500});
   }
 }
+
+// GET mirrors POST so the generator can be opened/tested from a URL: ?leagueKey=...&sleeperId=...
+export async function GET(req:Request){
+  const url=new URL(req.url);
+  return POST(new Request(req.url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({leagueKey:url.searchParams.get("leagueKey"),sleeperId:url.searchParams.get("sleeperId")})}));
+}
