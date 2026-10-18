@@ -15,7 +15,18 @@ const SLEEPER_STATS="https://api.sleeper.com";
 
 type Json=any;
 
+// cap concurrent outbound requests so long league histories don't trip Sleeper's rate limit
+let inflight=0;const waiters:(()=>void)[]=[];
+async function slot<T>(run:()=>Promise<T>):Promise<T>{
+  if(inflight>=30)await new Promise<void>(r=>waiters.push(r));
+  inflight++;
+  try{return await run()}finally{inflight--;waiters.shift()?.()}
+}
+
 async function getJson(url:string,opts:{revalidate?:number}={}):Promise<Json|null>{
+  return slot(()=>getJsonRaw(url,opts));
+}
+async function getJsonRaw(url:string,opts:{revalidate?:number}={}):Promise<Json|null>{
   try{
     const res=await fetch(url,opts.revalidate?{headers:{accept:"application/json"},next:{revalidate:opts.revalidate}}:{cache:"no-store",headers:{accept:"application/json"}});
     if(!res.ok)return null;
@@ -314,7 +325,7 @@ function pickLabel(p:Json){
   return `${p.season} ${suffix}`;
 }
 
-async function leagueChain(leagueId:string,depth=2){
+async function leagueChain(leagueId:string,depth=9){
   const chain:Json[]=[];
   let id:string|null=leagueId;
   for(let i=0;i<=depth&&id&&id!=="0";i++){

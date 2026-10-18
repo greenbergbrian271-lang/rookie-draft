@@ -8,7 +8,7 @@ type Ctx={openNflPlayer:(ref:NflPlayerRef)=>void};
 const C=createContext<Ctx>({openNflPlayer:()=>{}});
 export function useNflPlayerCard(){return useContext(C)}
 
-const TABS=["Summary","History","Stats","Team","Availability"] as const;
+const TABS=["Summary","History","Stats","Team","Game Log","Availability"] as const;
 type Tab=typeof TABS[number];
 
 const dash="—";
@@ -93,13 +93,6 @@ function NotFound({data}:{data:any}){
     <div className="nfc-empty">No NFL profile was found for this player in Sleeper{data.collegePlayerId?" — use the NCAA toggle above to see the college card.":"."} This usually means a draft prospect who hasn't been added to an NFL roster yet.</div></div>;
 }
 
-function LeaguePills({leagues,value,onChange,label}:{leagues:any[];value:string;onChange:(k:string)=>void;label?:string}){
-  if(!leagues?.length)return null;
-  return <div className="nfc-pills" role="tablist" aria-label={label||"League"}>
-    {leagues.map(l=><button key={l.key} type="button" role="tab" aria-selected={value===l.key} className={value===l.key?"active":""} onClick={()=>onChange(l.key)} title={l.name}>{l.name}</button>)}
-  </div>;
-}
-
 function Card({d,tab,setTab,league,setLeague,open}:{d:any;tab:Tab;setTab:(t:Tab)=>void;league:string;setLeague:(k:string)=>void;open:(r:NflPlayerRef)=>void}){
   const p=d.player;
   const meta=[p.position,p.team,p.number!=null?"#"+p.number:null,heightLabel(p.height),p.weight?p.weight+" lbs":null,p.age?p.age+" yrs":null,p.yearsExp!=null?(Number(p.yearsExp)===0?"Rookie":p.yearsExp+" yr exp"):null,p.college].filter(Boolean).join(" · ");
@@ -111,12 +104,15 @@ function Card({d,tab,setTab,league,setLeague,open}:{d:any;tab:Tab;setTab:(t:Tab)
         <h1>{p.name}</h1>
         <div className="nfc-sub">{d.seasonLabel} season{p.injury?<span className="nfc-injury">{p.injury.status}{p.injury.bodyPart?" · "+p.injury.bodyPart:""}</span>:null}{!p.team&&<span className="nfc-injury">Free agent</span>}</div>
       </div>
+      {d.leagues?.length>0&&<label className="nfc-league"><span>League</span>
+        <select value={league} onChange={e=>setLeague(e.target.value)} aria-label="League (scoring and rosters)">{d.leagues.map((l:any)=><option key={l.key} value={l.key}>{l.name}</option>)}</select></label>}
     </div>
     <div className="nfc-tabs">{TABS.map(t=><button key={t} className={tab===t?"active":""} onClick={()=>setTab(t)}>{t}</button>)}</div>
     {tab==="Summary"&&<Summary d={d} league={league} setLeague={setLeague}/>}
     {tab==="History"&&<History d={d} league={league} setLeague={setLeague}/>}
     {tab==="Stats"&&<Stats d={d} league={league} setLeague={setLeague}/>}
     {tab==="Team"&&<Team d={d} league={league} setLeague={setLeague} open={open}/>}
+    {tab==="Game Log"&&<GameLog d={d} league={league}/>}
     {tab==="Availability"&&<Availability d={d}/>}
   </>;
 }
@@ -135,7 +131,7 @@ function Summary({d,league,setLeague}:{d:any;league:string;setLeague:(k:string)=
   if(t.rush_att>0)snapshot.push(["Rushing",`${int(t.rush_att)} car · ${int(t.rush_yd)} yds · ${int(t.rush_td)} TD`]);
   if(t.rec_tgt>0||t.rec>0)snapshot.push(["Receiving",`${int(t.rec)} rec · ${int(t.rec_tgt)} tgt · ${int(t.rec_yd)} yds · ${int(t.rec_td)} TD`]);
   return <div className="nfc-pane">
-    <div className="nfc-paneh"><h2>Fantasy Production</h2><LeaguePills leagues={d.leagues} value={league} onChange={setLeague}/></div>
+    <div className="nfc-paneh"><h2>Fantasy Production</h2></div>
     <div className="nfc-tiles">
       <Tile label="OVR Rank" value={ordinal(s?.ovrRank)} sub={s?.ovrCount?`of ${s.ovrCount} QB/RB/WR/TE`:undefined}/>
       <Tile label="POS Rank" value={s?.posRank!=null?d.player.position+s.posRank:dash} sub={s?.posCount?`of ${s.posCount} ${d.player.position}s`:undefined}/>
@@ -170,7 +166,7 @@ function History({d,league,setLeague}:{d:any;league:string;setLeague:(k:string)=
   },[id]);
   const events:any[]=h?.history?.[league]||[];
   return <div className="nfc-pane">
-    <div className="nfc-paneh"><h2>History</h2><LeaguePills leagues={d.leagues} value={league} onChange={setLeague}/></div>
+    <div className="nfc-paneh"><h2>History</h2></div>
     {error&&<div className="nfc-empty nfc-err">{error}</div>}
     {!h&&!error&&<div className="nfc-empty">Loading transactions…</div>}
     {h&&(events.length?<div className="nfc-timeline">{events.map((e,i)=>
@@ -190,7 +186,7 @@ function Stats({d,league,setLeague}:{d:any;league:string;setLeague:(k:string)=>v
     ["Rush Att",t.rush_att?int(t.rush_att):null],["Rush Yds",t.rush_att?int(t.rush_yd):null],["Rush TD",t.rush_att?int(t.rush_td):null],
     ["Targets",t.rec_tgt?int(t.rec_tgt):null],["Receptions",t.rec?int(t.rec):null],["Rec Yds",t.rec?int(t.rec_yd):null],["Rec TD",t.rec?int(t.rec_td):null],["Fumbles Lost",t.fum_lost?int(t.fum_lost):null]];
   return <div className="nfc-pane">
-    <div className="nfc-paneh"><h2>Stats · {d.seasonLabel}</h2><LeaguePills leagues={d.leagues} value={league} onChange={setLeague}/></div>
+    <div className="nfc-paneh"><h2>Stats · {d.seasonLabel}</h2></div>
     <div className="nfc-note">Points, per-game average and ranks recalculate from the selected league's scoring settings.</div>
     <div className="nfc-tiles four">
       <Tile label="Fantasy Points" value={f1(s?.pts)}/>
@@ -210,25 +206,41 @@ function Stats({d,league,setLeague}:{d:any;league:string;setLeague:(k:string)=>v
   </div>;
 }
 
-function Team({d,league,setLeague,open}:{d:any;league:string;setLeague:(k:string)=>void;open:(r:NflPlayerRef)=>void}){
-  const mates:any[]=d.teammates?.[league]||[];
+function rankColor(rank:number|null,total:number){
+  if(rank==null||total<2)return undefined;
+  const t=Math.min(1,Math.max(0,(rank-1)/(total-1)));
+  const hue=Math.round(120*(1-t));
+  return {background:`hsla(${hue},62%,30%,.62)`,borderColor:`hsla(${hue},70%,48%,.8)`} as React.CSSProperties;
+}
+
+function Team({d,league,open}:{d:any;league:string;setLeague:(k:string)=>void;open:(r:NflPlayerRef)=>void}){
+  const [onlyStats,setOnlyStats]=useState(true);
+  const all:any[]=d.teammates?.[league]||[];
+  const mates=onlyStats?all.filter(m=>m.isSelf||m.gp>0):all;
   const tr=d.teamRanks;
   return <div className="nfc-pane">
-    <div className="nfc-paneh"><h2>{d.player.team||"No team"} · Offense</h2><LeaguePills leagues={d.leagues} value={league} onChange={setLeague} label="Scoring league"/></div>
+    <div className="nfc-paneh"><h2>{d.player.team||"No team"} · Offense</h2></div>
     {tr?.games>0?<>
-      <div className="nfc-note">Team ranks among {tr.teams} teams by per-game average, built from QB/RB/WR/TE player stats ({tr.games} games).</div>
-      <div className="nfc-teamranks">{tr.rows.map((r:any)=><div key={r.key} className="nfc-rankcard"><span>{r.label}</span><strong>{r.rank!=null?"#"+r.rank:dash}</strong><small>{r.value!=null?`${r.value.toLocaleString()} total · ${f1(r.perGame)}/g`:""}</small></div>)}</div>
+      <div className="nfc-note">Team ranks among {tr.teams} teams by per-game average (green = 1st, red = last), built from QB/RB/WR/TE player stats ({tr.games} games).</div>
+      <div className="nfc-teamranks">{tr.rows.map((r:any)=><div key={r.key} className="nfc-rankcard" style={rankColor(r.rank,tr.teams)}><span>{r.label}</span><strong>{r.rank!=null?"#"+r.rank:dash}</strong><small>{r.value!=null?`${r.value.toLocaleString()} total · ${f1(r.perGame)}/g`:""}</small></div>)}</div>
     </>:<div className="nfc-muted">Team ranks aren't available (no games found for this team).</div>}
 
-    <h3 className="nfc-h3">Fantasy-Eligible Teammates <small>(position ranks use selected league scoring)</small></h3>
+    <div className="nfc-h3row"><h3 className="nfc-h3">Fantasy-Eligible Teammates <small>(position ranks use selected league scoring)</small></h3>
+      <label className="nfc-check"><input type="checkbox" checked={onlyStats} onChange={e=>setOnlyStats(e.target.checked)}/> Only players with stats</label></div>
     {mates.length?<div className="nfc-scroll"><table className="nfc-table"><thead><tr><th>Pos</th><th>Player</th><th>GP</th><th>FP</th><th>FP/G</th><th>POS Rank</th></tr></thead>
       <tbody>{mates.map(m=><tr key={m.id} className={m.isSelf?"sel":""}>
         <td><span className={"nfc-pos "+m.position}>{m.position}</span></td>
         <td>{m.isSelf?<b>{m.name}</b>:<button className="nfc-link" onClick={()=>open({sleeperId:m.id,name:m.name,position:m.position})}>{m.name}</button>}{m.injury&&<span className="nfc-inj">{m.injury}</span>}</td>
         <td>{m.gp||dash}</td><td>{f1(m.pts)}</td><td>{f2(m.ppg)}</td><td>{m.posRank!=null?m.position+m.posRank:dash}</td></tr>)}</tbody></table></div>
       :<div className="nfc-muted">No fantasy-eligible teammates found.</div>}
+  </div>;
+}
 
-    <h3 className="nfc-h3">Game Log · {d.player.name} <small>(fantasy points in selected league)</small></h3>
+function GameLog({d,league}:{d:any;league:string}){
+  const leagueName=d.leagues?.find((l:any)=>l.key===league)?.name;
+  return <div className="nfc-pane">
+    <div className="nfc-paneh"><h2>Game Log · {d.seasonLabel}</h2></div>
+    <div className="nfc-note">Fantasy points use {leagueName||"the selected league"}'s scoring.</div>
     <div className="nfc-scroll"><table className="nfc-table"><thead><tr><th>Wk</th><th>Opp</th><th>Stat Line</th><th>FP</th></tr></thead>
       <tbody>{d.gameLog.map((g:any)=><tr key={g.week} className={!g.played?"dim":""}>
         <td>{g.week}</td>
@@ -257,7 +269,7 @@ function Availability({d}:{d:any}){
         <div className="nfc-avail-row">
           <div><strong>{a.leagueName}</strong>
             <span className={"nfc-status "+a.state}>{a.state==="mine"?`On your roster · ${a.slot}`:a.state==="other"?`Rostered by ${a.owner} · ${a.slot}`:"Free agent"}</span>
-            {a.state==="other"&&a.record&&<small>{a.owner} record {a.record}</small>}</div>
+            </div>
           {a.state==="other"&&<button className="nfc-btn" disabled={st?.loading} onClick={()=>void run(a.leagueKey)}>{st?.loading?"Building offers…":st?.data?"Refresh Trade Ideas":"Trade Ideas"}</button>}
           {a.state==="free"&&<span className="nfc-muted">Not tradeable — available to claim.</span>}
         </div>
@@ -332,6 +344,11 @@ function NflCardStyles(){
     .nfc-inj{margin-left:8px;font-size:10px;color:#ff9aa6}
     .nfc-pos{display:inline-block;min-width:30px;text-align:center;border-radius:6px;padding:2px 5px;font-size:10px;font-weight:900;color:#fff}
     .nfc-pos.QB{background:#c2354a}.nfc-pos.RB{background:#1f9d6b}.nfc-pos.WR{background:#2a7ad1}.nfc-pos.TE{background:#c77d1e}
+    .nfc-league{margin-left:auto;display:flex;flex-direction:column;gap:4px;align-self:flex-start;margin-top:30px;margin-right:46px}
+    .nfc-league span{color:#7890b1;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .nfc-league select{background:#0a1c33;color:#fff;border:1px solid #31577f;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;min-width:220px;max-width:300px}
+    .nfc-h3row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 8px}.nfc-h3row .nfc-h3{margin:0}
+    .nfc-check{display:flex;align-items:center;gap:7px;color:#9bb2d1;font-size:12px;font-weight:700;cursor:pointer}
     .nfc-teamranks{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
     .nfc-rankcard{background:#0a1c33;border:1px solid #20395f;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
     .nfc-rankcard span{color:#8aa3c4;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.nfc-rankcard strong{font-size:22px}.nfc-rankcard small{color:#6f88aa;font-size:11px}
@@ -350,6 +367,6 @@ function NflCardStyles(){
     .nfc-idea-cols{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:start}.nfc-idea-cols .arrow{color:#4a6a97;font-size:20px;align-self:center}
     .nfc-idea-cols span{display:block;color:#7890b1;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}.nfc-idea-cols p{margin:2px 0;font-size:13px}.nfc-idea-cols small{color:#6f88aa}
     .nfc-idea-foot{margin-top:8px;color:#6f88aa;font-size:11px}
-    @media(max-width:760px){.nfc-tiles,.nfc-tiles.four,.nfc-two,.nfc-teamranks{grid-template-columns:1fr 1fr}.nfc-two{grid-template-columns:1fr}.nfc-hero{flex-direction:column;align-items:flex-start}}
+    @media(max-width:760px){.nfc-tiles,.nfc-tiles.four,.nfc-two,.nfc-teamranks{grid-template-columns:1fr 1fr}.nfc-two{grid-template-columns:1fr}.nfc-hero{flex-direction:column;align-items:flex-start}.nfc-league{margin:0}}
   `}</style>;
 }
