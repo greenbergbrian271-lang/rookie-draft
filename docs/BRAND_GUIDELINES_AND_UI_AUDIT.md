@@ -20,33 +20,35 @@ The existing NCAA player profile is the reference point for the player-card fami
 
 Use the following as the canonical application palette. Add new general-purpose colors only through this token system.
 
-| Token | Value | Use |
+| CSS variable | Value | Use |
 |---|---|---|
-| Page background | #06101e | Main application canvas |
-| Sidebar / shared chrome | #081426 | Sidebar and persistent top-level chrome |
-| Surface | #0c1930 | Cards, panels, menus |
-| Raised surface | #11223d | Nested panels and elevated sections |
-| Hover / active surface | #142844 | Navigation hover and active control backgrounds |
-| Border | #20395f | Default panel and divider border |
-| Strong border | #31527f | Inputs, focused boundaries, stronger separation |
-| Primary text | #f4f7fb | Main content and headings |
-| Secondary text | #8fa7c8 | Descriptions, metadata, secondary labels |
-| Accent / focus | #20e2dd | Key highlights, selected indicators, focus ring |
-| Primary action | #1677ff | Main action buttons and primary links when a button is needed |
-| Success | #62e889 | Successful state and positive feedback |
-| Warning | #ffd166 | Caution, pending attention, thresholds |
-| Error / destructive | #ff7184 | Errors, failed states, destructive warnings |
+| --bg | #06101e | Main application canvas |
+| --sidebar | #081426 | Sidebar and persistent top-level chrome |
+| --panel | #0c1930 | Cards, panels, menus |
+| --panel2 | #11223d | Nested panels and elevated sections |
+| --surface-hover | #142844 | Navigation hover and active control backgrounds |
+| --line | #20395f | Default panel and divider border |
+| --line-strong | #31527f | Inputs, focused boundaries, stronger separation |
+| --text | #f4f7fb | Main content and headings |
+| --muted | #8fa7c8 | Descriptions, metadata, secondary labels |
+| --cyan | #20e2dd | Key highlights, selected indicators, focus ring |
+| --action | #1677ff | Main action buttons and primary links when a button is needed |
+| --green | #62e889 | Successful state and positive feedback |
+| --yellow | #ffd166 | Caution, pending attention, thresholds |
+| --red | #ff7184 | Errors, failed states, destructive warnings |
 
 ### Position colors
 
 These are semantic colors and should be used consistently wherever positions are identified.
 
-| Position | Value | Recommended text on fill |
+| CSS variable | Value | Recommended text on fill |
 |---|---|---|
-| QB | #fc2b6d | White |
-| RB | #20ceb7 | Dark navy |
-| WR | #58a7ff | Dark navy |
-| TE | #fead58 | Dark navy |
+| --pos-qb | #fc2b6d | White |
+| --pos-rb | #20ceb7 | Dark navy |
+| --pos-wr | #58a7ff | Dark navy |
+| --pos-te | #fead58 | Dark navy |
+
+The existing root stylesheet already defines --bg, --panel, --panel2, --line, --text, --muted, --cyan, --green, --yellow, and --red. Add the other proposed variables above as part of implementation, rather than introducing more page-local values.
 
 Position colors should be reserved for position labels, workbook group headers, and position-specific data. They should not become generic success, warning, navigation, or primary-action colors.
 
