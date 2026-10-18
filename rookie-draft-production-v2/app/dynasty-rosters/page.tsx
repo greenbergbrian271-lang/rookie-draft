@@ -470,14 +470,14 @@ export default function Page(){
       .dynasty-message.warn{background:#33291a;border:1px solid #725b2d;color:#f8dfaa}
       .dynasty-loading{padding:34px;text-align:center;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:12px}
       .dynasty-tabs{display:flex;gap:8px;overflow:auto;padding:3px 0 12px;margin-bottom:8px}
-      .dynasty-tabs button{flex:0 0 auto;background:#10213a;border:1px solid var(--line-strong);color:#b9c9df;border-radius:9px;padding:9px 13px}
+      .dynasty-tabs button{flex:0 0 auto;background:var(--panel2);border:1px solid var(--line-strong);color:#b9c9df;border-radius:9px;padding:9px 13px}
       .dynasty-tabs button:hover{background:var(--surface-hover);color:#fff}
       .dynasty-tabs button.active{background:#4285f4;border-color:#6da3fa;color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.08) inset}
       .dynasty-meta-grid{display:grid;grid-template-columns:minmax(220px,1.35fr) repeat(3,minmax(125px,.68fr)) repeat(2,minmax(205px,1fr));gap:10px;margin-bottom:14px}
-      .dynasty-meta{min-width:0;background:linear-gradient(180deg,#10223d,#0b192d);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+      .dynasty-meta{min-width:0;background:linear-gradient(180deg,var(--panel2),#0b192d);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
       .dynasty-meta span{display:block;color:var(--muted);font-size:10px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
       .dynasty-meta strong{display:block;font-size:18px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
-      .dynasty-meta.updated strong{font-size:13px;color:#dce8f6;white-space:nowrap}
+      .dynasty-meta.updated strong{font-size:13px;color:var(--text);white-space:nowrap}
       .dynasty-layout{display:grid;grid-template-columns:minmax(620px,1.55fr) minmax(320px,.8fr);gap:14px;align-items:start}
       .dynasty-main-stack{display:grid;gap:14px;min-width:0}
       .dynasty-panel{overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:12px}
@@ -486,15 +486,15 @@ export default function Page(){
       .dynasty-roster-panel{position:relative}
       .dynasty-table-wrap{max-height:calc(100vh - 255px);overflow:auto}
       .dynasty-roster-table{width:100%;border-collapse:separate;border-spacing:0;font-family:Calibri,Arial,sans-serif;font-size:13px}
-      .dynasty-roster-table th{position:sticky;top:0;z-index:2;background:#132844;color:#b9c9df;text-align:left;padding:0;border-bottom:1px solid var(--line-strong);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+      .dynasty-roster-table th{position:sticky;top:0;z-index:2;background:var(--panel2);color:#b9c9df;text-align:left;padding:0;border-bottom:1px solid var(--line-strong);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
       .dynasty-roster-table th.center .sort-header{justify-content:center}
       .sort-header{width:100%;display:flex;align-items:center;justify-content:flex-start;gap:6px;background:transparent!important;border:0!important;border-radius:0!important;color:#b9c9df!important;padding:9px 11px;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
       .sort-header:hover,.sort-header.active{color:#fff!important;background:#193457!important}
       .sort-arrow{font-size:9px;opacity:.8}
       .dynasty-roster-table th:nth-child(2),.dynasty-roster-table th:nth-child(4),.dynasty-roster-table th:nth-child(5),.dynasty-roster-table th:nth-child(6),
       .dynasty-roster-table td:nth-child(2),.dynasty-roster-table td:nth-child(4),.dynasty-roster-table td:nth-child(5),.dynasty-roster-table td:nth-child(6),.dynasty-roster-table th:nth-child(7),.dynasty-roster-table td:nth-child(7){text-align:center}
-      .dynasty-roster-table td{padding:8px 11px;border-bottom:1px solid #18304f;color:#e9f1fb}
-      .dynasty-roster-table tbody tr:nth-child(odd) td{background:#0b1a30}
+      .dynasty-roster-table td{padding:8px 11px;border-bottom:1px solid #18304f;color:var(--text)}
+      .dynasty-roster-table tbody tr:nth-child(odd) td{background:var(--panel)}
       .dynasty-roster-table tbody tr:nth-child(even) td{background:#0e2039}
       .dynasty-roster-table tbody tr:hover td{background:#142a49}
       .dynasty-roster-table tbody tr:last-child td{border-bottom:0}
@@ -503,11 +503,11 @@ export default function Page(){
       .trade-pref-head{padding:9px 11px!important;white-space:nowrap}
       .trade-pref-cell{min-width:160px}
       .trade-pref-stack{display:flex;align-items:center;justify-content:center;gap:6px}
-      .trade-pref-select{width:142px;height:30px;border-radius:7px;border:1px solid #345477;background:var(--panel2);color:#dce8f6;padding:0 8px;font-size:10px;font-weight:900;outline:none}
+      .trade-pref-select{width:142px;height:30px;border-radius:7px;border:1px solid #345477;background:var(--panel2);color:var(--text);padding:0 8px;font-size:10px;font-weight:900;outline:none}
       .trade-pref-select:disabled{opacity:.6}
       .trade-pref-select.pref-actively-shopping{border-color:#2c946d;background:#103b30;color:#98f0c8}
       .trade-pref-select.pref-open{border-color:#2d7190;background:#102d40;color:#94dcff}
-      .trade-pref-select.pref-neutral{border-color:#345477;background:var(--panel2);color:#dce8f6}
+      .trade-pref-select.pref-neutral{border-color:#345477;background:var(--panel2);color:var(--text)}
       .trade-pref-select.pref-reluctant{border-color:#8a6c25;background:#352d18;color:#ffd978}
       .trade-pref-select.pref-untouchable{border-color:#854355;background:#3b1d29;color:#ffb4c1}
       .trade-pref-sync{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid #345477;border-radius:7px;background:var(--panel2);color:#91a8c6;font-size:15px;font-weight:950;line-height:1}
@@ -534,7 +534,7 @@ export default function Page(){
       .dynasty-handcuff-copy{min-width:0;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
       .dynasty-handcuff-copy strong{font-size:13px;white-space:normal}
       .dynasty-handcuff-copy span{flex:0 0 auto;color:var(--muted);font-size:11px;font-weight:800}
-      .dynasty-pos{display:inline-flex;min-width:45px;justify-content:center;align-items:center;border-radius:6px;padding:5px 7px;color:#071426;font-size:11px;font-weight:950;line-height:1}
+      .dynasty-pos{display:inline-flex;min-width:45px;justify-content:center;align-items:center;border-radius:6px;padding:5px 7px;color:var(--sidebar);font-size:11px;font-weight:950;line-height:1}
       .dynasty-pos.qb{background:var(--pos-qb);color:#fff}
       .dynasty-pos.rb{background:var(--pos-rb)}
       .dynasty-pos.wr{background:var(--pos-wr)}
@@ -574,18 +574,18 @@ export default function Page(){
       }
 
       .dynasty-page .dynasty-panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
-      .dynasty-panel-title{background:#10213a!important;border-bottom:1px solid var(--line);color:#fff!important;padding:9px 12px!important}
+      .dynasty-panel-title{background:var(--panel2)!important;border-bottom:1px solid var(--line);color:#fff!important;padding:9px 12px!important}
       .dynasty-panel-title>span{color:var(--muted)!important;font-size:10px!important;font-weight:700!important;white-space:nowrap}
       .dynasty-panel-name{font-size:12px!important;text-transform:uppercase;letter-spacing:.05em;font-weight:900!important;color:#fff!important}
-      .dynasty-panel-note{display:block;margin-top:2px;color:#7890b1;font-size:9px;font-style:normal;font-weight:600;letter-spacing:0;text-transform:none}
+      .dynasty-panel-note{display:block;margin-top:2px;color:var(--muted);font-size:9px;font-style:normal;font-weight:600;letter-spacing:0;text-transform:none}
       .dynasty-tabs button{padding:8px 12px;font-size:11px}
-      .dynasty-meta{background:#10213a;border:1px solid var(--line);border-radius:9px;padding:8px 10px}
-      .dynasty-meta span{color:#7890b1;font-size:9px;letter-spacing:.05em;font-weight:700;margin-bottom:3px}
+      .dynasty-meta{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+      .dynasty-meta span{color:var(--muted);font-size:9px;letter-spacing:.05em;font-weight:700;margin-bottom:3px}
       .dynasty-meta strong{font-size:14px}
       .dynasty-meta.updated strong{font-size:12px}
       .dynasty-roster-table{font-family:inherit;font-size:12px}
-      .dynasty-roster-table th{background:var(--panel);color:#7890b1;border-bottom:1px solid #18304f;font-size:9px;letter-spacing:0}
-      .sort-header{color:#7890b1!important;font-size:9px;letter-spacing:0;padding:7px 10px}
+      .dynasty-roster-table th{background:var(--panel);color:var(--muted);border-bottom:1px solid #18304f;font-size:9px;letter-spacing:0}
+      .sort-header{color:var(--muted)!important;font-size:9px;letter-spacing:0;padding:7px 10px}
       .sort-header:hover,.sort-header.active{color:var(--cyan)!important;background:transparent!important}
       .dynasty-roster-table td{padding:7px 10px}
       .dynasty-roster-table td:first-child strong{font-size:12px}
@@ -600,7 +600,7 @@ export default function Page(){
       .slot-wrt,.slot-qwrt{height:auto}
       .slot-w{background:#1f3f6b;color:#b7d4ff}.slot-r{background:#1f4d3d;color:#a8f0d0}.slot-t{background:#5a4620;color:#ffe0a0}.slot-q{background:#5a2a3d;color:#ffc3d2}
       .dynasty-tag{display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
-      .dynasty-tag.starter{background:#173d63;color:#b9dcff;border:1px solid #31577f}
+      .dynasty-tag.starter{background:#173d63;color:#b9dcff;border:1px solid var(--line-strong)}
       .dynasty-tag.bench{background:#2d3a1c;color:#d6f0a0;border:1px solid #556b2e}
       .dynasty-dash{color:#4d6485}
       .dynasty-handcuff-row{grid-template-columns:44px minmax(0,1fr);min-height:42px;padding:6px 12px}
