@@ -365,7 +365,11 @@ export async function buildHistory(ctx:LeagueCtx,playerId:string,db:Record<strin
       :await Promise.all([getJson(`${SLEEPER}/league/${lg.league_id}/rosters`,{revalidate:3600}),getJson(`${SLEEPER}/league/${lg.league_id}/users`,{revalidate:3600})]);
     const rs=Array.isArray(rosters)?rosters:[],us=Array.isArray(users)?users:[];
     const names=new Map<number,string>(rs.map((r:Json)=>[Number(r.roster_id),teamNameOf(r,us)]));
-    const mine=resolveMine(rs,us,ctx.integration.teamIdentity||"");
+    // roster ids can change between seasons, so match "me" by owner (user id), not roster id
+    const myOwner=ctx.rosters.find(r=>Number(r.roster_id)===ctx.myRosterId)?.owner_id;
+    const mine=lg.league_id===ctx.integration.leagueId
+      ?rs.find(r=>Number(r.roster_id)===ctx.myRosterId)
+      :(myOwner?rs.find(r=>String(r.owner_id)===String(myOwner)):resolveMine(rs,us,ctx.integration.teamIdentity||""));
     const myId=mine?Number(mine.roster_id):null;
     const nm=(rid:number)=>names.get(rid)||("Roster "+rid);
 
