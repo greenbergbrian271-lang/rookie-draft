@@ -50,8 +50,8 @@ export default function LeagueIntelligencePage(){
     <style jsx global>{`
       .li-page{max-width:1720px;margin:0 auto;padding-bottom:30px}.li-head{margin-bottom:12px}.li-head h1{margin-bottom:4px}
       .li-tabs{display:flex;gap:7px;overflow:auto;padding:5px;margin-bottom:12px;background:#081426;border:1px solid #20395f;border-radius:12px;width:max-content;max-width:100%}
-      .li-tabs button{background:transparent;border:1px solid transparent;color:#91a7c4;padding:8px 12px;white-space:nowrap;font-size:12px}.li-tabs button.active{background:#173253;border-color:#31577f;color:#fff;box-shadow:inset 0 0 0 1px rgba(32,226,221,.12)}
-      .li-loading{padding:24px;border:1px solid #20395f;border-radius:12px;background:#09182c;color:#7890b1}
+      .li-tabs button{background:transparent;border:1px solid transparent;color:var(--muted);padding:8px 12px;white-space:nowrap;font-size:12px}.li-tabs button.active{background:var(--surface-hover);border-color:var(--line-strong);color:#fff;box-shadow:inset 0 0 0 1px rgba(32,226,221,.12)}
+      .li-loading{padding:24px;border:1px solid #20395f;border-radius:12px;background:#09182c;color:var(--muted)}
     `}</style>
   </div>;
 }
