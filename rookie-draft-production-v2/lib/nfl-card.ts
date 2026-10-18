@@ -340,7 +340,7 @@ async function seasonTransactions(lg:Json){
   return out;
 }
 
-export async function buildHistory(ctx:LeagueCtx,playerId:string,db:Record<string,Json>):Promise<HistoryEvent[]>{
+export async function buildHistory(ctx:LeagueCtx,playerId:string,db:Record<string,Json>,debug?:any[]):Promise<HistoryEvent[]>{
   const key=ctx.integration.key;
   const chain=await cached("chain:"+ctx.integration.leagueId,15*60*1000,()=>leagueChain(ctx.integration.leagueId));
   const events:HistoryEvent[]=[];
@@ -359,6 +359,9 @@ export async function buildHistory(ctx:LeagueCtx,playerId:string,db:Record<strin
     const nm=(rid:number)=>names.get(rid)||("Roster "+rid);
 
     const txs=await seasonTransactions(lg);
+    const dbg:any={league:ctx.integration.key,leagueId:lg.league_id,season:lg.season,status:lg.status,previous:lg.previous_league_id||null,txTotal:txs.length,txByType:{} as Record<string,number>,txStatus:{} as Record<string,number>,mentions:[] as any[]};
+    for(const t of txs){dbg.txByType[t.type]=(dbg.txByType[t.type]||0)+1;dbg.txStatus[t.status]=(dbg.txStatus[t.status]||0)+1;if((t.adds&&t.adds[playerId]!=null)||(t.drops&&t.drops[playerId]!=null))dbg.mentions.push({type:t.type,status:t.status,leg:t.leg})}
+    debug?.push(dbg);
     for(const t of txs){
       if(String(t.status)!=="complete")continue;
       const adds=t.adds||{},drops=t.drops||{};
@@ -403,6 +406,7 @@ export async function buildHistory(ctx:LeagueCtx,playerId:string,db:Record<strin
       const picks=await getJson(`${SLEEPER}/draft/${d.draft_id}/picks`,{revalidate:3600});
       if(!Array.isArray(picks))return;
       const pick=picks.find((p:Json)=>String(p.player_id)===playerId);
+      dbg.drafts=[...(dbg.drafts||[]),{id:d.draft_id,status:d.status,type:d.type,picks:picks.length,found:Boolean(pick)}];
       if(!pick)return;
       const rid=num(pick.roster_id);
       events.push({
