@@ -3,15 +3,17 @@ import {createContext,useContext,useEffect,useState} from "react";
 import {nflTeamLogo} from "@/app/scouting/ScoutingShared";
 import PlayerImage from "@/components/PlayerImage";
 
-type Ctx={openPlayer:(id:string|number)=>void};
+import NflModeToggle from "@/components/NflModeToggle";
+type BackRef={name:string;position?:string;team?:string;sleeperId?:string};
+type Ctx={openPlayer:(id:string|number,back?:BackRef)=>void};
 const C=createContext<Ctx>({openPlayer:()=>{}});
 const fmt=(x:any)=>x==null||!Number.isFinite(Number(x))?"—":Number(x).toFixed(2);
 
 export function usePlayerProfile(){return useContext(C)}
 
 export function PlayerProfileProvider({children}:{children:React.ReactNode}){
-  const [id,setId]=useState<string|null>(null),[data,setData]=useState<any>(null),[tab,setTab]=useState("Summary"),[loading,setLoading]=useState(false),[status,setStatus]=useState<{kind:"success"|"warning",text:string}|null>(null);
-  const openPlayer=(x:string|number)=>{setId(String(x));setTab("Summary");setStatus(null)};
+  const [back,setBack]=useState<BackRef|null>(null),[id,setId]=useState<string|null>(null),[data,setData]=useState<any>(null),[tab,setTab]=useState("Summary"),[loading,setLoading]=useState(false),[status,setStatus]=useState<{kind:"success"|"warning",text:string}|null>(null);
+  const openPlayer=(x:string|number,b?:BackRef)=>{setId(String(x));setBack(b||null);setTab("Summary");setStatus(null)};
   const loadProfile=async(playerId:string,clear=false)=>{
     setLoading(true);
     if(clear)setData(null);
@@ -32,7 +34,7 @@ export function PlayerProfileProvider({children}:{children:React.ReactNode}){
     setStatus(synced?{kind:"success",text:`Transfer saved: ${result.transfer.from_college||"Unknown"} → ${result.transfer.to_college}.`}:{kind:"warning",text:"Transfer saved, but the latest team details could not refresh automatically. The saved school change is preserved."});
   };
   useEffect(()=>{if(id)void loadProfile(id,true)},[id]);
-  return <C.Provider value={{openPlayer}}>{children}{id&&<div className="player-profile-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setId(null)}><div className="player-profile-modal"><button className="player-profile-close" onClick={()=>setId(null)}>×</button>{loading&&!data?<div className="empty">Loading player profile…</div>:data?.player?<><Profile d={data} tab={tab} setTab={setTab} open={openPlayer} applyTransfer={applyTransfer} reload={()=>id?loadProfile(id):Promise.resolve(false)} setProfileStatus={setStatus}/>{status&&<div className={"profile-save-status "+status.kind}>{status.text}</div>}</>:<div className="empty">Could not load player profile.</div>}</div></div>}</C.Provider>
+  return <C.Provider value={{openPlayer}}>{children}{id&&<div className="player-profile-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setId(null)}><div className="player-profile-modal"><button className="player-profile-close" onClick={()=>setId(null)}>×</button>{back&&<NflModeToggle mode="ncaa" onNcaa={()=>{}} onNfl={()=>{const ref=back;setId(null);setBack(null);window.dispatchEvent(new CustomEvent("nfl-card:open",{detail:ref}))}}/>}{loading&&!data?<div className="empty">Loading player profile…</div>:data?.player?<><Profile d={data} tab={tab} setTab={setTab} open={openPlayer} applyTransfer={applyTransfer} reload={()=>id?loadProfile(id):Promise.resolve(false)} setProfileStatus={setStatus}/>{status&&<div className={"profile-save-status "+status.kind}>{status.text}</div>}</>:<div className="empty">Could not load player profile.</div>}</div></div>}</C.Provider>
 }
 
 function Profile({d,tab,setTab,open,applyTransfer,reload,setProfileStatus}:{d:any,tab:string,setTab:(x:string)=>void,open:(id:any)=>void,applyTransfer:(result:any)=>Promise<void>,reload:()=>Promise<boolean>,setProfileStatus:(x:{kind:"success"|"warning",text:string}|null)=>void}){

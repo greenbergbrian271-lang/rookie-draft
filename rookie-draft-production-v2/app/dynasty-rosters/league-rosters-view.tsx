@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect,useMemo,useState} from "react";
+import NflPlayerName from "@/components/NflPlayerName";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;status:string;handcuff:"Starter"|"Bench"|""};
 type Pick={id:string;name:string;detail:string;value:number|null};
@@ -29,7 +30,7 @@ function HandcuffPanel({title,items,coverage=false,note}:{title:string;items:Ite
     <div className="lr-panel-title"><div><b>{title}</b>{note&&<em>{note}</em>}</div><span>{items.length}</span></div>
     {items.length?<div>{items.map((item,i)=><div className="lr-hc-row" key={title+i}>
       <Slot slot={item.slot}/>
-      <div className="lr-hc-copy"><strong>{item.name}</strong>{!coverage&&item.team&&<span>{item.team}</span>}</div>
+      <div className="lr-hc-copy"><strong><NflPlayerName name={item.name}/></strong>{!coverage&&item.team&&<span>{item.team}</span>}</div>
     </div>)}</div>:<div className="lr-empty">No entries.</div>}
   </section>;
 }
@@ -106,7 +107,7 @@ export default function LeagueRostersView({leagueKey}:{leagueKey:string}){
           <div className="lr-table-wrap"><table className="lr-table">
             <thead><tr><Head label="Player Name" col="name"/><Head label="Position" col="position" center/><Head label="Team" col="team"/><Head label="Age" col="age" center/><Head label="KTC Value" col="ktc" center/><Head label="Handcuff" col="handcuff" center/></tr></thead>
             <tbody>{players.map((p,i)=><tr key={p.name+i}>
-              <td><strong>{p.name}</strong>{p.status!=="Roster"&&<span className="lr-status">{p.status}</span>}</td>
+              <td><strong><NflPlayerName name={p.name} position={p.position}/></strong>{p.status!=="Roster"&&<span className="lr-status">{p.status}</span>}</td>
               <td className="center"><span className={"lr-pos "+posClass(p.position)}>{p.position}</span></td>
               <td>{p.team||"—"}</td><td className="center">{p.age||"—"}</td><td className="center ktc">{ktcText(p.ktc)}</td>
               <td className="center">{p.handcuff?<span className={"lr-tag "+p.handcuff.toLowerCase()}>{p.handcuff}</span>:<span className="lr-dash">—</span>}</td>

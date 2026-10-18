@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect,useMemo,useState} from "react";
+import NflPlayerName from "@/components/NflPlayerName";
 import TradeCalculator from "./trade-calculator";
 import RosterTradeIdeas from "./trade-ideas-launcher";
 import MyTeamInsights from "./my-team-insights";
@@ -80,7 +81,7 @@ function HandcuffList({title,items,coverage=false,note}:{title:string;items:Hand
       {items.map((item,i)=><div className="dynasty-handcuff-row" key={title+"-"+i}>
         <PositionBadge position={item.slot||"Bench"}/>
         <div className="dynasty-handcuff-copy">
-          <strong>{item.name}</strong>
+          <strong><NflPlayerName name={item.name}/></strong>
           {!coverage&&item.team&&<span>{item.team}</span>}
         </div>
       </div>)}
@@ -101,7 +102,7 @@ function HandcuffBonusList({items}:{items:HandcuffItem[]}){
       {players.map((item,i)=><div className="dynasty-handcuff-row dynasty-bonus-row" key={"bonus-"+i}>
         <PositionBadge position={item.slot||"Bench"}/>
         <div className="dynasty-handcuff-copy">
-          <strong>{item.name}</strong>
+          <strong><NflPlayerName name={item.name}/></strong>
           {item.team&&<span>{item.team}</span>}
         </div>
       </div>)}
@@ -377,7 +378,7 @@ export default function Page(){
                   {sortedPlayers.map((p,i)=>{
                     const hasKtc=Number.isFinite(Number(p.ktc));
                     return <tr key={p.name+"-"+i}>
-                      <td><strong>{p.name}</strong>{tradeAssetByName.get(tradePrefKey(p.name))&&<ShopPlayerButton leagueKey={roster.key} asset={tradeAssetByName.get(tradePrefKey(p.name))!}/>}</td>
+                      <td><strong><NflPlayerName name={p.name} position={p.position}/></strong>{tradeAssetByName.get(tradePrefKey(p.name))&&<ShopPlayerButton leagueKey={roster.key} asset={tradeAssetByName.get(tradePrefKey(p.name))!}/>}</td>
                       <td><PositionBadge position={p.position}/></td>
                       <td>{p.team||"—"}</td>
                       <td>{p.age||"—"}</td>
