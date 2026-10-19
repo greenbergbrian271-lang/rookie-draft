@@ -99,10 +99,10 @@ export default function IntegrationsPage(){
       .integrations-head{align-items:center}
       .integrations-head p{margin:4px 0 0}
       .integrations-save{background:#18794e;min-width:150px}
-      .integration-card{background:#0c1930;border:1px solid #20395f;border-radius:13px;padding:16px;margin-bottom:14px}
+      .integration-card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;margin-bottom:14px}
       .integration-card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:6px}
       .integration-card-head h2{margin:2px 0 0;font-size:20px}
-      .integration-kicker{color:#58a7ff;font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+      .integration-kicker{color:var(--pos-wr);font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
       .integration-note{margin:0 0 14px}
       .league-settings{display:grid;gap:10px}
       .league-setting{background:#0a172a;border:1px solid #1d3558;border-radius:10px;padding:12px}
@@ -112,11 +112,11 @@ export default function IntegrationsPage(){
       .enabled-toggle{align-content:end;justify-items:start}
       .enabled-toggle input{width:auto;transform:scale(1.15);margin:8px 0 10px}
       details{margin-top:10px;border-top:1px solid #18304f;padding-top:8px}
-      summary{cursor:pointer;color:#8fa7c8;font-size:11px;font-weight:850}
+      summary{cursor:pointer;color:var(--muted);font-size:11px;font-weight:850}
       .league-advanced{display:grid;grid-template-columns:minmax(240px,1fr) 120px auto;gap:12px;align-items:end;margin-top:10px}
       .danger-ghost{background:#351721!important;border:1px solid #7d3345!important;color:#ffb7c4}
       .future-integrations{min-height:130px}
-      .integration-loading{padding:24px;color:#8fa7c8;text-align:center}
+      .integration-loading{padding:24px;color:var(--muted);text-align:center}
       .integration-message{position:sticky;bottom:16px;padding:11px 14px;border-radius:9px;font-weight:850}
       .integration-message.ok{background:#123b2c;border:1px solid #247a55;color:#bff4d7}
       .integration-message.error{background:#3c1720;border:1px solid #8b354b;color:#ffd1da}

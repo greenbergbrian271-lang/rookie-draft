@@ -40,66 +40,31 @@ async function combineRefreshRun(){setMsg(`Refreshing ${draftClass} NFL Combine 
 async function auditRun(){setMsg("Checking player colleges against workbook school formatting…");const r=await fetch("/api/format-audit",{cache:"no-store"}),j=await r.json();setMsg(r.ok?(j.unknown?.length?`${j.unknown.length} college name(s) need review: ${j.unknown.join(", ")}`:"All player colleges resolve to workbook school formatting."):(j.error||"Formatting audit failed."))}
 async function moveRun(direction:"up"|"down"){if(!playerId)return setMsg("Select a player.");const r=await fetch("/api/players/move",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:Number(playerId),direction})}),j=await r.json();if(r.ok){setMsg(`${j.player} moved ${direction}.`);fetch("/api/players",{cache:"no-store"}).then(x=>x.json()).then(x=>Array.isArray(x)&&setPlayers(x))}else setMsg(j.error||"Move failed.")}
 async function simpleRun(endpoint:string,label:string){setMsg(label+"…");const r=await fetch(endpoint,{method:"POST"}),j=await r.json();setMsg(r.ok?`${label}: ${j.updated??j.count??"complete"}.`:(j.error||`${label} failed.`))}
-if(isLocked){const sourceUrl=HISTORICAL_SHEET_URLS[draftClass];return <div className="tool-menubar historical-source-bar" style={{padding:"8px 18px",alignItems:"center"}}><div className="historical-source-control" role="group" aria-label={`Historical ${draftClass} source`}><span className="historical-source-label">Historical {draftClass} · read-only archive</span>{sourceUrl&&<a className="historical-source-link" href={sourceUrl} target="_blank" rel="noreferrer">Link to original Google Sheet ↗</a>}</div></div>;}
-return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{gap:7,padding:"8px 18px"}}>
+if(isLocked){const sourceUrl=HISTORICAL_SHEET_URLS[draftClass];return <div className="tool-menubar historical-source-bar"><div className="historical-source-control" role="group" aria-label={`Historical ${draftClass} source`}><span className="historical-source-label">Historical {draftClass} · read-only archive</span>{sourceUrl&&<a className="historical-source-link" href={sourceUrl} target="_blank" rel="noreferrer">Link to original Google Sheet ↗</a>}</div></div>;}
+return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>
 {groups.map((g,groupIndex)=><div className="tool-menu" key={g.label}>
   <button
     id={menuId(g.label)+"-trigger"}
     aria-expanded={open===g.label}
     aria-haspopup="menu"
     aria-controls={menuId(g.label)}
-    className={open===g.label?"tool-menu-button open":"tool-menu-button"}
-    style={{
-      background:open===g.label?"#142844":"#10213a",
-      border:"1px solid "+(open===g.label?"#3a608e":"#29476e"),
-      padding:"7px 11px",
-      minWidth:groupIndex===1?126:112,
-      justifyContent:"space-between",
-      boxShadow:"0 1px 0 rgba(255,255,255,.03) inset"
-    }}
+    className={`tool-menu-button${open===g.label?" open":""}${groupIndex===1?" scouting-tools":""}`}
     onClick={()=>setOpen(open===g.label?null:g.label)}
     onKeyDown={e=>openMenuFromKeyboard(e,g.label)}
     onMouseEnter={()=>open&&setOpen(g.label)}
   >
-    <span style={{display:"inline-flex",alignItems:"center",gap:7}}>
-      <span aria-hidden="true" style={{
-        display:"inline-flex",
-        alignItems:"center",
-        justifyContent:"center",
-        width:18,
-        height:18,
-        color:open===g.label?"#d9e7f7":"#91a8c8"
-      }}>{groupIndex===0?<Briefcase size={17} strokeWidth={2.2}/>:groupIndex===1?<Search size={17} strokeWidth={2.2}/>:<Table2 size={17} strokeWidth={2.2}/>}</span>
-      <strong style={{fontSize:12}}>{g.label}</strong>
+    <span className="tool-menu-label-wrap">
+      <span aria-hidden="true" className="tool-menu-icon">{groupIndex===0?<Briefcase size={17} strokeWidth={2.2}/>:groupIndex===1?<Search size={17} strokeWidth={2.2}/>:<Table2 size={17} strokeWidth={2.2}/>}</span>
+      <strong className="tool-menu-label">{g.label}</strong>
     </span>
-    <span style={{marginLeft:8}}>▾</span>
+    <span className="tool-menu-caret">▾</span>
   </button>
-  {open===g.label&&<div id={menuId(g.label)} data-tool-menu={g.label} aria-labelledby={menuId(g.label)+"-trigger"} className="tool-dropdown" role="menu" onKeyDown={e=>menuKeys(e,g.label)} style={{
-    minWidth:265,
-    padding:7,
-    borderRadius:12,
-    background:"#09172b",
-    border:"1px solid #31527f",
-    boxShadow:"0 20px 55px rgba(0,0,0,.48)"
-  }}>
-    <div style={{padding:"6px 9px 8px",marginBottom:4,borderBottom:"1px solid #20395f"}}>
+  {open===g.label&&<div id={menuId(g.label)} data-tool-menu={g.label} aria-labelledby={menuId(g.label)+"-trigger"} className="tool-dropdown tool-dropdown-panel" role="menu" onKeyDown={e=>menuKeys(e,g.label)}>
+    <div className="tool-dropdown-heading">
       <div className="ey">{g.label}</div>
-      <span className="muted" style={{fontSize:10,fontWeight:750}}>Quick actions</span>
+      <span className="muted tool-dropdown-subtitle">Quick actions</span>
     </div>
-    <div style={{display:"grid",gap:2}}>{g.items.map(i=><button key={i.id} role="menuitem" className="tool-dropdown-action" style={{
-      display:"flex",
-      alignItems:"center",
-      justifyContent:"space-between",
-      gap:12,
-      width:"100%",
-      background:"transparent",
-      border:0,
-      padding:"8px 9px",
-      borderRadius:7,
-      color:"#c9d8ec",
-      fontSize:12,
-      textAlign:"left"
-    }} onClick={()=>{
+    <div className="tool-dropdown-list">{g.items.map(i=><button key={i.id} role="menuitem" className="tool-dropdown-action" onClick={()=>{
       if(i.id==="add-player"){setAddOpen(true);setTool(null)}
       else if(i.id==="new-player-watched"){setWatchedOpen(true);setTool(null)}
       else if(i.id==="best-unwatched-player"){setBestUnwatchedOpen(true);setTool(null)}
@@ -112,7 +77,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
       else if(i.id==="mock-draft"){setMockOpen(true);setTool(null)}
       else setTool(i);
       setOpen(null)
-    }}><span>{i.label}</span><span aria-hidden="true" style={{color:"#5f789a",fontSize:15}}>›</span></button>)}</div>
+    }}><span>{i.label}</span><span aria-hidden="true" className="tool-dropdown-arrow">›</span></button>)}</div>
   </div>}
 </div>)}
 </div>
@@ -129,12 +94,12 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)} style={{
 {tool&&<div className="tool-modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="tool-modal"><div className="page-head"><div><div className="ey">Rookie Draft Tool</div><h2>{tool.label}</h2></div><button className="small ghost" onClick={close}>Close</button></div>
 {tool.id==="transition-year"?<div>
   <div className="notice"><strong>Year rollover</strong><br/>This is a one-way transition. It will preserve ${activeDraftClass} as a viewable archive, block edits to its draft-class records, and make ${activeDraftClass+1} the default working year.</div>
-  <div className="card" style={{margin:"14px 0",padding:14}}>
+  <div className="card tool-transition-card">
     <div className="ey">Current active class</div>
-    <div style={{display:"flex",alignItems:"center",gap:10,marginTop:5,fontSize:18,fontWeight:900}}><span>${activeDraftClass}</span><span aria-hidden="true" style={{color:"#7890b0"}}>→</span><span>${activeDraftClass+1}</span></div>
+    <div className="tool-transition-years"><span>${activeDraftClass}</span><span aria-hidden="true" className="tool-transition-arrow">→</span><span>${activeDraftClass+1}</span></div>
     <p className="muted" style={{marginBottom:0}}>Players, grades, scouting sessions, workflow tags, combine/all-star records, draft results, saved games, and game notes tied to ${activeDraftClass} will become read-only.</p>
   </div>
   {draftClass!==activeDraftClass&&<div className="notice">Switch to the active ${activeDraftClass} class before running this tool.</div>}
   <button className="success" disabled={transitioning||draftClass!==activeDraftClass} onClick={transitionYear}>{transitioning?"Transitioning…":`Lock ${activeDraftClass} + Switch to ${activeDraftClass+1}`}</button>
-</div>:playerActions[tool.id]?<div><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Select player…</option>{players.filter(p=>p.draft_class===draftClass).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select><button style={{marginTop:12}} onClick={playerRun}>Apply</button></div>:tool.id==="compare"?<div><div className="grid"><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Player 1…</option>{players.filter(p=>p.draft_class===draftClass).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select><select value={playerId2} onChange={e=>setPlayerId2(e.target.value)}><option value="">Player 2…</option>{players.filter(p=>p.draft_class===draftClass&&String(p.id)!==playerId).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select></div>{playerId&&playerId2&&<table style={{marginTop:16,width:"100%"}}><thead><tr><th>Player</th><th>Pos</th><th>College</th><th>Scouting</th><th>Pre-Draft</th></tr></thead><tbody>{[playerId,playerId2].map(id=>{const p=players.find(x=>String(x.id)===id),g=gradeRows.find(x=>String(x.id)===id);return p?<tr key={id}><td><span className="player-badge" style={schoolStyle(p.college)}>{p.name}</span></td><td>{p.position}</td><td>{p.college}</td><td>{g?.scoutingGrade==null?"—":Number(g.scoutingGrade).toFixed(2)}</td><td>{g?.preDraftGrade==null?"—":Number(g.preDraftGrade).toFixed(2)}</td></tr>:null})}</tbody></table>}</div>:tool.id==="reorder"?<div><p className="muted">Move a player within the workbook-equivalent position / Maybe queue.</p><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Select player…</option>{players.filter(p=>p.draft_class===draftClass&&p.scouting_status!=="FINISHED").sort((a,b)=>(a.watch_order||0)-(b.watch_order||0)).map(p=><option key={p.id} value={p.id}>{p.scouting_status==="MAYBE"?"Maybe":p.position} · {p.name}</option>)}</select><div className="row-actions" style={{marginTop:12}}><button onClick={()=>moveRun("up")}>Move Up</button><button className="ghost" onClick={()=>moveRun("down")}>Move Down</button></div></div>:tool.id==="combine-refresh"?<div><p className="muted">Refreshes {draftClass} NFL Combine measurements for QB, RB, WR and TE profiles. Run this manually after combine testing is published; matching players update across every scouting Combine tab.</p>{combineStatus?.refreshedAt&&<div className="notice">Last refresh: {new Date(combineStatus.refreshedAt).toLocaleString()} · {combineStatus.updated||0} matched · {combineStatus.unmatched??combineStatus.unmatchedCount??0} unmatched.</div>}<button onClick={combineRefreshRun}>Refresh Combine Data</button></div>:["fix-formatting","transfer-portal"].includes(tool.id)?<div><p className="muted">The web app derives player colors from current college data, so this checks for college names that cannot resolve to the workbook color map instead of rewriting cell formatting.</p><button onClick={auditRun}>Run Check</button></div>:tool.id==="sort-scouting"?<div><p className="muted">Sorts each position by the workbook grade order while preserving the player/commentary record as one unit.</p><button onClick={()=>simpleRun("/api/scouting-sort","Scouting sort")}>Run</button></div>:["declarations","combine-status","all-star"].includes(tool.id)?<div><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Select player…</option>{players.filter(p=>p.draft_class===draftClass).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select><select style={{marginTop:12}} value={choice} onChange={e=>setChoice(e.target.value)}><option value="">Select value…</option>{(tool.id==="all-star"?["None","Senior Bowl","Shrine Bowl","Hula Bowl","American Bowl"]:["Yes","No"]).map(x=><option key={x}>{x}</option>)}</select><button style={{marginTop:12}} onClick={()=>evalRun(tool.id==="declarations"?"Early Declare":tool.id==="combine-status"?"Combine Invite?":"All Star Game?")}>Apply</button></div>:tool.id==="ncaa-stats"?<div><p className="muted">Fetches the live NCAA.com FBS passing and rushing tables using the same pages, team-name normalization and stat mapping as the Apps Script.</p><button onClick={collegeRun}>Run</button></div>:<div className="notice">This command is being translated from its Apps Script workflow. It is intentionally not redirected to another page; the final version will execute here as a popup or automated task.</div>}
+</div>:playerActions[tool.id]?<div><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Select player…</option>{players.filter(p=>p.draft_class===draftClass).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select><button className="tool-spaced-top" onClick={playerRun}>Apply</button></div>:tool.id==="compare"?<div><div className="grid"><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Player 1…</option>{players.filter(p=>p.draft_class===draftClass).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select><select value={playerId2} onChange={e=>setPlayerId2(e.target.value)}><option value="">Player 2…</option>{players.filter(p=>p.draft_class===draftClass&&String(p.id)!==playerId).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select></div>{playerId&&playerId2&&<table className="tool-compare-table"><thead><tr><th>Player</th><th>Pos</th><th>College</th><th>Scouting</th><th>Pre-Draft</th></tr></thead><tbody>{[playerId,playerId2].map(id=>{const p=players.find(x=>String(x.id)===id),g=gradeRows.find(x=>String(x.id)===id);return p?<tr key={id}><td><span className="player-badge tool-compare-badge" style={schoolStyle(p.college)}>{p.name}</span></td><td>{p.position}</td><td>{p.college}</td><td>{g?.scoutingGrade==null?"—":Number(g.scoutingGrade).toFixed(2)}</td><td>{g?.preDraftGrade==null?"—":Number(g.preDraftGrade).toFixed(2)}</td></tr>:null})}</tbody></table>}</div>:tool.id==="reorder"?<div><p className="muted">Move a player within the workbook-equivalent position / Maybe queue.</p><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Select player…</option>{players.filter(p=>p.draft_class===draftClass&&p.scouting_status!=="FINISHED").sort((a,b)=>(a.watch_order||0)-(b.watch_order||0)).map(p=><option key={p.id} value={p.id}>{p.scouting_status==="MAYBE"?"Maybe":p.position} · {p.name}</option>)}</select><div className="row-actions tool-spaced-top"><button onClick={()=>moveRun("up")}>Move Up</button><button className="ghost" onClick={()=>moveRun("down")}>Move Down</button></div></div>:tool.id==="combine-refresh"?<div><p className="muted">Refreshes {draftClass} NFL Combine measurements for QB, RB, WR and TE profiles. Run this manually after combine testing is published; matching players update across every scouting Combine tab.</p>{combineStatus?.refreshedAt&&<div className="notice">Last refresh: {new Date(combineStatus.refreshedAt).toLocaleString()} · {combineStatus.updated||0} matched · {combineStatus.unmatched??combineStatus.unmatchedCount??0} unmatched.</div>}<button onClick={combineRefreshRun}>Refresh Combine Data</button></div>:["fix-formatting","transfer-portal"].includes(tool.id)?<div><p className="muted">The web app derives player colors from current college data, so this checks for college names that cannot resolve to the workbook color map instead of rewriting cell formatting.</p><button onClick={auditRun}>Run Check</button></div>:tool.id==="sort-scouting"?<div><p className="muted">Sorts each position by the workbook grade order while preserving the player/commentary record as one unit.</p><button onClick={()=>simpleRun("/api/scouting-sort","Scouting sort")}>Run</button></div>:["declarations","combine-status","all-star"].includes(tool.id)?<div><select value={playerId} onChange={e=>setPlayerId(e.target.value)}><option value="">Select player…</option>{players.filter(p=>p.draft_class===draftClass).map(p=><option key={p.id} value={p.id}>{p.position} · {p.name} · {p.college}</option>)}</select><select className="tool-spaced-top" value={choice} onChange={e=>setChoice(e.target.value)}><option value="">Select value…</option>{(tool.id==="all-star"?["None","Senior Bowl","Shrine Bowl","Hula Bowl","American Bowl"]:["Yes","No"]).map(x=><option key={x}>{x}</option>)}</select><button className="tool-spaced-top" onClick={()=>evalRun(tool.id==="declarations"?"Early Declare":tool.id==="combine-status"?"Combine Invite?":"All Star Game?")}>Apply</button></div>:tool.id==="ncaa-stats"?<div><p className="muted">Fetches the live NCAA.com FBS passing and rushing tables using the same pages, team-name normalization and stat mapping as the Apps Script.</p><button onClick={collegeRun}>Run</button></div>:<div className="notice">This command is being translated from its Apps Script workflow. It is intentionally not redirected to another page; the final version will execute here as a popup or automated task.</div>}
 {msg&&<div className="notice">{msg}</div>}</div></div>}</>}
