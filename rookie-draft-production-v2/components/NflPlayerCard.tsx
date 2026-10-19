@@ -104,7 +104,7 @@ function Card({d,tab,setTab,league,setLeague,open}:{d:any;tab:Tab;setTab:(t:Tab)
         <div className="nfc-ey">{meta}</div>
         <h1>{p.name}</h1>
         <div className="nfc-sub">{d.seasonLabel} season{p.injury?<span className="nfc-injury">{p.injury.status}{p.injury.bodyPart?" · "+p.injury.bodyPart:""}</span>:null}{!p.team&&<span className="nfc-injury">Free agent</span>}</div>
-        <div style={{marginTop:8}}><PlayerXSearch name={p.name} context={p.team}/></div>
+        <div style={{marginTop:8}}><PlayerXSearch name={p.name} settings/></div>
       </div>
       {d.leagues?.length>0&&<label className="nfc-league"><span>League</span>
         <select value={league} onChange={e=>setLeague(e.target.value)} aria-label="League (scoring and rosters)">{d.leagues.map((l:any)=><option key={l.key} value={l.key}>{l.name}</option>)}</select></label>}

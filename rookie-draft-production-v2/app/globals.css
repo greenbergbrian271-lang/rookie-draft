@@ -662,3 +662,5 @@
 .x-search-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;border:1px solid #31527f;background:#10233f;color:#cfe0f6;font-size:11px;font-weight:900;text-decoration:none;line-height:1.2}
 .x-search-btn b{font-size:12px;color:#fff}
 .x-search-btn:hover{background:#173254;border-color:#4b73a4;color:#fff}
+.x-search-gear{width:26px;height:26px;border-radius:50%;border:1px solid #31527f;background:#10233f;color:#cfe0f6;font-size:12px;line-height:1;padding:0}
+.x-search-gear:hover{background:#173254;border-color:#4b73a4;color:#fff}
