@@ -15,15 +15,28 @@ const BATCH=5,CONCURRENCY=2;
 const isUrl=(s:string)=>/^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(s.trim());
 const norm=(s:string)=>(s||"").toLowerCase();
 
+function PlayerPicker({options,value,onChange}:{options:Player[];value:string;onChange:(id:string)=>void}){
+ const [q,setQ]=useState(""),[open,setOpen]=useState(false);
+ const chosen=options.find(p=>String(p.id)===value);
+ const label=chosen?chosen.name+" · "+chosen.position+" · "+(chosen.college||"College TBD"):"";
+ const list=options.filter(p=>!q.trim()||norm(p.name+" "+p.position+" "+(p.college||"")).includes(norm(q))).slice(0,60);
+ return <div style={{position:"relative"}}>
+  <input value={open?q:label} placeholder="Search player, position, or college…" onFocus={()=>{setQ("");setOpen(true)}} onChange={e=>{setQ(e.target.value);setOpen(true)}} onBlur={()=>setTimeout(()=>setOpen(false),120)} onKeyDown={e=>{if(e.key==="Enter"&&list[0]){e.preventDefault();onChange(String(list[0].id));setOpen(false);(e.target as HTMLInputElement).blur()}if(e.key==="Escape"){setOpen(false);(e.target as HTMLInputElement).blur()}}}/>
+  {open&&<div style={{position:"absolute",zIndex:30,left:0,right:0,top:"calc(100% + 4px)",maxHeight:260,overflowY:"auto",background:"#0a1b31",border:"1px solid #31527f",borderRadius:10,boxShadow:"0 16px 40px rgba(0,0,0,.5)"}}>
+   {list.map(p=><div key={p.id} onMouseDown={e=>{e.preventDefault();onChange(String(p.id));setOpen(false)}} style={{padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid #162c4a"}}><strong>{p.name}</strong><span className="muted" style={{fontSize:12}}> · {p.position} · {p.college||"College TBD"}</span></div>)}
+   {!list.length&&<div className="muted" style={{padding:12}}>No matching undecided players.</div>}
+  </div>}
+ </div>;
+}
 export default function DraftDeclarationsModal({open,onClose,onDone}:{open:boolean;onClose:()=>void;onDone?:()=>void}){
  const draftClass=useDraftClass();
  const [mode,setMode]=useState<Mode>("home"),[players,setPlayers]=useState<Player[]>([]),[declared,setDeclared]=useState<Set<string>>(new Set()),[search,setSearch]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [scope,setScope]=useState("ALL"),[phase,setPhase]=useState<"intro"|"running"|"review">("intro"),[progress,setProgress]=useState({done:0,total:0}),[scanNotes,setScanNotes]=useState<string[]>([]);
  const [rows,setRows]=useState<Row[]>([]),[showUndecided,setShowUndecided]=useState(false),[applying,setApplying]=useState(false),[reviewKind,setReviewKind]=useState<"scan"|"manual">("scan");
  const [entries,setEntries]=useState<{playerId:string;decision:"DECLARED"|"RETURNING";source:string}[]>([{playerId:"",decision:"DECLARED",source:""}]);
- const cancel=useRef(false);
+ const cancel=useRef(false),[startedAt,setStartedAt]=useState(0);
 
- async function load(){setBusy(true);setError("");try{const [p,t]=await Promise.all([fetch("/api/players",{cache:"no-store"}).then(r=>r.json()),fetch("/api/workflow-tags?tag=DECLARES",{cache:"no-store"}).then(r=>r.json())]);setPlayers(Array.isArray(p)?p:[]);setDeclared(new Set((Array.isArray(t)?t:[]).map((x:any)=>String(x.playerId))))}catch{setError("Could not load players from the cloud database.")}finally{setBusy(false)}}
+ async function load(){setBusy(true);setError("");try{const [p,t,a]=await Promise.all([fetch("/api/players",{cache:"no-store"}).then(r=>r.json()),fetch("/api/workflow-tags?tag=DECLARES",{cache:"no-store"}).then(r=>r.json()),fetch("/api/workflow-tags?tag=ALL_STAR",{cache:"no-store"}).then(r=>r.json()).catch(()=>[])]);setPlayers(Array.isArray(p)?p:[]);/* an accepted all-star invite counts as declared */setDeclared(new Set([...(Array.isArray(t)?t:[]),...(Array.isArray(a)?a:[])].map((x:any)=>String(x.playerId))))}catch{setError("Could not load players from the cloud database.")}finally{setBusy(false)}}
  useEffect(()=>{if(open){cancel.current=true;setMode("home");setSearch("");setScope("ALL");setPhase("intro");setRows([]);setScanNotes([]);setShowUndecided(false);setEntries([{playerId:"",decision:"DECLARED",source:""}]);setError("");void load()}else cancel.current=true},[open,draftClass]);
 
  const current=useMemo(()=>players.filter(p=>p.draft_class===draftClass),[players,draftClass]);
@@ -36,7 +49,7 @@ export default function DraftDeclarationsModal({open,onClose,onDone}:{open:boole
 
  async function runScan(){
   const targets=scanTargets;if(!targets.length)return;
-  cancel.current=false;setError("");setScanNotes([]);setRows([]);setPhase("running");setProgress({done:0,total:targets.length});
+  cancel.current=false;setError("");setScanNotes([]);setRows([]);setPhase("running");setStartedAt(Date.now());setProgress({done:0,total:targets.length});
   const batches:Player[][]=[];for(let i=0;i<targets.length;i+=BATCH)batches.push(targets.slice(i,i+BATCH));
   const out=new Map<number,any>(),notes:string[]=[];let next=0,fatal="";
   async function worker(){
@@ -125,14 +138,14 @@ export default function DraftDeclarationsModal({open,onClose,onDone}:{open:boole
   {mode==="scan"&&phase==="intro"&&<div>
    <p className="muted">Scans NFL.com, ESPN, CBS Sports and the other trusted outlets, plus school sites and player social accounts, and any sources you've taught it. Speculation and mock drafts don't count. Early in the cycle most players will correctly come back as no decision.</p>
    <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",margin:"12px 0"}}><label style={{display:"flex",gap:8,alignItems:"center"}}>Position<select value={scope} onChange={e=>setScope(e.target.value)}><option value="ALL">All ({undecidedAll.length})</option>{positions.map(p=><option key={p} value={p}>{p} ({undecidedAll.filter(x=>x.position===p).length})</option>)}</select></label><button disabled={busy||!scanTargets.length} onClick={runScan}>Scan {scanTargets.length} player{scanTargets.length===1?"":"s"}</button></div>
-   <p className="muted" style={{fontSize:12}}>Takes roughly {Math.max(1,Math.ceil(scanTargets.length/BATCH/CONCURRENCY*0.4))}–{Math.max(2,Math.ceil(scanTargets.length/BATCH/CONCURRENCY*0.8))} minutes. Keep this window open.</p></div>}
+   <p className="muted" style={{fontSize:12}}>Rough estimate, based on the number of players selected: about {Math.max(1,Math.ceil(scanTargets.length/BATCH/CONCURRENCY*0.4))}–{Math.max(2,Math.ceil(scanTargets.length/BATCH/CONCURRENCY*0.8))} minutes. Keep this window open.</p></div>}
 
-  {mode==="scan"&&phase==="running"&&<div><h3>Scanning…</h3><div style={{height:10,borderRadius:6,background:"#0a1b31",border:"1px solid #25456f",overflow:"hidden",margin:"10px 0"}}><div style={{height:"100%",width:`${progress.total?progress.done/progress.total*100:0}%`,background:"#67e8f9",transition:"width .3s"}}/></div><p className="muted">{progress.done} of {progress.total} players checked</p><button className="ghost small" onClick={()=>{cancel.current=true;setPhase("intro")}}>Cancel</button></div>}
+  {mode==="scan"&&phase==="running"&&<div><h3>Scanning…</h3><div style={{height:10,borderRadius:6,background:"#0a1b31",border:"1px solid #25456f",overflow:"hidden",margin:"10px 0"}}><div style={{height:"100%",width:`${progress.total?progress.done/progress.total*100:0}%`,background:"#67e8f9",transition:"width .3s"}}/></div><p className="muted">{progress.done} of {progress.total} players checked{progress.done>=BATCH&&startedAt?` · about ${Math.max(1,Math.ceil((Date.now()-startedAt)/progress.done*(progress.total-progress.done)/60000))} min left`:""}</p><p className="muted" style={{fontSize:12}}>Keep this popup open; closing it cancels the scan. You can use other browser tabs meanwhile.</p><button className="ghost small" onClick={()=>{cancel.current=true;setPhase("intro")}}>Cancel</button></div>}
 
   {mode==="manual"&&phase!=="review"&&<div style={{display:"grid",gap:10}}>
    <p className="muted">Add each player and his status. Source is optional; a link's site is remembered so future scans check it too.</p>
    {entries.map((e,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"minmax(200px,2fr) minmax(140px,1fr) minmax(200px,2fr) auto",gap:8,alignItems:"center"}}>
-    <select value={e.playerId} onChange={ev=>setEntries(es=>es.map((x,j)=>j===i?{...x,playerId:ev.target.value}:x))}><option value="">Select player…</option>{undecidedAll.filter(p=>String(p.id)===e.playerId||!entries.some((x,j)=>j!==i&&x.playerId===String(p.id))).map(p=><option key={p.id} value={p.id}>{p.name} · {p.position} · {p.college||"College TBD"}</option>)}</select>
+    <PlayerPicker value={e.playerId} onChange={id=>setEntries(es=>es.map((x,j)=>j===i?{...x,playerId:id}:x))} options={undecidedAll.filter(p=>String(p.id)===e.playerId||!entries.some((x,j)=>j!==i&&x.playerId===String(p.id)))}/>
     <select value={e.decision} onChange={ev=>setEntries(es=>es.map((x,j)=>j===i?{...x,decision:ev.target.value as any}:x))}><option value="DECLARED">Declared</option><option value="RETURNING">Returning</option></select>
     <input value={e.source} onChange={ev=>setEntries(es=>es.map((x,j)=>j===i?{...x,source:ev.target.value}:x))} placeholder="Source URL or note (optional)"/>
     <button className="small ghost" aria-label="Remove row" disabled={entries.length===1} onClick={()=>setEntries(es=>es.filter((_,j)=>j!==i))}><X size={14}/></button></div>)}

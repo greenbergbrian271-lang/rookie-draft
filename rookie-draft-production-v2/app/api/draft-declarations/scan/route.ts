@@ -58,7 +58,7 @@ export async function POST(req:Request){
     if(!ids.length)return Response.json({error:"playerIds required"},{status:400});
     const c=await ensureTursoSchema(),marks=ids.map(()=>"?").join(",");
     const players=rows(await c.execute({sql:`select id,name,position,college,draft_class from players where id in (${marks})`,args:ids})) as any[];
-    const declared=new Set((rows(await c.execute({sql:"select player_id from workflow_tags where tag='DECLARES'",args:[]})) as any[]).map(r=>Number(r.player_id)));
+    const declared=new Set((rows(await c.execute({sql:"select player_id from workflow_tags where tag in ('DECLARES','ALL_STAR')",args:[]})) as any[]).map(r=>Number(r.player_id)));
     const todo=players.filter(p=>!declared.has(Number(p.id)));
     if(!todo.length)return Response.json({results:[]});
     const learned=await loadLearnedHosts();
