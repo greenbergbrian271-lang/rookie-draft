@@ -107,15 +107,15 @@ export default function DraftDeclarationsModal({open,onClose,onDone}:{open:boole
  const hiddenCount=rows.length-visibleRows.length;
  const closeAll=()=>{if(!applying){cancel.current=true;onClose()}};
 
- return <div className="tool-modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&closeAll()}><div className="tool-modal" role="dialog" aria-modal="true" aria-labelledby="declarations-title" style={{width:"min(1120px,96vw)",maxHeight:"90vh",overflow:"auto"}}>
+ return <div role="dialog" aria-modal="true" aria-labelledby="declarations-title" onMouseDown={e=>e.target===e.currentTarget&&closeAll()} style={{position:"fixed",inset:0,zIndex:1500,display:"grid",placeItems:"center",padding:18,background:"rgba(2,8,18,.78)",backdropFilter:"blur(4px)"}}><div onMouseDown={e=>e.stopPropagation()} style={{width:"min(1120px,96vw)",maxHeight:"90vh",overflow:"auto",background:"#071426",border:"1px solid #31527f",borderRadius:16,boxShadow:"0 28px 80px rgba(0,0,0,.58)",padding:24}}>
   <div className="page-head"><div><div className="ey">GM Tools · {draftClass} class</div><h2 id="declarations-title">Draft Declarations</h2></div><button className="small ghost" disabled={applying} onClick={closeAll}>Close</button></div>
   {mode!=="home"&&!applying&&<button className="small ghost" onClick={home} style={{marginBottom:12}}><ArrowLeft size={14}/> Back to options</button>}
 
   {mode==="home"&&<><p className="muted">Nothing here changes a player until you approve it. Declared saves the status only; Returning runs the returning-player flow and moves the player and his scouting report to {draftClass+1}.</p>
    <div className="grid" style={{gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-    <button className="card" style={{textAlign:"left",padding:18}} onClick={()=>setMode("scan")}><Search size={22}/><h3>Scan for draft decisions</h3><p className="muted">Searches trusted sources for each undecided player, then shows what it found for your review.</p></button>
-    <button className="card" style={{textAlign:"left",padding:18}} onClick={()=>setMode("manual")}><ClipboardList size={22}/><h3>Manual Draft Declaration</h3><p className="muted">Tell it the players and their status. A source is optional and teaches future scans where to look.</p></button>
-    <button className="card" style={{textAlign:"left",padding:18}} onClick={()=>{setSearch("");setMode("undecided")}}><Users size={22}/><h3>View Undecided Players</h3><p className="muted">{busy?"Loading…":`${undecidedAll.length} undecided · ${declared.size?current.length-undecidedAll.length:0} declared`}</p></button>
+    <button className="card" style={{textAlign:"left",padding:18,display:"block",width:"100%",cursor:"pointer"}} onClick={()=>setMode("scan")}><Search size={22}/><h3>Scan for draft decisions</h3><p className="muted">Searches trusted sources for each undecided player, then shows what it found for your review.</p></button>
+    <button className="card" style={{textAlign:"left",padding:18,display:"block",width:"100%",cursor:"pointer"}} onClick={()=>setMode("manual")}><ClipboardList size={22}/><h3>Manual Draft Declaration</h3><p className="muted">Tell it the players and their status. A source is optional and teaches future scans where to look.</p></button>
+    <button className="card" style={{textAlign:"left",padding:18,display:"block",width:"100%",cursor:"pointer"}} onClick={()=>{setSearch("");setMode("undecided")}}><Users size={22}/><h3>View Undecided Players</h3><p className="muted">{busy?"Loading…":`${undecidedAll.length} undecided · ${declared.size?current.length-undecidedAll.length:0} declared`}</p></button>
    </div></>}
 
   {mode==="undecided"&&<><h3>Undecided players <span className="muted">· {undecided.length}</span></h3><p className="muted">{draftClass} players with no recorded decision.</p>
