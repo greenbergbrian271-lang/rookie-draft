@@ -656,3 +656,11 @@
 .nfl-war-room-frame{margin:-26px;height:calc(100vh - 49px);min-height:720px;overflow:hidden;background:var(--sidebar)}
 .nfl-war-room-iframe{width:100%;height:100%;border:0;display:block;background:var(--sidebar)}
 @media(max-width:800px){.nfl-war-room-frame{margin:-14px;height:calc(100vh - 42px);min-height:560px}}
+
+/* X (Twitter) search links on player cards */
+.x-search{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+.x-search-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;border:1px solid #31527f;background:#10233f;color:#cfe0f6;font-size:11px;font-weight:900;text-decoration:none;line-height:1.2}
+.x-search-btn b{font-size:12px;color:#fff}
+.x-search-btn:hover{background:#173254;border-color:#4b73a4;color:#fff}
+.x-search-gear{width:26px;height:26px;border-radius:50%;border:1px solid #31527f;background:#10233f;color:#cfe0f6;font-size:12px;line-height:1;padding:0}
+.x-search-gear:hover{background:#173254;border-color:#4b73a4;color:#fff}
