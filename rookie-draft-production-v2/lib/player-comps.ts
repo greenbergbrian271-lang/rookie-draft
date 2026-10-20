@@ -16,7 +16,7 @@ export type CompTarget={name:string;position:Pos;draftClass:number;college?:stri
 
 type Group="meas"|"prod"|"anal"|"skill"|"grade";
 type Ctx={find:(labels:string[],groupRe?:RegExp)=>number|null;skill:(bases:string[])=>number|null;height:()=>number|null};
-type FeatureSpec={id:string;label:string;group:Group;w?:number;fmt?:"int"|"1"|"2"|"pct"|"in";get:(c:Ctx)=>number|null};
+type FeatureSpec={id:string;label:string;group:Group;w?:number;fmt?:"int"|"1"|"2"|"pct"|"ratio"|"in";pct?:boolean;get:(c:Ctx)=>number|null};
 
 export const POOL_YEARS=[2022,2023,2024,2025,2026] as const;
 const GROUP_WEIGHT:Record<Group|"notes",number>={meas:.2,prod:.22,anal:.15,skill:.22,grade:.08,notes:.13};
@@ -83,15 +83,15 @@ const perGame=(c:Ctx,labels:string[])=>rate(G(c,labels),G(c,["Games"]));
 const SPECS:Record<Pos,FeatureSpec[]>={
   QB:[
     ...meas,...grades,
-    {id:"comp",label:"Completion %",group:"prod",fmt:"pct",get:c=>G(c,["Completion %"])},
+    {id:"comp",label:"Completion %",group:"prod",pct:true,fmt:"pct",get:c=>G(c,["Completion %"])},
     {id:"ypa",label:"Yards / Attempt",group:"prod",fmt:"1",get:c=>G(c,["Yards/Attempt"])},
-    {id:"td_rate",label:"TD rate",group:"prod",fmt:"pct",get:c=>{const td=G(c,["Touchdowns"]),a=G(c,["Attempts"]);return rate(td,a)}},
-    {id:"int_rate",label:"INT rate",group:"prod",fmt:"pct",get:c=>rate(G(c,["Interceptions"]),G(c,["Attempts"]))},
+    {id:"td_rate",label:"TD rate",group:"prod",fmt:"ratio",get:c=>{const td=G(c,["Touchdowns"]),a=G(c,["Attempts"]);return rate(td,a)}},
+    {id:"int_rate",label:"INT rate",group:"prod",fmt:"ratio",get:c=>rate(G(c,["Interceptions"]),G(c,["Attempts"]))},
     {id:"rush_pg",label:"Rushes / game",group:"prod",fmt:"1",get:c=>perGame(c,["Rushes"])},
     {id:"adot",label:"ADOT",group:"anal",fmt:"1",get:c=>A(c,["ADOT"])},
-    {id:"adj_comp",label:"Adjusted Comp %",group:"anal",fmt:"1",get:c=>A(c,["ADJ Comp %","Adjusted Comp %"])},
-    {id:"btt",label:"Big-time throw %",group:"anal",fmt:"pct",get:c=>A(c,["BTT %"])},
-    {id:"twp",label:"Turnover-worthy %",group:"anal",fmt:"pct",get:c=>A(c,["TWP %"])},
+    {id:"adj_comp",label:"Adjusted Comp %",group:"anal",pct:true,fmt:"1",get:c=>A(c,["ADJ Comp %","Adjusted Comp %"])},
+    {id:"btt",label:"Big-time throw %",group:"anal",pct:true,fmt:"pct",get:c=>A(c,["BTT %"])},
+    {id:"twp",label:"Turnover-worthy %",group:"anal",pct:true,fmt:"pct",get:c=>A(c,["TWP %"])},
     {id:"scr",label:"Scrambles",group:"anal",fmt:"int",w:.7,get:c=>A(c,["Scrambles"])},
     {id:"arm",label:"Arm Strength",group:"skill",fmt:"int",get:c=>c.skill(["Arm Strength"])},
     {id:"acc",label:"Accuracy",group:"skill",fmt:"int",get:c=>c.skill(["Accuracy"])},
@@ -102,11 +102,11 @@ const SPECS:Record<Pos,FeatureSpec[]>={
     {id:"ypc",label:"Yards / Carry",group:"prod",fmt:"1",get:c=>G(c,["Yards/Carry"])},
     {id:"ypt",label:"Yards / Touch",group:"prod",fmt:"1",get:c=>G(c,["Yards/Touch"])},
     {id:"yptp",label:"YPTP",group:"prod",fmt:"2",get:c=>G(c,["YPTP"])},
-    {id:"recshare",label:"Reception share",group:"prod",fmt:"pct",get:c=>G(c,["Rec Share %"])},
-    {id:"dom",label:"Dominator rating",group:"prod",fmt:"pct",get:c=>G(c,["Dom Rtg"])},
+    {id:"recshare",label:"Reception share",group:"prod",pct:true,fmt:"pct",get:c=>G(c,["Rec Share %"])},
+    {id:"dom",label:"Dominator rating",group:"prod",pct:true,fmt:"pct",get:c=>G(c,["Dom Rtg"])},
     {id:"car_pg",label:"Carries / game",group:"prod",fmt:"1",w:.8,get:c=>perGame(c,["Carries"])},
     {id:"elus",label:"Elusive rating",group:"anal",fmt:"1",get:c=>A(c,["Elusive Rating"])},
-    {id:"brk",label:"Breakaway %",group:"anal",fmt:"pct",get:c=>A(c,["Breakaway %"])},
+    {id:"brk",label:"Breakaway %",group:"anal",pct:true,fmt:"pct",get:c=>A(c,["Breakaway %"])},
     {id:"yac",label:"YAC / reception",group:"anal",fmt:"1",get:c=>A(c,["YAC/Rec"])},
     {id:"adot",label:"ADOT",group:"anal",fmt:"1",w:.7,get:c=>A(c,["ADOT"])},
     {id:"pbg",label:"Pass-block grade",group:"anal",fmt:"1",w:.7,get:c=>A(c,["Pass Block Grade"])},
@@ -122,12 +122,12 @@ const SPECS:Record<Pos,FeatureSpec[]>={
     ...meas,...grades,
     {id:"ypr",label:"Yards / Reception",group:"prod",fmt:"1",get:c=>G(c,["Yards/Rec"])},
     {id:"ypt",label:"Yards / Target",group:"prod",fmt:"1",get:c=>G(c,["Yards/Tgt"])},
-    {id:"tgt",label:"Target share",group:"prod",fmt:"pct",get:c=>G(c,["Target %"])},
-    {id:"catch",label:"Catch %",group:"prod",fmt:"pct",w:.8,get:c=>G(c,["Catch %"])},
+    {id:"tgt",label:"Target share",group:"prod",pct:true,fmt:"pct",get:c=>G(c,["Target %"])},
+    {id:"catch",label:"Catch %",group:"prod",pct:true,fmt:"pct",w:.8,get:c=>G(c,["Catch %"])},
     {id:"yptpa",label:"YPTPA",group:"prod",fmt:"2",get:c=>G(c,["YPTPA"])},
-    {id:"dom",label:"Dominator rating",group:"prod",fmt:"pct",get:c=>G(c,["Dom Rtg"])},
-    {id:"drop",label:"Drop %",group:"anal",fmt:"pct",get:c=>A(c,["Drop %"])},
-    {id:"traffic",label:"Catch in traffic %",group:"anal",fmt:"pct",w:.8,get:c=>A(c,["Catch in Traffic %"])},
+    {id:"dom",label:"Dominator rating",group:"prod",pct:true,fmt:"pct",get:c=>G(c,["Dom Rtg"])},
+    {id:"drop",label:"Drop %",group:"anal",pct:true,fmt:"pct",get:c=>A(c,["Drop %"])},
+    {id:"traffic",label:"Catch in traffic %",group:"anal",pct:true,fmt:"pct",w:.8,get:c=>A(c,["Catch in Traffic %"])},
     {id:"yrr",label:"Yards / route run",group:"anal",fmt:"2",get:c=>A(c,["Y/RR"])},
     {id:"yrr_man",label:"Y/RR vs man",group:"anal",fmt:"2",w:.7,get:c=>A(c,["Y/RR vs Man"])},
     {id:"yrr_zone",label:"Y/RR vs zone",group:"anal",fmt:"2",w:.7,get:c=>A(c,["Y/RR vs Zone"])},
@@ -142,16 +142,16 @@ const SPECS:Record<Pos,FeatureSpec[]>={
     ...meas,...grades,
     {id:"ypr",label:"Yards / Reception",group:"prod",fmt:"1",get:c=>G(c,["Yards/Rec"])},
     {id:"ypt",label:"Yards / Target",group:"prod",fmt:"1",get:c=>G(c,["Yards/Tgt"])},
-    {id:"tgt",label:"Target share",group:"prod",fmt:"pct",get:c=>G(c,["Target %"])},
-    {id:"catch",label:"Catch %",group:"prod",fmt:"pct",w:.8,get:c=>G(c,["Catch %"])},
+    {id:"tgt",label:"Target share",group:"prod",pct:true,fmt:"pct",get:c=>G(c,["Target %"])},
+    {id:"catch",label:"Catch %",group:"prod",pct:true,fmt:"pct",w:.8,get:c=>G(c,["Catch %"])},
     {id:"yptpa",label:"YPTPA",group:"prod",fmt:"2",get:c=>G(c,["YPTPA"])},
-    {id:"dom",label:"Dominator rating",group:"prod",fmt:"pct",get:c=>G(c,["Dom Rtg"])},
-    {id:"drop",label:"Drop %",group:"anal",fmt:"pct",get:c=>A(c,["Drop %"])},
+    {id:"dom",label:"Dominator rating",group:"prod",pct:true,fmt:"pct",get:c=>G(c,["Dom Rtg"])},
+    {id:"drop",label:"Drop %",group:"anal",pct:true,fmt:"pct",get:c=>A(c,["Drop %"])},
     {id:"yrr",label:"Yards / route run",group:"anal",fmt:"2",get:c=>A(c,["Y/RR"])},
     {id:"yac",label:"YAC / reception",group:"anal",fmt:"1",get:c=>A(c,["YAC/Rec"])},
     {id:"adot",label:"ADOT",group:"anal",fmt:"1",w:.8,get:c=>A(c,["ADOT"])},
-    {id:"inline",label:"Inline snap %",group:"anal",fmt:"pct",get:c=>A(c,["Inline Snap %"])},
-    {id:"slot",label:"Slot snap %",group:"anal",fmt:"pct",get:c=>A(c,["Slot Snap %"])},
+    {id:"inline",label:"Inline snap %",group:"anal",pct:true,fmt:"pct",get:c=>A(c,["Inline Snap %"])},
+    {id:"slot",label:"Slot snap %",group:"anal",pct:true,fmt:"pct",get:c=>A(c,["Slot Snap %"])},
     {id:"runblock",label:"Run-block grade",group:"anal",fmt:"1",get:c=>A(c,["Run Block Grade"])},
     {id:"catching",label:"Catching",group:"skill",fmt:"int",get:c=>c.skill(["Catching"])},
     {id:"routes",label:"Route running",group:"skill",fmt:"int",get:c=>c.skill(["Route Running"])},
@@ -185,11 +185,14 @@ export const compKey=(draftClass:number,position:string,name:string)=>`${draftCl
 function extract(position:Pos,rows:EvalRow[],grades?:Record<string,unknown>|null){
   const ctx=makeCtx(rows,grades);
   const out:Record<string,number|null>={};
-  for(const f of SPECS[position])out[f.id]=f.get(ctx);
+  for(const f of SPECS[position]){
+    let v=f.get(ctx);
+    // some classes store percentages as fractions (0.73) and others as percents (73.0): put everything on the percent scale
+    if(v!=null&&f.pct&&Math.abs(v)<=1.5)v=v*100;
+    out[f.id]=v;
+  }
   return out;
 }
-
-export function debugFeatures(t:CompTarget){return {categories:[...new Set(t.evaluations.map(e=>String(e.category)+"="+(e.value==null?"null":typeof e.value=="number"?e.value:String(e.value).slice(0,12))))].slice(0,140),features:extract(t.position,t.evaluations,t.grades),grades:t.grades||null,notesChars:String(t.notes||"").length}}
 
 let POOL:PoolEntry[]|null=null;
 export function getPool():PoolEntry[]{
@@ -265,7 +268,8 @@ export type CompResult={
 const fmtVal=(spec:FeatureSpec,v:number)=>{
   switch(spec.fmt){
     case "in":return `${Math.floor(v/12)}'${Math.round((v%12)*10)/10}"`;
-    case "pct":return Math.abs(v)<=1.5?(v*100).toFixed(1)+"%":v.toFixed(1)+"%";
+    case "pct":return v.toFixed(1)+"%";
+    case "ratio":return (v*100).toFixed(1)+"%";
     case "int":return String(Math.round(v));
     case "2":return v.toFixed(2);
     default:return v.toFixed(1);

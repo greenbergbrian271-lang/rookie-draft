@@ -1,14 +1,13 @@
 import {buildComps,loadTarget,saveOverride} from "@/lib/player-comps-server";
-import {compKey,debugFeatures} from "@/lib/player-comps";
+import {compKey} from "@/lib/player-comps";
 
 export const dynamic="force-dynamic";
 export const maxDuration=60;
 
 export async function GET(req:Request){
   try{
-    const sp=new URL(req.url).searchParams,id=sp.get("playerId");
+    const id=new URL(req.url).searchParams.get("playerId");
     if(!id)return Response.json({error:"playerId required"},{status:400});
-    if(sp.get("debug")==="1"){const t=await loadTarget(id);return Response.json(t?debugFeatures(t):{error:"Player not found"})}
     const result=await buildComps(id);
     if(!result)return Response.json({error:"Player not found"},{status:404});
     return Response.json(result);
