@@ -295,6 +295,11 @@ export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set
   const groupSpecs=Object.fromEntries(groups.map(g=>[g,specs.filter(s=>s.group===g)])) as Record<Group,FeatureSpec[]>;
   const totalWeight=Object.values(GROUP_WEIGHT).reduce((a,b)=>a+b,0);
 
+  let targetWeight=0;
+  for(const g of groups)if(specs.filter(f=>f.group===g&&targetRaw[f.id]!=null).length>=minShared(Math.min(groupSpecs[g].length,6)))targetWeight+=GROUP_WEIGHT[g];
+  if(targetVec)targetWeight+=GROUP_WEIGHT.notes;
+  targetWeight=Math.max(targetWeight,.01);
+
   const scored:CompMatch[]=[];
   for(const e of pool){
     let wSum=0,simSum=0;const used:string[]=[];const diffs:{spec:FeatureSpec;t:number;c:number;zt:number;zc:number}[]=[];
@@ -317,7 +322,8 @@ export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set
       simSum+=GROUP_WEIGHT.notes*Math.min(1,cos/.45);wSum+=GROUP_WEIGHT.notes;used.push("notes");
     }
     if(used.length<2||sharedCount<6)continue;
-    const similarity=simSum/wSum;
+    // comps that can be compared on more of the target's own data groups get fuller credit
+    const similarity=simSum/wSum*(.7+.3*Math.min(1,wSum/targetWeight));
 
     const shared=diffs.filter(d=>Math.abs(d.zt)>=.8&&Math.abs(d.zc)>=.8&&Math.sign(d.zt)===Math.sign(d.zc)&&Math.abs(d.zt-d.zc)<=.6)
       .sort((a,b)=>(Math.abs(b.zt)+Math.abs(b.zc))-(Math.abs(a.zt)+Math.abs(a.zc))).slice(0,4)
