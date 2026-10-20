@@ -1,6 +1,8 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
 import {findHistoricalScoutingSnapshot,historicalEvaluations} from "@/lib/historical-scouting";
 import {GET as getFinalBoard} from "@/app/api/final-board/live/route";
+import {GET as getPlayerData} from "@/app/api/player-data/route";
+import {playerNameKey} from "@/lib/player-name";
 import {compKey,findComps,type CompMatch,type CompTarget,type EvalRow,type Pos} from "@/lib/player-comps";
 import {loadOutcome,type Outcome} from "@/lib/comp-outcomes";
 
@@ -27,6 +29,17 @@ async function boardRowFor(playerId:string,draftClass:number){
   }catch{return null}
 }
 
+// Live stats, measurables and analytics live in the player-data rows (same source the card's Production/Analytics tabs use)
+async function playerDataFor(name:string,position:string,draftClass:number):Promise<EvalRow[]>{
+  try{
+    const r=await getPlayerData(new Request("http://internal/api/player-data?position="+encodeURIComponent(position)+"&draftClass="+encodeURIComponent(String(draftClass))));
+    const j=await r.json();
+    const row=r.ok&&Array.isArray(j?.rows)?j.rows.find((x:any)=>playerNameKey(x?.Player)===playerNameKey(name)):null;
+    if(!row)return [];
+    return Object.entries(row).filter(([k,v])=>k!=="Player"&&v!=null&&String(v).trim()!==""&&String(v).length<40).map(([k,v])=>({category:k,value:v as any}));
+  }catch{return []}
+}
+
 export async function loadTarget(playerId:string):Promise<CompTarget|null>{
   const q=await ensureTursoSchema();
   const p:any=rows(await q.execute({sql:"select id,name,position,college,draft_class from players where id=?",args:[playerId]}))[0];
@@ -36,17 +49,19 @@ export async function loadTarget(playerId:string):Promise<CompTarget|null>{
     const snap=findHistoricalScoutingSnapshot(draftClass,position,String(p.name));
     return {name:String(p.name),position,draftClass,college:p.college,evaluations:snap?historicalEvaluations(snap) as EvalRow[]:[],grades:(snap?.grades||null) as any,notes:snap?.commentary||""};
   }
-  const [evals,board,sessions]=await Promise.all([
+  const [evals,board,sessions,dataRows]=await Promise.all([
     q.execute({sql:"select category,value,commentary from evaluations where player_id=?",args:[playerId]}).then(rows),
     boardRowFor(playerId,draftClass),
     q.execute({sql:"select raw_notes,overall_writeup from scouting_sessions where player_id=?",args:[playerId]}).then(rows),
+    playerDataFor(String(p.name),position,draftClass),
   ]);
+  const have=new Set((evals as any[]).map(e=>String(e.category)));
   const legacy=String((evals as any[]).find(e=>String(e.category)==="__COMMENTARY__")?.value??"");
   const notes=[legacy,...(sessions as any[]).map(s=>[s.raw_notes,s.overall_writeup].filter(Boolean).join("\n"))].filter(Boolean).join("\n\n");
   const grades:Record<string,unknown>={};
   if(board?.scoutingGrade!=null)grades["Scouting Grade"]=board.scoutingGrade;
   if(board?.analyticalGrade!=null)grades["Analytical Grade"]=board.analyticalGrade;
-  return {name:String(p.name),position,draftClass,college:p.college,evaluations:evals as EvalRow[],grades,notes};
+  return {name:String(p.name),position,draftClass,college:p.college,evaluations:[...(evals as EvalRow[]),...dataRows.filter(r=>!have.has(String(r.category)))],grades,notes};
 }
 
 export type CompCard=CompMatch&{roles:("Most Similar"|"Ceiling"|"Floor"|"Pinned")[];outcome:Outcome|null};
