@@ -189,6 +189,8 @@ function extract(position:Pos,rows:EvalRow[],grades?:Record<string,unknown>|null
   return out;
 }
 
+export function debugFeatures(t:CompTarget){return {categories:[...new Set(t.evaluations.map(e=>String(e.category)+"="+(e.value==null?"null":typeof e.value=="number"?e.value:String(e.value).slice(0,12))))].slice(0,140),features:extract(t.position,t.evaluations,t.grades),grades:t.grades||null,notesChars:String(t.notes||"").length}}
+
 let POOL:PoolEntry[]|null=null;
 export function getPool():PoolEntry[]{
   if(POOL)return POOL;
