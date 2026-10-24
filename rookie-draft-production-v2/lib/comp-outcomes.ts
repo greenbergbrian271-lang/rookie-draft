@@ -15,7 +15,7 @@ const memo=new Map<string,{at:number;value:Map<string,SeasonRec>}>();
 async function readSetting(key:string){try{const q=await ensureTursoSchema();const r:any=rows(await q.execute({sql:"select value from settings where key=?",args:[key]}))[0];return r?.value?JSON.parse(String(r.value)):null}catch{return null}}
 async function writeSetting(key:string,value:unknown){try{const q=await ensureTursoSchema();await q.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?) on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at",args:[key,JSON.stringify(value),new Date().toISOString()]})}catch{}}
 
-async function seasonRecords(season:number,state:any,db:Record<string,any>):Promise<Map<string,SeasonRec>>{
+export async function seasonRecords(season:number,state:any,db:Record<string,any>):Promise<Map<string,SeasonRec>>{
   const current=Number(state?.season)||new Date().getFullYear();
   const complete=season<current||(season===current&&String(state?.season_type)==="post");
   const lastWeek=complete?18:Math.max(1,(Number(state?.week)||1)-1);
