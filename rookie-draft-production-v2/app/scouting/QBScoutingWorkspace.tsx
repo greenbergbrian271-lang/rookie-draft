@@ -9,7 +9,7 @@ import {qbAnalyticalGrade} from "@/lib/analytical-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 import PriorFilmReport from "@/components/PriorFilmReport";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed,GradeSlider,useGradeMemo} from "./ScoutingShared";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,CombineTestingSection,ScoutingPlayerHero,PercentileMetricCard,resolveDraftContext,useDraftFeed,GradeSlider,useGradeMemo} from "./ScoutingShared";import PlayerComps from "@/components/PlayerComps";
 
 type Player={
   id:string|number;
@@ -42,7 +42,7 @@ type Props={
   onAdd:()=>void;
   demoMode?:boolean;draftClass?:number;priorReports?:Record<string,any>;archiveMode?:boolean;gradeOverrides?:Record<string,any>;
 };
-type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft";
+type Tab="Film"|"Production"|"Analytics"|"Combine"|"Draft"|"Comps";
 type Mode="Evaluate"|"Compare";
 
 const FILM=["Arm Strength","Arm Velocity","Accuracy","Decision Making","Poise + OOS","Mechanics","Mobility","Leadership","Size"] as const;
@@ -384,6 +384,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
       </div>}
 
       {tab==="Combine"&&<CombineTestingSection playerName={p.name} position="QB" data={imp} grade={combine}><div className="qb-combine-grid"><ReadOnly label="Height" value={imp?.Height}/><ReadOnly label="Weight" value={imp?.Weight}/><ReadOnly label="BMI" value={display(imp?.BMI,false,1)}/><ReadOnly label="40 Yard Dash" value={display(imp?.["40 Yard Dash"],false,2)}/><ReadOnly label="Speed Score" value={display(imp?.["Speed Score"],false,1)}/><ReadOnly label="Broad Jump" value={imp?.["Broad Jump"]}/></div></CombineTestingSection>}
+      {tab==="Comps"&&<PlayerComps playerId={p.id}/>}
 
       {tab==="Draft"&&<DraftAdjustmentPanel preDraft={preDraft} finalGrade={finalGrade} draftResult={draftCtx.result} draftTeam={draftCtx.team} teamScore={teamScore} draftCapital={draftCapital} teamAdj={teamAdj} capitalAdj={capitalAdj} production={false} updatedAt={draftUpdatedAt}/>}
       <PriorFilmReport report={priorReports?.[id]}/>
@@ -404,7 +405,7 @@ export default function QBScoutingWorkspace({players,vals,setVals,imports,glossa
     </aside>
     <section className={"qb-scouting-pane "+(mode==="Evaluate"?"evaluate":"compare")}>
       {mode==="Compare"?<CompareView players={comparePlayers} allPlayers={rankedPlayers} compareIds={compareIds} setCompareIds={setCompareIds} vals={vals} importedFor={importedFor} scoutingFor={scoutingFor} analyticalFor={analyticalFor} preDraftFor={preDraftFor} finalGradeFor={finalGradeFor} draftContextFor={draftContextFor} gameCountFor={gameCountFor} metricDataFor={metricDataFor}/>:<div className="qb-evaluate-stack">
-        <nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}{tab==="Film"&&<button type="button" className="qb-game-log-global-toggle" aria-pressed="false" onClick={e=>{const root=e.currentTarget.closest(".qb-scouting-pane");const logs=Array.from(root?.querySelectorAll(".qb-game-log")||[]);const collapse=logs.some(log=>!log.classList.contains("collapsed"));logs.forEach(log=>log.classList.toggle("collapsed",collapse));e.currentTarget.setAttribute("aria-pressed",String(collapse))}}><span className="qb-game-log-global-collapse">Minimize all game logs</span><span className="qb-game-log-global-expand">Expand all game logs</span></button>}</nav>
+        <nav className="qb-section-tabs qb-shared-tabs">{(["Film","Production","Analytics","Combine","Draft","Comps"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}{tab==="Film"&&<button type="button" className="qb-game-log-global-toggle" aria-pressed="false" onClick={e=>{const root=e.currentTarget.closest(".qb-scouting-pane");const logs=Array.from(root?.querySelectorAll(".qb-game-log")||[]);const collapse=logs.some(log=>!log.classList.contains("collapsed"));logs.forEach(log=>log.classList.toggle("collapsed",collapse));e.currentTarget.setAttribute("aria-pressed",String(collapse))}}><span className="qb-game-log-global-collapse">Minimize all game logs</span><span className="qb-game-log-global-expand">Expand all game logs</span></button>}</nav>
         {visiblePlayers.map(renderPlayerSection)}
       </div>}
     </section>
