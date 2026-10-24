@@ -13,6 +13,8 @@ const checks=[
   ["components/PlayerImage.tsx",/player-headshot/,"resilient player image fallback"],
   ["lib/player-comps.ts",/draft capital is NOT a matching feature/,"player comps never match on draft capital"],
   ["lib/player-comps.ts",/e\.draftClass<target\.draftClass/,"player comps only use earlier classes"],
+  ["app/scouting-glossary/page.tsx",/<CompWeightsPanel\/>/,"comp weights editor on the scouting glossary"],
+  ["app/api/player-comps/weights/route.ts",/Weights must add up to 100%/,"comp weights validated to 100%"],
   ["lib/comp-outcomes.ts",/pass_yd:\.04.*rec:1/,"player comp outcomes score standard PPR"],
   ["app/api/player-comps/route.ts",/saveOverride/,"player comp pin/exclude overrides"],
   ["components/PlayerProfile.tsx",/<PlayerComps playerId=/,"player comps on the card Summary tab"],

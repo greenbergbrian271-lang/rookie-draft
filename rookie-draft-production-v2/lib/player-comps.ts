@@ -19,7 +19,17 @@ type Ctx={find:(labels:string[],groupRe?:RegExp)=>number|null;skill:(bases:strin
 type FeatureSpec={id:string;label:string;group:Group;w?:number;fmt?:"int"|"1"|"2"|"pct"|"ratio"|"in";pct?:boolean;get:(c:Ctx)=>number|null};
 
 export const POOL_YEARS=[2022,2023,2024,2025,2026] as const;
-const GROUP_WEIGHT:Record<Group|"notes",number>={meas:.2,prod:.22,anal:.15,skill:.22,grade:.08,notes:.13};
+export type Weights=Record<Group|"notes",number>;
+export const DEFAULT_WEIGHTS:Weights={meas:.25,prod:.28,anal:.23,skill:.15,grade:.04,notes:.05};
+export const WEIGHT_KEYS=["meas","prod","anal","skill","grade","notes"] as const;
+/** Accepts percents or fractions in any scale; returns non-negative weights that sum to 1 (falls back to defaults if unusable). */
+export function normalizeWeights(input:unknown):Weights{
+  const src=(input&&typeof input==="object"?input:{}) as Record<string,unknown>;
+  const raw=Object.fromEntries(WEIGHT_KEYS.map(k=>{const n=Number(src[k]);return [k,Number.isFinite(n)&&n>0?n:0]})) as Weights;
+  const total=WEIGHT_KEYS.reduce((a,k)=>a+raw[k],0);
+  if(total<=0)return {...DEFAULT_WEIGHTS};
+  return Object.fromEntries(WEIGHT_KEYS.map(k=>[k,raw[k]/total])) as Weights;
+}
 const STAT_GROUP=/stats|production/i;
 const ANALYTIC_GROUP=/analytic/i;
 
@@ -73,7 +83,6 @@ const meas:FeatureSpec[]=[
   {id:"speedscore",label:"Speed Score",group:"meas",fmt:"int",w:.6,get:c=>c.find(["Speed Score"])},
 ];
 const grades:FeatureSpec[]=[
-  {id:"g_scout",label:"Scouting Grade",group:"grade",fmt:"1",get:c=>c.find(["Scouting Grade"],/grades/i)},
   {id:"g_anal",label:"Analytical Grade",group:"grade",fmt:"1",get:c=>c.find(["Analytical Grade"],/grades/i)},
 ];
 const G=(c:Ctx,labels:string[])=>c.find(labels,STAT_GROUP);
@@ -277,9 +286,10 @@ const fmtVal=(spec:FeatureSpec,v:number)=>{
 };
 
 const GROUP_LABEL:Record<Group|"notes",string>={meas:"measurables",prod:"production",anal:"analytics",skill:"scouting ratings",grade:"grades",notes:"notes"};
-const minShared=(count:number)=>Math.max(2,Math.ceil(count*.4));
+const minShared=(count:number)=>Math.min(count,Math.max(2,Math.ceil(count*.4)));
 
-export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set<string>}={}):CompResult{
+export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set<string>;weights?:Weights}={}):CompResult{
+  const GROUP_WEIGHT=opts.weights?normalizeWeights(opts.weights):DEFAULT_WEIGHTS;
   const position=target.position,specs=SPECS[position];
   const targetRaw=extract(position,target.evaluations,target.grades);
   const targetKey=compKey(target.draftClass,position,target.name);

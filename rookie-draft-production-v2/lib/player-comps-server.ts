@@ -3,10 +3,28 @@ import {findHistoricalScoutingSnapshot,historicalEvaluations} from "@/lib/histor
 import {GET as getFinalBoard} from "@/app/api/final-board/live/route";
 import {GET as getPlayerData} from "@/app/api/player-data/route";
 import {playerNameKey} from "@/lib/player-name";
-import {compKey,findComps,type CompMatch,type CompTarget,type EvalRow,type Pos} from "@/lib/player-comps";
+import {compKey,findComps,normalizeWeights,DEFAULT_WEIGHTS,WEIGHT_KEYS,type CompMatch,type CompTarget,type EvalRow,type Pos,type Weights} from "@/lib/player-comps";
 import {loadOutcome,type Outcome} from "@/lib/comp-outcomes";
 
 const OVERRIDE_KEY="player-comp-overrides:v1";
+const WEIGHTS_KEY="player-comp-weights:v1";
+
+export async function loadWeights():Promise<Weights>{
+  try{const q=await ensureTursoSchema();const r:any=rows(await q.execute({sql:"select value from settings where key=?",args:[WEIGHTS_KEY]}))[0];return r?.value?normalizeWeights(JSON.parse(String(r.value))):{...DEFAULT_WEIGHTS}}catch{return {...DEFAULT_WEIGHTS}}
+}
+export async function saveWeights(input:unknown|null){
+  const q=await ensureTursoSchema();
+  if(input==null){await q.execute({sql:"delete from settings where key=?",args:[WEIGHTS_KEY]});return {...DEFAULT_WEIGHTS}}
+  const w=normalizeWeights(input);
+  await q.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?) on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at",args:[WEIGHTS_KEY,JSON.stringify(w),new Date().toISOString()]});
+  return w;
+}
+export const weightsToPercent=(w:Weights)=>{
+  const out=Object.fromEntries(WEIGHT_KEYS.map(k=>[k,Math.round(w[k]*100)])) as Record<string,number>;
+  const diff=100-WEIGHT_KEYS.reduce((a,k)=>a+out[k],0);
+  if(diff){const big=[...WEIGHT_KEYS].sort((a,b)=>out[b]-out[a])[0];out[big]+=diff}
+  return out;
+};
 type Overrides=Record<string,{pin?:string|null;exclude?:string[]}>;
 
 async function readOverrides():Promise<Overrides>{
@@ -77,12 +95,13 @@ export async function buildComps(playerId:string):Promise<CompsResponse|null>{
   const targetKey=compKey(target.draftClass,target.position,target.name);
   const ov=(await readOverrides())[targetKey]||{};
   const excludeKeys=new Set(ov.exclude||[]);
-  const result=findComps(target,{limit:14,excludeKeys});
+  const weights=await loadWeights();
+  const result=findComps(target,{limit:14,excludeKeys,weights});
   const base={target:{name:target.name,position:target.position,draftClass:target.draftClass,key:targetKey},confidence:result.confidence,note:result.note,poolSize:result.poolSize,pinned:ov.pin||null};
   const excludedNames=[...excludeKeys].map(k=>({key:k,name:k.split(":").slice(2).join(":")}));
   if(!result.candidates.length)return {...base,cards:[],more:[],excluded:excludedNames};
 
-  const pinned=ov.pin?findComps(target,{limit:200,excludeKeys}).candidates.find(c=>c.key===ov.pin)||null:null;
+  const pinned=ov.pin?findComps(target,{limit:200,excludeKeys,weights}).candidates.find(c=>c.key===ov.pin)||null:null;
   const primary=pinned||result.candidates[0];
   // Ceiling/Floor draw only from classes with 2+ finished NFL seasons and a real match
   const settled=result.candidates.filter(c=>c.draftClass<=2024&&c.matchPct>=50).slice(0,8);
