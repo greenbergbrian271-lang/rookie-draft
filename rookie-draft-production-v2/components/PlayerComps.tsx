@@ -2,7 +2,7 @@
 import {useCallback,useEffect,useState} from "react";
 
 type Outcome={status:string;seasons:{season:number;gp:number;pts:number;ppg:number|null;rank:number|null}[];best:{season:number;rank:number;ppg:number|null}|null;top12:number;top24:number;seasonsCount:number;careerGp:number;careerPpg:number|null;nfl:string|null;tier:string|null;earlyCareer:boolean;tierRule:string|null};
-type Match={key:string;name:string;college:string|null;draftClass:number;position:string;draftResult:string|null;matchPct:number;coverage:string;shared:string[];difference:{label:string;target:string;comp:string}|null};
+type Match={key:string;name:string;college:string|null;draftClass:number;position:string;draftResult:string|null;compOnly?:boolean;matchPct:number;coverage:string;shared:string[];difference:{label:string;target:string;comp:string}|null};
 type Card=Match&{roles:string[];outcome:Outcome|null};
 type Data={target:{name:string;position:string;draftClass:number};confidence:string;note:string|null;poolSize:number;cards:Card[];more:Match[];pinned:string|null;excluded:{key:string;name:string}[]};
 
@@ -56,6 +56,7 @@ export default function PlayerComps({playerId}:{playerId:string|number}){
         </div>
         <h3>{c.name}</h3>
         <div className="comp-sub">{c.draftClass} · {c.college||"—"} · {pick(c.draftResult)}</div>
+        {c.compOnly&&<div className="comp-flag" title="This player has no scouting profile. The match uses measurables/production/analytics only and does not affect any grade or board.">Analytics-only profile · not scouted</div>}
         {c.shared.length>0&&<div className="comp-chips">{c.shared.map(s=><span key={s}>{s}</span>)}</div>}
         {c.difference&&<div className="comp-diff">Biggest difference: {c.difference.label} — {data.target.name.split(" ").slice(-1)[0]} {c.difference.target} vs {c.difference.comp}</div>}
         <OutcomeBlock o={c.outcome} pos={c.position}/>
@@ -63,7 +64,7 @@ export default function PlayerComps({playerId}:{playerId:string|number}){
       </article>)}
     </div>
     {data.more.length>0&&<details className="comp-more"><summary>More matches</summary>
-      <ul>{data.more.map(m=><li key={m.key}><span><b>{m.name}</b> · {m.draftClass} · {m.college||"—"}</span><span>{m.matchPct}%</span><button className="ghost small" disabled={busy} onClick={()=>void act("pin",m.key)}>Pin as comp</button></li>)}</ul>
+      <ul>{data.more.map(m=><li key={m.key}><span><b>{m.name}</b> · {m.draftClass} · {m.college||"—"}{m.compOnly?" · analytics-only":""}</span><span>{m.matchPct}%</span><button className="ghost small" disabled={busy} onClick={()=>void act("pin",m.key)}>Pin as comp</button></li>)}</ul>
     </details>}
     {(data.pinned||data.excluded.length>0)&&<div className="comp-overrides"><small>{data.pinned?"A comp is pinned. ":""}{data.excluded.length?`${data.excluded.length} excluded. `:""}</small><button className="ghost small" disabled={busy} onClick={()=>void act("clear")}>Reset overrides</button></div>}
   </section>;

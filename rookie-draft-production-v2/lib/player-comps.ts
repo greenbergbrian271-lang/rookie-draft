@@ -1,5 +1,6 @@
 import {getHistoricalScoutingRows,normHistoricalName,type HistoricalPosition,type HistoricalScoutingSnapshot} from "@/lib/historical-scouting";
 import {historicalEvaluations} from "@/lib/historical-scouting";
+import {allCompProfiles} from "@/lib/comp-profiles";
 
 /**
  * Player Comps: finds the most similar previously-scouted player for a card.
@@ -179,7 +180,7 @@ const NOTE_MIN_CHARS=150;
 export type PoolEntry={
   key:string;name:string;college:string|null;draftClass:number;position:Pos;
   raw:Record<string,number|null>;tokens:string[];notesChars:number;
-  draftResult:string|null;overall:number|null;
+  draftResult:string|null;overall:number|null;compOnly?:boolean;
 };
 
 export function parseDraftResult(v:unknown):{text:string|null;overall:number|null}{
@@ -218,6 +219,13 @@ export function getPool():PoolEntry[]{
         tokens:tokens(notes),notesChars:notes.length,draftResult:dr.text,overall:dr.overall,
       });
     }
+  }
+  // analytics-only profiles: players with no scouting profile (no ratings, grades or notes); comp-only, never shown elsewhere
+  for(const cp of allCompProfiles){
+    const evals:EvalRow[]=cp.fields.map(f=>({category:`${f.group} · ${f.label}`,value:f.value}));
+    const dr=parseDraftResult(cp.draftResult);
+    out.push({key:compKey(cp.draftClass,cp.position,cp.name),name:cp.name,college:cp.college,draftClass:cp.draftClass,position:cp.position,
+      raw:extract(cp.position,evals,null),tokens:[],notesChars:0,draftResult:dr.text,overall:dr.overall,compOnly:true});
   }
   POOL=out;return out;
 }
@@ -266,7 +274,7 @@ function cosine(a:ReturnType<typeof vec>,b:ReturnType<typeof vec>){
 export type Trait={label:string;target:string;comp:string};
 export type CompMatch={
   key:string;name:string;college:string|null;draftClass:number;position:Pos;draftResult:string|null;overall:number|null;
-  similarity:number;matchPct:number;coverage:string;groupsUsed:string[];
+  similarity:number;matchPct:number;coverage:string;groupsUsed:string[];compOnly:boolean;
   shared:string[];difference:Trait|null;
 };
 export type CompResult={
@@ -285,6 +293,9 @@ const fmtVal=(spec:FeatureSpec,v:number)=>{
   }
 };
 
+const DATA_GROUPS:Group[]=["meas","prod","anal"];
+/** typical similarity of two unrelated players on one group (rms z-diff about 1.4 -> e^-1) */
+const MISSING_PRIOR=.4;
 const GROUP_LABEL:Record<Group|"notes",string>={meas:"measurables",prod:"production",anal:"analytics",skill:"scouting ratings",grade:"grades",notes:"notes"};
 const minShared=(count:number)=>Math.min(count,Math.max(2,Math.ceil(count*.4)));
 
@@ -305,10 +316,8 @@ export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set
   const groupSpecs=Object.fromEntries(groups.map(g=>[g,specs.filter(s=>s.group===g)])) as Record<Group,FeatureSpec[]>;
   const totalWeight=Object.values(GROUP_WEIGHT).reduce((a,b)=>a+b,0);
 
-  let targetWeight=0;
-  for(const g of groups)if(specs.filter(f=>f.group===g&&targetRaw[f.id]!=null).length>=minShared(Math.min(groupSpecs[g].length,6)))targetWeight+=GROUP_WEIGHT[g];
-  if(targetVec)targetWeight+=GROUP_WEIGHT.notes;
-  targetWeight=Math.max(targetWeight,.01);
+  // data groups (measurables, production, analytics) the target has enough of; comps lacking scouting ratings/notes/grades are NOT penalised for that
+  const targetHasData=new Set<Group>(DATA_GROUPS.filter(g=>specs.filter(f=>f.group===g&&targetRaw[f.id]!=null).length>=minShared(Math.min(groupSpecs[g].length,6))));
 
   const scored:CompMatch[]=[];
   for(const e of pool){
@@ -333,7 +342,9 @@ export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set
     }
     if(used.length<2||sharedCount<6)continue;
     // comps that can be compared on more of the target's own data groups get fuller credit
-    const similarity=simSum/wSum*(.7+.3*Math.min(1,wSum/targetWeight));
+    // a data group the target has but this candidate lacks counts as an average-quality match (shrinkage), so thin comps can't win by having fewer ways to mismatch
+    const missingW=DATA_GROUPS.reduce((a,g)=>a+(targetHasData.has(g)&&!used.includes(g)?GROUP_WEIGHT[g]:0),0);
+    const similarity=(simSum+missingW*MISSING_PRIOR)/(wSum+missingW);
 
     const shared=diffs.filter(d=>Math.abs(d.zt)>=.8&&Math.abs(d.zc)>=.8&&Math.sign(d.zt)===Math.sign(d.zc)&&Math.abs(d.zt-d.zc)<=.6)
       .sort((a,b)=>(Math.abs(b.zt)+Math.abs(b.zc))-(Math.abs(a.zt)+Math.abs(a.zc))).slice(0,4)
@@ -348,7 +359,7 @@ export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set
       key:e.key,name:e.name,college:e.college,draftClass:e.draftClass,position,draftResult:e.draftResult,overall:e.overall,
       similarity,matchPct:Math.round(similarity*100),
       coverage:`${sharedCount} shared data points across ${used.map(g=>GROUP_LABEL[g as Group|"notes"]).join(", ")}`,
-      groupsUsed:used,shared,difference,
+      groupsUsed:used,shared,difference,compOnly:!!e.compOnly,
     });
   }
   scored.sort((a,b)=>b.similarity-a.similarity);

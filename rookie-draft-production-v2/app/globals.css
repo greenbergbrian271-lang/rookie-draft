@@ -693,3 +693,5 @@
 .cw-input{display:flex;align-items:center;gap:6px}.cw-input input{width:70px;text-align:right}.cw-input em{font-style:normal;color:#8fa7c8}.cw-default{color:#6f87aa;font-size:11px;text-align:right}
 .cw-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}.cw-actions{display:flex;gap:8px}
 @media(max-width:640px){.cw-row{grid-template-columns:1fr auto}.cw-default{display:none}}
+
+.comp-flag{align-self:flex-start;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:5px;border:1px dashed #3b5b86;color:#8fa7c8}

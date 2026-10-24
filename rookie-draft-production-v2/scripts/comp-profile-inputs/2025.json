@@ -1,0 +1,29 @@
+{
+  "draftClass": 2025,
+  "season": 2024,
+  "note": "Analytics-only comp profiles: players with no scouting profile. Drafted players are included regardless of NFL production; UDFAs only if they have scored NFL fantasy points (Sleeper, Oct 2026). Drafted picks from the 257-pick 2025 list.",
+  "players": [
+    {"name":"Robbie Ouzts","pos":"TE","college":"Alabama","overall":175,"team":"Seahawks"},
+    {"name":"Caleb Lohner","pos":"TE","college":"Utah","overall":241,"team":"Broncos"},
+    {"name":"Jahdae Walker","pos":"WR","college":"Texas A&M"},
+    {"name":"Gage Larvadain","pos":"WR","college":"South Carolina"},
+    {"name":"Keleki Latu","pos":"TE","college":"Washington"},
+    {"name":"Myles Price","pos":"WR","college":"Indiana"},
+    {"name":"Mark Redman","pos":"TE","college":"Louisville"},
+    {"name":"Nate Carter","pos":"RB","college":"Michigan State"},
+    {"name":"Jakobie Keeney-James","pos":"WR","college":"UMass"},
+    {"name":"Jacoby Jones","pos":"WR","college":"UCF"},
+    {"name":"Quentin Skinner","pos":"WR","college":"Kansas"},
+    {"name":"Drake Dabney","pos":"TE","college":"TCU"},
+    {"name":"Josh Williams","pos":"RB","college":"LSU"}
+  ],
+  "not_buildable": [
+    {"name":"Tommy Mellott","pos":"WR","reason":"drafted (Montana State, FCS) - not in PFF FBS export"},
+    {"name":"Junior Bergen","pos":"WR","reason":"drafted (Montana, FCS) - not in PFF FBS export"},
+    {"name":"Darius Cooper","pos":"WR","reason":"UDFA scorer (Tarleton State) - not in PFF FBS export"},
+    {"name":"Lan Larison","pos":"RB","reason":"UDFA scorer (UC Davis) - not in PFF FBS export"},
+    {"name":"Jacardia Wright","pos":"RB","reason":"UDFA scorer (Missouri State) - not in PFF FBS export"},
+    {"name":"Amar Johnson","pos":"RB","reason":"UDFA scorer (South Dakota State) - not in PFF FBS export"},
+    {"name":"Ben Yurosek","pos":"TE","reason":"UDFA scorer - no match found in PFF files"}
+  ]
+}
