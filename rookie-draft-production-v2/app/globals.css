@@ -695,3 +695,11 @@
 @media(max-width:640px){.cw-row{grid-template-columns:1fr auto}.cw-default{display:none}}
 
 .comp-flag{align-self:flex-start;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:5px;border:1px dashed #3b5b86;color:#8fa7c8}
+
+/* Pro Comps headshots */
+.comp-id{display:flex;gap:12px;align-items:center}.comp-id h3{margin:0 0 2px}
+.comp-photo{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#16365f;border:1px solid var(--line);overflow:visible}
+.comp-photo>img:first-child{width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:center top}
+.comp-photo b{font-size:12px;color:#8fa7c8}
+.comp-photo-team{position:absolute;right:-5px;bottom:-4px;width:24px;height:24px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.comp-more-id{display:flex;align-items:center;gap:10px}
