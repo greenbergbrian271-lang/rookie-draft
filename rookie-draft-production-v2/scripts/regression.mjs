@@ -22,6 +22,8 @@ const checks=[
   ["lib/comp-outcomes.ts",/pass_yd:\.04.*rec:1/,"player comp outcomes score standard PPR"],
   ["app/api/player-comps/route.ts",/saveOverride/,"player comp pin/exclude overrides"],
   ["components/PlayerProfile.tsx",/tab==="Pro Comps"&&<div className="profile-pane"><PlayerComps/,"Pro Comps tab on the player card"],
+  ["app/globals.css",/Player card: contain everything except the tab bar/,"player card mobile containment (only the tab bar scrolls sideways)"],
+  ["components/PlayerProfile.tsx",/profile-tabs button\.active/,"active card tab scrolls into view"],
   ["components/PlayerComps.tsx",/sleepercdn\.com\/content\/nfl\/players/,"NFL headshots next to each comp"],
   ["app/scouting/QBScoutingWorkspace.tsx",/tab==="Comps"&&<PlayerComps/,"player comps tab in QB scouting"],
   ["app/scouting/RBScoutingWorkspace.tsx",/tab==="Comps"&&<PlayerComps/,"player comps tab in RB scouting"],
