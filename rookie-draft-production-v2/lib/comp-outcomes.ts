@@ -49,12 +49,12 @@ export type Outcome={
   seasons:{season:number;gp:number;pts:number;ppg:number|null;rank:number|null}[];
   best:{season:number;rank:number;ppg:number|null}|null;
   top12:number;top24:number;seasonsCount:number;careerGp:number;careerPpg:number|null;
-  nfl:string|null;tier:Tier|null;tierScore:number;earlyCareer:boolean;tierRule:string|null;
+  sleeperId:string|null;teamAbbr:string|null;nfl:string|null;tier:Tier|null;tierScore:number;earlyCareer:boolean;tierRule:string|null;
 };
 
 const CUTOFFS:Record<string,[number,number,number]>={QB:[3,12,20],RB:[6,18,36],WR:[6,18,36],TE:[3,10,18]};
 const TIER_RANK:Record<Tier,number>={Elite:3,Starter:2,Flex:1,Miss:0};
-const empty=(status:Outcome["status"]):Outcome=>({status,seasons:[],best:null,top12:0,top24:0,seasonsCount:0,careerGp:0,careerPpg:null,nfl:null,tier:null,tierScore:-1,earlyCareer:false,tierRule:null});
+const empty=(status:Outcome["status"]):Outcome=>({status,seasons:[],best:null,top12:0,top24:0,seasonsCount:0,careerGp:0,careerPpg:null,sleeperId:null,teamAbbr:null,nfl:null,tier:null,tierScore:-1,earlyCareer:false,tierRule:null});
 
 export async function loadOutcome(c:{name:string;position:string;draftClass:number}):Promise<Outcome>{
   try{
@@ -82,8 +82,13 @@ export async function loadOutcome(c:{name:string;position:string;draftClass:numb
       status:"ok",seasons,best:best&&best.rank!=null?{season:best.season,rank:best.rank,ppg:best.ppg}:null,
       top12:played.filter(s=>s.rank!=null&&s.rank<=12).length,top24:played.filter(s=>s.rank!=null&&s.rank<=24).length,
       seasonsCount:played.length,careerGp,careerPpg:careerGp?Math.round(careerPts/careerGp*100)/100:null,
-      nfl,tier,tierScore:TIER_RANK[tier]*1000-(bestRank??999),earlyCareer:early,
+      sleeperId:String(rp.id),teamAbbr:rp.team?String(rp.team):null,nfl,tier,tierScore:TIER_RANK[tier]*1000-(bestRank??999),earlyCareer:early,
       tierRule:`Best finish by total PPR points: ${c.position} top ${cut[0]} = Elite, top ${cut[1]} = Starter, top ${cut[2]} = Flex, else Miss.`,
     };
   }catch{return empty("unavailable")}
+}
+
+/** Sleeper id + team for a comp, used for the headshot. Null when Sleeper can't match the player. */
+export async function resolveHeadshot(c:{name:string;position:string}):Promise<{sleeperId:string;teamAbbr:string|null}|null>{
+  try{const rp=await resolvePlayer({name:c.name,position:c.position});return rp?{sleeperId:String(rp.id),teamAbbr:rp.team?String(rp.team):null}:null}catch{return null}
 }

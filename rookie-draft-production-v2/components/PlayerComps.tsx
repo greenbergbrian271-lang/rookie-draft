@@ -2,12 +2,21 @@
 import {useCallback,useEffect,useState} from "react";
 
 type Outcome={status:string;seasons:{season:number;gp:number;pts:number;ppg:number|null;rank:number|null}[];best:{season:number;rank:number;ppg:number|null}|null;top12:number;top24:number;seasonsCount:number;careerGp:number;careerPpg:number|null;nfl:string|null;tier:string|null;earlyCareer:boolean;tierRule:string|null};
-type Match={key:string;name:string;college:string|null;draftClass:number;position:string;draftResult:string|null;compOnly?:boolean;matchPct:number;coverage:string;shared:string[];difference:{label:string;target:string;comp:string}|null};
+type Match={sleeperId?:string|null;teamAbbr?:string|null;key:string;name:string;college:string|null;draftClass:number;position:string;draftResult:string|null;compOnly?:boolean;matchPct:number;coverage:string;shared:string[];difference:{label:string;target:string;comp:string}|null};
 type Card=Match&{roles:string[];outcome:Outcome|null};
 type Data={target:{name:string;position:string;draftClass:number};confidence:string;note:string|null;poolSize:number;cards:Card[];more:Match[];pinned:string|null;excluded:{key:string;name:string}[]};
 
 const pick=(r:string|null)=>r?r.replace(/^(\d+)\.(\d+),\s*/,"Rd $1, pick $2 · "):"Draft result unavailable";
 
+const initials=(n:string)=>n.split(/\s+/).filter(Boolean).map(x=>x[0]).slice(0,2).join("").toUpperCase();
+function Headshot({id,name,team,size}:{id?:string|null;name:string;team?:string|null;size:number}){
+  const [failed,setFailed]=useState(false);
+  useEffect(()=>setFailed(false),[id]);
+  return <span className="comp-photo" style={{width:size,height:size}}>
+    {id&&!failed?<img src={`https://sleepercdn.com/content/nfl/players/${id}.jpg`} alt={name} loading="lazy" onError={()=>setFailed(true)}/>:<b>{initials(name)}</b>}
+    {team&&size>=48&&<img className="comp-photo-team" src={`https://sleepercdn.com/images/team_logos/nfl/${team.toLowerCase()}.png`} alt={team} onError={e=>{e.currentTarget.style.display="none"}}/>}
+  </span>;
+}
 function OutcomeBlock({o,pos}:{o:Outcome|null;pos:string}){
   if(!o)return null;
   if(o.status==="unresolved")return <div className="comp-outcome muted">No NFL stats found for this player.</div>;
@@ -38,12 +47,12 @@ export default function PlayerComps({playerId}:{playerId:string|number}){
     catch(e:any){setError(String(e?.message||e))}
     finally{setBusy(false)}
   }
-  if(loading)return <section className="comp-panel"><h2>Player Comps</h2><p className="comp-sub">Finding comps…</p></section>;
-  if(error&&!data)return <section className="comp-panel"><h2>Player Comps</h2><p className="comp-sub">{error}</p><button className="ghost small" onClick={()=>void load()}>Try again</button></section>;
+  if(loading)return <section className="comp-panel"><h2>Pro Comps</h2><p className="comp-sub">Finding comps…</p></section>;
+  if(error&&!data)return <section className="comp-panel"><h2>Pro Comps</h2><p className="comp-sub">{error}</p><button className="ghost small" onClick={()=>void load()}>Try again</button></section>;
   if(!data)return null;
   return <section className="comp-panel">
     <div className="comp-head">
-      <div><h2>Player Comps</h2><p className="comp-sub">Closest earlier scouted players{data.poolSize?` · compared against ${data.poolSize} ${data.target.position}s from earlier classes`:""} · standard PPR outcomes</p></div>
+      <div><h2>Pro Comps</h2><p className="comp-sub">Closest earlier scouted players{data.poolSize?` · compared against ${data.poolSize} ${data.target.position}s from earlier classes`:""} · standard PPR outcomes</p></div>
       {data.cards.length>0&&<span className={"comp-conf "+data.confidence.toLowerCase()} title="Based on how strong the best match is and how much data the two players share">Confidence: {data.confidence}</span>}
     </div>
     {error&&<div className="profile-transfer-error">{error}</div>}
@@ -54,8 +63,8 @@ export default function PlayerComps({playerId}:{playerId:string|number}){
           <div className="comp-roles">{c.roles.map(r=><span key={r} className={"comp-role "+r.toLowerCase().replace(" ","-")}>{r}</span>)}</div>
           <div className="comp-match"><b>{c.matchPct}%</b><small>match</small></div>
         </div>
-        <h3>{c.name}</h3>
-        <div className="comp-sub">{c.draftClass} · {c.college||"—"} · {pick(c.draftResult)}</div>
+        <div className="comp-id"><Headshot id={c.sleeperId} name={c.name} team={c.teamAbbr} size={64}/><div><h3>{c.name}</h3>
+        <div className="comp-sub">{c.draftClass} · {c.college||"—"} · {pick(c.draftResult)}</div></div></div>
         {c.compOnly&&<div className="comp-flag" title="This player has no scouting profile. The match uses measurables/production/analytics only and does not affect any grade or board.">Analytics-only profile · not scouted</div>}
         {c.shared.length>0&&<div className="comp-chips">{c.shared.map(s=><span key={s}>{s}</span>)}</div>}
         {c.difference&&<div className="comp-diff">Biggest difference: {c.difference.label} — {data.target.name.split(" ").slice(-1)[0]} {c.difference.target} vs {c.difference.comp}</div>}
@@ -64,7 +73,7 @@ export default function PlayerComps({playerId}:{playerId:string|number}){
       </article>)}
     </div>
     {data.more.length>0&&<details className="comp-more"><summary>More matches</summary>
-      <ul>{data.more.map(m=><li key={m.key}><span><b>{m.name}</b> · {m.draftClass} · {m.college||"—"}{m.compOnly?" · analytics-only":""}</span><span>{m.matchPct}%</span><button className="ghost small" disabled={busy} onClick={()=>void act("pin",m.key)}>Pin as comp</button></li>)}</ul>
+      <ul>{data.more.map(m=><li key={m.key}><span className="comp-more-id"><Headshot id={m.sleeperId} name={m.name} size={32}/><span><b>{m.name}</b> · {m.draftClass} · {m.college||"—"}{m.compOnly?" · analytics-only":""}</span></span><span>{m.matchPct}%</span><button className="ghost small" disabled={busy} onClick={()=>void act("pin",m.key)}>Pin as comp</button></li>)}</ul>
     </details>}
     {(data.pinned||data.excluded.length>0)&&<div className="comp-overrides"><small>{data.pinned?"A comp is pinned. ":""}{data.excluded.length?`${data.excluded.length} excluded. `:""}</small><button className="ghost small" disabled={busy} onClick={()=>void act("clear")}>Reset overrides</button></div>}
   </section>;

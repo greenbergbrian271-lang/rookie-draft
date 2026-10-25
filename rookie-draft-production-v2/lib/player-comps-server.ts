@@ -4,7 +4,7 @@ import {GET as getFinalBoard} from "@/app/api/final-board/live/route";
 import {GET as getPlayerData} from "@/app/api/player-data/route";
 import {playerNameKey} from "@/lib/player-name";
 import {compKey,findComps,normalizeWeights,DEFAULT_WEIGHTS,WEIGHT_KEYS,type CompMatch,type CompTarget,type EvalRow,type Pos,type Weights} from "@/lib/player-comps";
-import {loadOutcome,type Outcome} from "@/lib/comp-outcomes";
+import {loadOutcome,resolveHeadshot,type Outcome} from "@/lib/comp-outcomes";
 
 const OVERRIDE_KEY="player-comp-overrides:v1";
 const WEIGHTS_KEY="player-comp-weights:v1";
@@ -82,10 +82,11 @@ export async function loadTarget(playerId:string):Promise<CompTarget|null>{
   return {name:String(p.name),position,draftClass,college:p.college,evaluations:[...(evals as EvalRow[]),...dataRows.filter(r=>!have.has(String(r.category)))],grades,notes};
 }
 
-export type CompCard=CompMatch&{roles:("Most Similar"|"Ceiling"|"Floor"|"Pinned")[];outcome:Outcome|null};
+export type Photo={sleeperId:string|null;teamAbbr:string|null};
+export type CompCard=CompMatch&Photo&{roles:("Most Similar"|"Ceiling"|"Floor"|"Pinned")[];outcome:Outcome|null};
 export type CompsResponse={
   target:{name:string;position:Pos;draftClass:number;key:string};
-  confidence:string;note:string|null;poolSize:number;cards:CompCard[];more:CompMatch[];
+  confidence:string;note:string|null;poolSize:number;cards:CompCard[];more:(CompMatch&Photo)[];
   pinned:string|null;excluded:{key:string;name:string}[];
 };
 
@@ -119,9 +120,11 @@ export async function buildComps(playerId:string):Promise<CompsResponse|null>{
     const ceil=byScore[0],floor=byScore[byScore.length-1];
     if(outcomes.get(ceil.key)!.tierScore!==outcomes.get(floor.key)!.tierScore){addRole(ceil.key,"Ceiling");addRole(floor.key,"Floor")}
   }
-  const cards:CompCard[]=[...roles.keys()].map(k=>({...wanted.get(k)!,roles:roles.get(k)!,outcome:outcomes.get(k)||null}));
+  const cards:CompCard[]=[...roles.keys()].map(k=>{const o=outcomes.get(k)||null;return {...wanted.get(k)!,roles:roles.get(k)!,outcome:o,sleeperId:o?.sleeperId??null,teamAbbr:o?.teamAbbr??null}});
   const order=(c:CompCard)=>c.roles.includes("Pinned")||c.roles.includes("Most Similar")?0:c.roles.includes("Ceiling")?1:2;
   cards.sort((a,b)=>order(a)-order(b));
   const shown=new Set(cards.map(c=>c.key));
-  return {...base,cards,more:result.candidates.filter(c=>!shown.has(c.key)).slice(0,6),excluded:excludedNames};
+  const moreRaw=result.candidates.filter(c=>!shown.has(c.key)).slice(0,6);
+  const more=await Promise.all(moreRaw.map(async c=>{const h=await resolveHeadshot({name:c.name,position:c.position});return {...c,sleeperId:h?.sleeperId??null,teamAbbr:h?.teamAbbr??null}}));
+  return {...base,cards,more,excluded:excludedNames};
 }
