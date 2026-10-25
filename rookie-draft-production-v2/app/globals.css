@@ -703,3 +703,25 @@
 .comp-photo b{font-size:12px;color:#8fa7c8}
 .comp-photo-team{position:absolute;right:-5px;bottom:-4px;width:24px;height:24px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
 .comp-more-id{display:flex;align-items:center;gap:10px}
+/* Player card: contain everything except the tab bar (mobile) */
+.player-profile-modal{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;max-width:100%}
+.player-profile-hero>*,.profile-pane,.profile-pane>*,.profile-two>*,.comp-panel,.comp-card,.comp-head>*,.stats-section{min-width:0}
+.player-profile-hero h1,.player-profile-hero .ey{overflow-wrap:anywhere}
+@media(max-width:760px){
+  .player-profile-backdrop{padding:10px}
+  .player-profile-modal{width:100%;max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px)}
+  .player-profile-hero{grid-template-columns:88px minmax(0,1fr);gap:12px 14px;padding:56px 16px 12px;align-items:start}
+  .player-profile-hero .profile-photo{width:88px;height:98px}
+  .player-profile-hero h1{font-size:26px;line-height:1.1}
+  .profile-final{grid-column:1/-1;display:flex;align-items:baseline;gap:10px;text-align:left;padding:10px 0 0;border-top:1px solid var(--line)}
+  .profile-final strong{font-size:30px}
+  .profile-tabs{overflow-x:auto;flex-wrap:nowrap;padding:0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}
+  .profile-tabs::-webkit-scrollbar{display:none}
+  .profile-tabs button{flex:none;white-space:nowrap;padding:14px 14px}
+  .profile-pane{padding:16px 14px 24px}
+  .profile-grade-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .profile-two{grid-template-columns:minmax(0,1fr)}
+  .comp-panel{padding:12px}
+  .comp-head{flex-direction:column;gap:8px}
+  .comp-cards{grid-template-columns:minmax(0,1fr)}
+}
