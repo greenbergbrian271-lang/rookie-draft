@@ -20,7 +20,7 @@ type SleeperCheck = {
   ok: boolean;
   error?: string;
 };
-type CheckResponse = { checks?: SleeperCheck[] };
+type CheckResponse = { checks?: SleeperCheck[] };\ntype LeagueData = { id:string; type:string; eliminated:boolean; ok:boolean; name:string; season?:string; status?:string; week?:number; totalRosters?:number; rosterPositions?:string[]; settings?:Record<string,any>; scoringSettings?:Record<string,number>; teams?:{rosterId:string;owner:string;players:string[];starters:string[];points:number;wins:number;losses:number;waiverBudget:any}[]; matchups?:{rosterId:string;matchupId:number;points:number}[]; transactions?:{type:string;status:string;created:number;adds:Record<string,number>;drops:Record<string,number>}[]; error?:string; fetchedAt:string };\ntype LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -49,7 +49,7 @@ export default function InSeasonManagementPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);\n  const [leagueData,setLeagueData] = useState<LeagueData[]>([]);
 
   const refresh = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -69,7 +69,7 @@ export default function InSeasonManagementPage() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); void fetch("/api/in-season/league-data",{cache:"no-store"}).then(r=>r.json()).then((d:LeagueDataResponse)=>setLeagueData(Array.isArray(d.leagues)?d.leagues:[])).catch(()=>setLeagueData([])); }, [refresh]);
 
   const summary = useMemo(() => ({
     total: checks.length,
@@ -204,29 +204,11 @@ export default function InSeasonManagementPage() {
         </>
       )}
 
-      {section === "lineups" && (
-        <ModuleView icon={<Sparkles size={19} />} eyebrow="Weekly decisions" title="Lineups & Matchups" status="Lineup insights" description="The optimizer will compare your current starters with the best legal lineup, show the projected point delta, and explain each meaningful start/sit alternative." items={[
-          {title:"League-valid lineup optimizer",detail:"Uses each league's roster slots, position eligibility, scoring settings, and flex/superflex rules."},
-          {title:"Matchup and schedule outlook",detail:"Opponent comparison plus near-term schedule context, with a three-week lookahead where reliable data is available."},
-          {title:"Late news contingency paths",detail:"Injury, inactive, weather, and late-game alternatives with source timestamps and a clear stale-data warning."},
-        ]} />
-      )}
+      {section === "lineups" && <LiveLeagueView kind="lineups" leagues={leagueData} />}
 
-      {section === "waivers" && (
-        <ModuleView icon={<WalletCards size={19} />} eyebrow="Roster improvement" title="Waivers & Guillotine" status="Waiver insights" description="Waiver advice will be tailored to each league's available players, remaining FAAB, waiver timing, roster constraints, and guillotine risk." items={[
-          {title:"Add / drop comparison",detail:"Expected lineup impact, roster fit, and opportunity cost instead of a generic ranked list."},
-          {title:"FAAB ranges",detail:"Suggested bid ranges with remaining-budget context; the final bid remains your decision in Sleeper."},
-          {title:"Guillotine survival estimate",detail:"Weekly cut-line and survival probability with uncertainty—not a guarantee—and only after actual elimination and scoring settings are verified."},
-        ]} />
-      )}
+      {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} />}
 
-      {section === "players" && (
-        <ModuleView icon={<TrendingUp size={19} />} eyebrow="Signals, not hype" title="Player Intelligence" status="Player signals" description="Player signals will compare Sleeper projections with a consensus of available free projections when source coverage is sufficient." items={[
-          {title:"Projection edge",detail:"Independent expected points versus Sleeper's baseline, with source-by-source coverage and timestamp."},
-          {title:"Usage and performance trend",detail:"Recent opportunity, role changes, and sustainable versus potentially noisy production signals when reliable stats are available."},
-          {title:"Context adjustments",detail:"Injuries, inactives, weather, opponent, and schedule context with explicit confidence and missing-data indicators."},
-        ]} />
-      )}
+      {section === "players" && <LiveLeagueView kind="players" leagues={leagueData} />}
 
       <footer className={styles.pageFooter}>
         <span><ShieldCheck size={14} /> Advice only · all transactions remain in Sleeper</span>
@@ -234,6 +216,28 @@ export default function InSeasonManagementPage() {
       </footer>
     </div>
   );
+}
+
+function LiveLeagueView({kind,leagues}:{kind:"lineups"|"waivers"|"players";leagues:LeagueData[]}) {
+  const active=leagues.filter(l=>l.ok&&!l.eliminated);
+  const title=kind==="lineups"?"Lineups & Matchups":kind==="waivers"?"Waivers & Guillotine":"Player Intelligence";
+  return <section className={styles.modulePage}>
+    <div className={styles.moduleHero}><div className={styles.moduleIcon}>{kind==="lineups"?<Sparkles size={19}/>:kind==="waivers"?<WalletCards size={19}/>:<TrendingUp size={19}/>}</div><div><div className={styles.sectionKicker}>Sleeper · Live league data</div><h2>{title}</h2><p>{kind==="lineups"?"Current rosters, starter slots, league matchup scores, and roster records from Sleeper.":kind==="waivers"?"League waiver settings, FAAB budgets where available, and recent transaction activity.":"League scoring and roster context for the next layer of player-level signals."}</p></div></div>
+    {leagues.length===0?<div className={styles.emptyState}><RefreshCw size={20}/><strong>Loading Sleeper league data</strong><span>League data will appear once the request completes.</span></div>:leagues.map(league=><article className={styles.leagueCard} key={league.id}>
+      <div className={styles.leagueTop}><span className={styles.statusDot}/><span className={styles.statusLabel}>{league.type}</span><span className={styles.leagueSeason}>{league.eliminated?"Eliminated":league.ok?"Sleeper connected":"Unavailable"}</span></div>
+      <h3>{league.name}</h3><div className={styles.leagueMeta}><span>League ID · {league.id}</span><span>{league.season||"Season unavailable"} · Week {league.week||"—"}</span><span>{league.totalRosters||"—"} teams</span></div>
+      {league.eliminated&&<p className={styles.leagueWarning}>Your team has been eliminated. This league is excluded from active recommendations.</p>}
+      {!league.ok?<p className={styles.leagueWarning}>{league.error||"Sleeper data is unavailable."}</p>:kind==="lineups"?<>
+        <p className={styles.leagueNote}>Roster slots: {(league.rosterPositions||[]).join(", ")||"Unavailable"}. Matchup scores are current Sleeper totals, not independent projections.</p>
+        <div className={styles.leagueGrid}>{(league.teams||[]).map(team=><div className={styles.panel} key={team.rosterId}><strong>{team.owner}</strong><div className={styles.leagueMeta}><span>{team.wins}-{team.losses}</span><span>{team.points.toFixed(2)} season points</span><span>{team.starters.length} starter slots</span></div><p>Rostered players: {team.players.length}. Current starters: {team.starters.filter(x=>x!=="0").length}.</p></div>)}</div>
+      </>:kind==="waivers"?<>
+        <p className={styles.leagueNote}>Waiver type: {String(league.settings?.waiver_type??"not reported")}; FAAB budget setting: {String(league.settings?.waiver_budget??"not reported")}; roster transaction settings are shown only when supplied by Sleeper.</p>
+        <div className={styles.leagueGrid}>{(league.teams||[]).map(team=><div className={styles.panel} key={team.rosterId}><strong>{team.owner}</strong><div className={styles.leagueMeta}><span>Remaining FAAB: {team.waiverBudget??"not reported"}</span><span>{team.players.length} rostered players</span></div></div>)}</div>
+        <h3>Recent transactions</h3>{(league.transactions||[]).length? <ul>{league.transactions!.slice(0,8).map((tx,i)=><li key={i}>{tx.type} · {tx.status} · {Object.keys(tx.adds).length} adds · {Object.keys(tx.drops).length} drops</li>)}</ul>:<p>No current-week transaction records were returned.</p>}
+      </>:<><p className={styles.leagueNote}>Scoring settings: {Object.keys(league.scoringSettings||{}).length?Object.entries(league.scoringSettings!).slice(0,8).map(([k,v])=>k+": "+v).join(" · "):"No scoring settings returned"}.</p><p>Projection deltas, injury context, and free-source consensus will be added only when the underlying data can be verified.</p></>}
+    </article>)}
+    <div className={styles.pageFooter}><span><ShieldCheck size={14}/> Advice only · transactions stay in Sleeper</span><span>{active.length} active league(s) available</span></div>
+  </section>;
 }
 
 function ModuleView({ icon, eyebrow, title, status, description, items }: {
