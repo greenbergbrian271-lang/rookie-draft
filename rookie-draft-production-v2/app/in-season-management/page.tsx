@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, AlertTriangle, BellRing, CalendarClock, CheckCircle2, ChevronRight, CircleHelp, RefreshCw, ShieldCheck, Sparkles, TrendingUp, Users, WalletCards } from "lucide-react";
+import { AlertTriangle, RefreshCw, ShieldCheck, Sparkles, TrendingUp, WalletCards } from "lucide-react";
 import styles from "./in-season-management.module.css";
 
 type Section = "overview" | "lineups" | "waivers" | "players";
@@ -24,13 +23,6 @@ type CheckResponse = { checks?: SleeperCheck[] };
 type LeagueData = { id:string; type:string; eliminated:boolean; ok:boolean; name:string; season?:string; status?:string; week?:number; totalRosters?:number; rosterPositions?:string[]; settings?:Record<string,any>; scoringSettings?:Record<string,number>; teams?:{rosterId:string;owner:string;teamName?:string;ownerId?:string;eliminated?:boolean;players:string[];playerDetails?:{id:string;name:string;position:string;team:string;status:string;injuryStatus:string;depthChartPosition?:string|null}[];starters:string[];points:number;wins:number;losses:number;ties?:number;waiverBudget:any}[]; matchups?:{rosterId:string;matchupId:number;points:number;starters?:string[];startersPoints?:Record<string,number>}[]; transactions?:{type:string;status:string;created:number;adds:Record<string,number>;drops:Record<string,number>;waiverBudget?:any[]}[]; error?:string; fetchedAt:string };
 type LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
 
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "lineups", label: "Lineups & Matchups" },
-  { id: "waivers", label: "Waivers & Guillotine" },
-  { id: "players", label: "Player Intelligence" },
-];
-
 function displayDate(value: string | null) {
   if (!value) return "Not checked yet";
   const date = new Date(value);
@@ -38,11 +30,6 @@ function displayDate(value: string | null) {
   return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function sourceStatus(check: SleeperCheck) {
-  if (!check.ok) return "error";
-  if (!check.rosterMatch) return "warning";
-  return "ready";
-}
 
 export default function InSeasonManagementPage() {
   const pathname = usePathname();
@@ -82,12 +69,7 @@ export default function InSeasonManagementPage() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const summary = useMemo(() => ({
-    total: checks.length,
-    connected: checks.filter((check) => check.ok).length,
-    verified: checks.filter((check) => check.ok && Boolean(check.rosterMatch)).length,
-    attention: checks.filter((check) => !check.ok || !check.rosterMatch).length,
-  }), [checks]);
+
 
   return (
     <div className={styles.page}>
@@ -194,35 +176,4 @@ function LiveLeagueView({kind,leagues}:{kind:"lineups"|"waivers"|"players";leagu
     </article>)}
     <div className={styles.pageFooter}><span><ShieldCheck size={14}/> Advice only · transactions stay in Sleeper</span><span>{active.length} active league(s) available</span></div>
   </section>;
-}
-
-function ModuleView({ icon, eyebrow, title, status, description, items }: {
-  icon: React.ReactNode;
-  eyebrow: string;
-  title: string;
-  status: string;
-  description: string;
-  items: { title: string; detail: string }[];
-}) {
-  return (
-    <section className={styles.modulePage}>
-      <div className={styles.moduleHero}>
-        <div className={styles.moduleIcon}>{icon}</div>
-        <div><div className={styles.sectionKicker}>{eyebrow}</div><h2>{title}</h2><p>{description}</p></div>
-        <span className={styles.moduleStatus}><AlertTriangle size={14} /> {status}</span>
-      </div>
-      <div className={styles.moduleGrid}>
-        {items.map((item, index) => (
-          <article className={styles.moduleCard} key={item.title}>
-            <div className={styles.moduleNumber}>{String(index + 1).padStart(2, "0")}</div>
-            <h3>{item.title}</h3><p>{item.detail}</p>
-          </article>
-        ))}
-      </div>
-      <div className={styles.moduleNotice}>
-        <ShieldCheck size={18} />
-        <div><strong>Your decisions, clearly explained.</strong><p>Recommendations will show the reasoning, source freshness, and uncertainty behind each decision.</p></div>
-      </div>
-    </section>
-  );
 }
