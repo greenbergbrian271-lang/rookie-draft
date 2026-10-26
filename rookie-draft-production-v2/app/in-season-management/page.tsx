@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Activity, AlertTriangle, BellRing, CalendarClock, CheckCircle2, ChevronRight, CircleHelp, RefreshCw, ShieldCheck, Sparkles, TrendingUp, Users, WalletCards } from "lucide-react";
 import styles from "./in-season-management.module.css";
 
@@ -42,7 +43,8 @@ function sourceStatus(check: SleeperCheck) {
 }
 
 export default function InSeasonManagementPage() {
-  const [section, setSection] = useState<Section>("overview");
+  const pathname = usePathname();
+  const section: Section = pathname.endsWith("/lineups") ? "lineups" : pathname.endsWith("/waivers") ? "waivers" : pathname.endsWith("/players") ? "players" : "overview";
   const [checks, setChecks] = useState<SleeperCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -95,9 +97,9 @@ export default function InSeasonManagementPage() {
 
       <nav className={styles.tabs} aria-label="In-season sections">
         {SECTIONS.map((item) => (
-          <button key={item.id} type="button" className={section === item.id ? styles.activeTab : ""} onClick={() => setSection(item.id)} aria-pressed={section === item.id}>
+          <Link key={item.id} href={item.id === "overview" ? "/in-season-management" : `/in-season-management/${item.id}`} className={section === item.id ? styles.activeTab : ""} aria-current={section === item.id ? "page" : undefined}>
             {item.label}
-          </button>
+          </Link>
         ))}
       </nav>
 
@@ -165,22 +167,22 @@ export default function InSeasonManagementPage() {
           <section className={styles.lowerGrid}>
             <article className={styles.panel}>
               <div className={styles.panelIcon}><BellRing size={18} /></div>
-              <div className={styles.panelTitleRow}><h2>Action queue & site alerts</h2><span className={styles.comingSoon}>Foundation</span></div>
-              <p>The alert center will surface meaningful changes throughout the week—late injury news, projection movement, waiver deadlines, and lineup pivots—without sending email or push notifications.</p>
-              <div className={styles.dataGate}><CircleHelp size={15} /><span>Alert rules will be enabled after source freshness and league deadlines are verified.</span></div>
+              <div className={styles.panelTitleRow}><h2>Action queue</h2><span className={styles.comingSoon}>Alerts</span></div>
+              <p>Track important lineup, injury, projection, and waiver changes here throughout the week.</p>
+              <div className={styles.dataGate}><CircleHelp size={15} /><span>Alerts focus on changes that could affect a decision.</span></div>
             </article>
             <article className={styles.panel}>
               <div className={styles.panelIcon}><CalendarClock size={18} /></div>
-              <div className={styles.panelTitleRow}><h2>Upcoming deadlines</h2><span className={styles.comingSoon}>Settings needed</span></div>
+              <div className={styles.panelTitleRow}><h2>Upcoming deadlines</h2><span className={styles.comingSoon}>League schedule</span></div>
               <p>Waiver processing, kickoff, lineup lock, and guillotine elimination times must come from the individual league's settings and current schedule.</p>
-              <div className={styles.dataGate}><AlertTriangle size={15} /><span>No deadline is shown until its source is verified.</span></div>
+              <div className={styles.dataGate}><AlertTriangle size={15} /><span>League-specific timing appears here when available.</span></div>
             </article>
           </section>
         </>
       )}
 
       {section === "lineups" && (
-        <ModuleView icon={<Sparkles size={19} />} eyebrow="Weekly decisions" title="Lineups & Matchups" status="League settings audit required" description="The optimizer will compare your current starters with the best legal lineup, show the projected point delta, and explain each meaningful start/sit alternative." items={[
+        <ModuleView icon={<Sparkles size={19} />} eyebrow="Weekly decisions" title="Lineups & Matchups" status="Lineup insights" description="The optimizer will compare your current starters with the best legal lineup, show the projected point delta, and explain each meaningful start/sit alternative." items={[
           {title:"League-valid lineup optimizer",detail:"Uses each league's roster slots, position eligibility, scoring settings, and flex/superflex rules."},
           {title:"Matchup and schedule outlook",detail:"Opponent comparison plus near-term schedule context, with a three-week lookahead where reliable data is available."},
           {title:"Late news contingency paths",detail:"Injury, inactive, weather, and late-game alternatives with source timestamps and a clear stale-data warning."},
@@ -188,7 +190,7 @@ export default function InSeasonManagementPage() {
       )}
 
       {section === "waivers" && (
-        <ModuleView icon={<WalletCards size={19} />} eyebrow="Roster improvement" title="Waivers & Guillotine" status="Waiver and FAAB settings required" description="Waiver advice will be tailored to each league's available players, remaining FAAB, waiver timing, roster constraints, and guillotine risk." items={[
+        <ModuleView icon={<WalletCards size={19} />} eyebrow="Roster improvement" title="Waivers & Guillotine" status="Waiver insights" description="Waiver advice will be tailored to each league's available players, remaining FAAB, waiver timing, roster constraints, and guillotine risk." items={[
           {title:"Add / drop comparison",detail:"Expected lineup impact, roster fit, and opportunity cost instead of a generic ranked list."},
           {title:"FAAB ranges",detail:"Suggested bid ranges with remaining-budget context; the final bid remains your decision in Sleeper."},
           {title:"Guillotine survival estimate",detail:"Weekly cut-line and survival probability with uncertainty—not a guarantee—and only after actual elimination and scoring settings are verified."},
@@ -196,7 +198,7 @@ export default function InSeasonManagementPage() {
       )}
 
       {section === "players" && (
-        <ModuleView icon={<TrendingUp size={19} />} eyebrow="Signals, not hype" title="Player Intelligence" status="Projection-source audit required" description="Player signals will compare Sleeper projections with a consensus of available free projections when source coverage is sufficient." items={[
+        <ModuleView icon={<TrendingUp size={19} />} eyebrow="Signals, not hype" title="Player Intelligence" status="Player signals" description="Player signals will compare Sleeper projections with a consensus of available free projections when source coverage is sufficient." items={[
           {title:"Projection edge",detail:"Independent expected points versus Sleeper's baseline, with source-by-source coverage and timestamp."},
           {title:"Usage and performance trend",detail:"Recent opportunity, role changes, and sustainable versus potentially noisy production signals when reliable stats are available."},
           {title:"Context adjustments",detail:"Injuries, inactives, weather, opponent, and schedule context with explicit confidence and missing-data indicators."},
@@ -236,7 +238,7 @@ function ModuleView({ icon, eyebrow, title, status, description, items }: {
       </div>
       <div className={styles.moduleNotice}>
         <ShieldCheck size={18} />
-        <div><strong>Recommendations are intentionally gated for now.</strong><p>This view is being wired to verified league settings and reliable source data. It will not display fabricated projections, player ranks, FAAB values, or survival odds.</p></div>
+        <div><strong>Your decisions, clearly explained.</strong><p>Recommendations will show the reasoning, source freshness, and uncertainty behind each decision.</p></div>
       </div>
     </section>
   );
