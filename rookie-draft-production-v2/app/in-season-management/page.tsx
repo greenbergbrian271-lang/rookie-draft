@@ -114,7 +114,8 @@ export default function InSeasonManagementPage() {
                 const guillotine = league.type.toLowerCase().includes("guillotine");
                 const eliminated = league.eliminated || Boolean(myTeam?.eliminated);
                 const activeTeams = (league.teams || []).filter((team) => team.players.length > 0 && !team.eliminated);
-                const ranked = activeTeams.map((team) => ({ team, score: league.matchups?.find((match) => match.rosterId === team.rosterId)?.points })).filter((item) => item.score !== undefined && item.score > 0).sort((a, b) => (b.score || 0) - (a.score || 0));
+                const hasWeeklyScores = (league.matchups || []).some((match) => match.points > 0);
+                const ranked = hasWeeklyScores ? activeTeams.map((team) => ({ team, score: league.matchups?.find((match) => match.rosterId === team.rosterId)?.points })).filter((item) => item.score !== undefined).sort((a, b) => (b.score || 0) - (a.score || 0)) : [];
                 const rank = ranked.findIndex((item) => item.team.rosterId === ownRoster) + 1;
                 const last = ranked.length ? ranked[ranked.length - 1] : undefined;
                 const opponentScore = !guillotine && myScore ? league.matchups?.find((match) => match.matchupId === myScore.matchupId && match.rosterId !== ownRoster) : undefined;
