@@ -117,25 +117,48 @@ export default function InSeasonManagementPage() {
 
           <section className={styles.sectionBlock}>
             <div className={styles.sectionHeading}>
-              <div><div className={styles.sectionKicker}>Your teams</div><h2>League dashboard</h2><p>Track your redraft and guillotine leagues in one place.</p></div>
+              <div><div className={styles.sectionKicker}>Your teams</div><h2>League dashboard</h2><p>Live records, current-week scoring, and roster context pulled from Sleeper.</p></div>
             </div>
-            <div className={styles.leagueGrid}>
-              <article className={styles.leagueCard}>
-                <div className={styles.leagueTop}><span className={styles.statusDot} /><span className={styles.statusLabel}>Redraft</span><span className={styles.leagueSeason}>Sleeper</span></div>
-                <h3>Redraft League</h3><div className={styles.leagueMeta}><span>League ID · 1389753161815707648</span></div>
-                <p className={styles.leagueNote}>Lineup and weekly matchup decisions will be organized here.</p>
-              </article>
-              <article className={styles.leagueCard}>
-                <div className={styles.leagueTop}><span className={styles.statusDot} /><span className={styles.statusLabel}>Guillotine</span><span className={styles.leagueSeason}>Active team</span></div>
-                <h3>Guillotine League</h3><div className={styles.leagueMeta}><span>League ID · 1387508275846586368</span></div>
-                <p className={styles.leagueNote}>Weekly survival, waiver priorities, and roster risk will be highlighted here.</p>
-              </article>
-              <article className={styles.leagueCard}>
-                <div className={styles.leagueTop}><span className={styles.statusDot} /><span className={styles.statusLabel}>Guillotine</span><span className={styles.leagueSeason}>Eliminated</span></div>
-                <h3>Guillotine League · Season ended for your team</h3><div className={styles.leagueMeta}><span>League ID · 1399445627359797248</span></div>
-                <p className={styles.leagueWarning}>You’ve been eliminated from this league. This team will be excluded from active lineup and survival recommendations, while its results can remain available for review.</p>
-              </article>
-            </div>
+            {leagueData.length === 0 ? (
+              <div className={styles.emptyState}><RefreshCw size={20} className={styles.spinning} /><strong>Loading your leagues…</strong><span>Fetching live league, roster, and matchup details from Sleeper.</span></div>
+            ) : (
+              <div className={styles.leagueGrid}>
+                {leagueData.map((league) => {
+                  const check = checks.find((item) => item.leagueId === league.id);
+                  const ownRoster = check?.rosterMatch?.rosterId;
+                  const myTeam = league.teams?.find((team) => team.rosterId === ownRoster);
+                  const myMatchup = league.matchups?.find((match) => match.rosterId === ownRoster);
+                  return (
+                    <article className={styles.leagueCard} key={league.id}>
+                      <div className={styles.leagueTop}>
+                        <span className={`${styles.statusDot} ${league.ok ? league.eliminated ? styles.warning : styles.ready : styles.error}`} />
+                        <span className={`${styles.statusLabel} ${league.ok ? league.eliminated ? styles.warning : styles.ready : styles.error}`}>{league.eliminated ? "Eliminated" : league.ok ? "Sleeper connected" : "Unavailable"}</span>
+                        <span className={styles.leagueSeason}>{league.season || "Season unknown"}</span>
+                      </div>
+                      <h3>{league.name || (league.type + " League")}</h3>
+                      <div className={styles.leagueMeta}>
+                        <span>{league.type}</span><span>Week {league.week || "—"}</span><span>{league.totalRosters || "—"} teams</span>
+                      </div>
+                      {league.eliminated ? (
+                        <p className={styles.leagueWarning}>Your team has been eliminated. This league remains available for historical context and is excluded from active recommendations.</p>
+                      ) : !league.ok ? (
+                        <p className={styles.leagueWarning}>{league.error || "Sleeper data is unavailable. Try refreshing in a moment."}</p>
+                      ) : (
+                        <>
+                          <div className={styles.teamSnapshot}>
+                            <div><span>Your team</span><strong>{myTeam?.owner || check?.rosterMatch?.owner || "Team identity not matched"}</strong></div>
+                            <div><span>Record</span><strong>{myTeam ? `${myTeam.wins}-${myTeam.losses}${myTeam.ties ? `-${myTeam.ties}` : ""}` : "—"}</strong></div>
+                            <div><span>Week points</span><strong>{myMatchup ? myMatchup.points.toFixed(1) : "—"}</strong></div>
+                          </div>
+                          <p className={myTeam ? styles.leagueNote : styles.leagueWarning}>{myTeam ? `${myTeam.players.length} rostered players · ${myTeam.starters.filter((id) => id !== "0").length} filled starter slots. Matchup points reflect Sleeper's current-week total.` : "Sleeper data is available, but the configured team identity has not been matched. League-wide data is visible; personal recommendations should wait until the team is verified."}</p>
+                        </>
+                      )}
+                      <div className={styles.leagueFooter}><span>League ID · {league.id}</span><span>{league.ok ? "Live Sleeper data" : "Needs review"}</span></div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           <section className={styles.sectionBlock}>
