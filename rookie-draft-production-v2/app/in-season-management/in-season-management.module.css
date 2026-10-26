@@ -74,3 +74,21 @@
 @media(max-width:1100px){.summaryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.moduleGrid{grid-template-columns:1fr 1fr}.moduleStatus{margin:10px 0 0}.moduleHero{flex-wrap:wrap}}
 @media(max-width:800px){.pageHead{flex-direction:column}.headerActions{justify-content:flex-start}.leagueGrid,.lowerGrid{grid-template-columns:1fr}.sectionHeading{align-items:flex-start;flex-direction:column}.moduleGrid{grid-template-columns:1fr}.moduleHero{gap:10px}.moduleStatus{white-space:normal}}
 @media(max-width:520px){.summaryGrid{grid-template-columns:1fr 1fr;gap:7px}.summaryCard{padding:11px}.summaryCard>strong{font-size:24px}.summaryCard>small{font-size:9px}.summaryCard>svg{right:10px;top:10px;width:16px}.leagueFooter{flex-direction:column}.pageHead h1{font-size:27px}.tabs button{padding:9px 10px;font-size:11px}.errorBanner{flex-wrap:wrap}}
+
+.rosterList{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0!important;min-height:0!important}
+.rosterList>span{display:inline-flex;align-items:center;gap:5px;padding:5px 7px;border:1px solid rgba(143,167,200,.16);border-radius:7px;background:#0a172a;color:#d5e1f1;font-size:10px}
+.rosterList b{color:var(--cyan);font-size:9px}
+.rosterList small{color:#7f96b5;font-size:9px}
+.transactionList,.playerSignalList{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:7px}
+.transactionList li,.playerSignalList li{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:9px 10px;border:1px solid rgba(143,167,200,.14);border-radius:8px;background:#09162a;font-size:11px}
+.transactionList li>div{display:grid;gap:4px;min-width:0}
+.transactionList li strong{color:#dbe7f7;font-size:11px}
+.transactionList li span,.transactionList li small{color:#8199b9;font-size:10px;line-height:1.4}
+.playerSignalList li span{color:#dbe7f7}
+.playerSignalList li small{color:#8199b9;font-size:9px}
+.playerSignalList li strong{color:#ffd166;font-size:10px;text-align:right}
+.teamSnapshot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.teamSnapshot>div{min-width:0;padding:10px;border:1px solid rgba(143,167,200,.15);border-radius:8px;background:#09162a}
+.teamSnapshot span{display:block;color:#8199b9;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}
+.teamSnapshot strong{display:block;margin-top:6px;color:#e2edf9;font-size:14px;overflow-wrap:anywhere}
+@media(max-width:520px){.teamSnapshot{grid-template-columns:1fr 1fr}.teamSnapshot>div:first-child{grid-column:1/-1}}
