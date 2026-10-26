@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build lib/comp-profiles/<class>.ts (analytics-only comp profiles) from PFF CSV exports.
 
-usage: python3 scripts/build-comp-profiles.py <inputs.json> <csv_dir>
+usage: python3 scripts/build-comp-profiles.py <inputs.json> <csv_dir> [file_suffix]
   inputs: scripts/comp-profile-inputs/<class>.json
   csv_dir: folder with {QB,RB,WR,TE}_{primary,below_primary}.csv (PFF exports; <pos>_*secondary.csv are not needed)
 
@@ -32,12 +32,12 @@ MAP={
 }
 TEAM_LIKE=lambda a,b:nk(a)[:5]==nk(b)[:5] or nk(a) in nk(b) or nk(b) in nk(a)
 
-def main(inputs,csv_dir):
+def main(inputs,csv_dir,suffix=''):
     cfg=json.load(open(inputs));cls=cfg['draftClass']
     rows={}
     for pos in MAP:
         for kind in ('primary','below_primary'):
-            fn=os.path.join(csv_dir,f'{pos}_{kind}.csv')
+            fn=os.path.join(csv_dir,f'{pos}_{kind}{suffix}.csv')
             if not os.path.exists(fn):continue
             for r in csv.DictReader(open(fn,encoding='utf-8-sig')):
                 rows.setdefault((nk(r['Player']),pos),[]).append(r)
@@ -53,7 +53,7 @@ def main(inputs,csv_dir):
             if v is None:continue
             fields.append({'group':grp,'label':label,'value':round(v/100,6) if pct else v})
         if p.get('overall'):
-            rd=1 if p['overall']<=32 else 2 if p['overall']<=64 else 3 if p['overall']<=102 else 4 if p['overall']<=138 else 5 if p['overall']<=176 else 6 if p['overall']<=216 else 7
+            rd=p.get('round') or (1 if p['overall']<=32 else 2 if p['overall']<=64 else 3 if p['overall']<=102 else 4 if p['overall']<=138 else 5 if p['overall']<=176 else 6 if p['overall']<=216 else 7)  # pass "round" in the inputs: pick ranges per round differ by year
             draft=f"{rd}.{p['overall']}, {p['team']}"
         else:draft="UDFA"
         out.append({'name':p['name'],'position':p['pos'],'college':r['College'],'draftClass':cls,'draftResult':draft,'fields':fields})
@@ -63,4 +63,4 @@ def main(inputs,csv_dir):
         f"import type {{CompProfile}} from \"@/lib/comp-profiles/types\";\nexport const compProfiles{cls}:CompProfile[]="+json.dumps(out,ensure_ascii=False,indent=1)+";\n")
     dest=os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','lib','comp-profiles',f'{cls}.ts')
     open(dest,'w').write(ts);print("\n".join(report));print(f"wrote {len(out)} profiles -> lib/comp-profiles/{cls}.ts")
-if __name__=='__main__':main(sys.argv[1],sys.argv[2])
+if __name__=='__main__':main(sys.argv[1],sys.argv[2],sys.argv[3] if len(sys.argv)>3 else '')

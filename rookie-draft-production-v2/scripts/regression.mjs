@@ -18,6 +18,7 @@ const checks=[
   ["lib/player-comps.ts",/MISSING_PRIOR/,"comps shrink thin candidates instead of letting them win on fewer features"],
   ["lib/player-comps.ts",/allCompProfiles/,"analytics-only comp profiles feed the comp pool"],
   ["lib/comp-profiles/index.ts",/compProfiles2025/,"2025 analytics-only profiles registered"],
+  ["lib/comp-profiles/index.ts",/compProfiles2024/,"2024 analytics-only profiles registered"],
   ["components/PlayerComps.tsx",/Analytics-only profile/,"analytics-only comps are labeled on the card"],
   ["lib/comp-outcomes.ts",/pass_yd:\.04.*rec:1/,"player comp outcomes score standard PPR"],
   ["app/api/player-comps/route.ts",/saveOverride/,"player comp pin/exclude overrides"],

@@ -1,0 +1,33 @@
+{
+  "draftClass": 2024,
+  "season": 2023,
+  "note": "Analytics-only comp profiles: players with no scouting profile. Drafted players are included regardless of NFL production; UDFAs only if they have scored NFL fantasy points (Sleeper, Oct 2026). Drafted picks from the 257-pick 2024 list.",
+  "players": [
+    {"name":"Bub Means","pos":"WR","college":"Pittsburgh","overall":170,"round":5,"team":"Saints"},
+    {"name":"Tanner McLachlan","pos":"TE","college":"Arizona","overall":194,"round":6,"team":"Bengals"},
+    {"name":"Devin Culp","pos":"TE","college":"Washington","overall":246,"round":7,"team":"Buccaneers"},
+    {"name":"George Holani","pos":"RB","college":"Boise State"},
+    {"name":"Carson Steele","pos":"RB","college":"UCLA"},
+    {"name":"David Martin-Robinson","pos":"TE","college":"Temple"},
+    {"name":"Xavier Weaver","pos":"WR","college":"Colorado"},
+    {"name":"Brenden Bates","pos":"TE","college":"Kentucky"},
+    {"name":"British Brooks","pos":"RB","college":"North Carolina"},
+    {"name":"Hayden Rucci","pos":"TE","college":"Wisconsin"},
+    {"name":"Jeshaun Jones","pos":"WR","college":"Maryland"},
+    {"name":"Jack Westover","pos":"TE","college":"Washington"}
+  ],
+  "not_buildable": [
+    {"name":"Sione Vaki","pos":"RB","reason":"drafted (Utah) - not in the PFF RB files"},
+    {"name":"Mason Tipton","pos":"WR","reason":"UDFA scorer (Yale) - not in PFF FBS export"},
+    {"name":"Kameron Johnson","pos":"WR","reason":"UDFA scorer (Barton) - not in PFF FBS export"},
+    {"name":"Terrell Jennings","pos":"RB","reason":"UDFA scorer (Florida A&M) - not in PFF FBS export"},
+    {"name":"Bryce Oliver","pos":"WR","reason":"UDFA scorer (Youngstown State) - not in PFF FBS export"},
+    {"name":"Cam Grandy","pos":"TE","reason":"UDFA scorer (Illinois State) - not in PFF FBS export"},
+    {"name":"Chris Collier","pos":"RB","reason":"UDFA scorer (Lock Haven) - not in PFF FBS export"},
+    {"name":"Dorian Thompson-Robinson","pos":"QB","reason":"scored but 2023 season not in files (last college season 2022)"},
+    {"name":"Rakim Jarrett","pos":"WR","reason":"UDFA scorer - no 2023 PFF row"},
+    {"name":"Colson Yankoff","pos":"TE","reason":"UDFA scorer - no match found in PFF files"},
+    {"name":"Grant DuBose","pos":"WR","reason":"UDFA scorer - no match found in PFF files"},
+    {"name":"John Samuel Shenker","pos":"TE","reason":"UDFA scorer - no match found in PFF files"}
+  ]
+}
