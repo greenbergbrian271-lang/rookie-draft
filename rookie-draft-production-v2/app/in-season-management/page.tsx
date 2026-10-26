@@ -20,7 +20,9 @@ type SleeperCheck = {
   ok: boolean;
   error?: string;
 };
-type CheckResponse = { checks?: SleeperCheck[] };\ntype LeagueData = { id:string; type:string; eliminated:boolean; ok:boolean; name:string; season?:string; status?:string; week?:number; totalRosters?:number; rosterPositions?:string[]; settings?:Record<string,any>; scoringSettings?:Record<string,number>; teams?:{rosterId:string;owner:string;players:string[];starters:string[];points:number;wins:number;losses:number;waiverBudget:any}[]; matchups?:{rosterId:string;matchupId:number;points:number}[]; transactions?:{type:string;status:string;created:number;adds:Record<string,number>;drops:Record<string,number>}[]; error?:string; fetchedAt:string };\ntype LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
+type CheckResponse = { checks?: SleeperCheck[] };
+type LeagueData = { id:string; type:string; eliminated:boolean; ok:boolean; name:string; season?:string; status?:string; week?:number; totalRosters?:number; rosterPositions?:string[]; settings?:Record<string,any>; scoringSettings?:Record<string,number>; teams?:{rosterId:string;owner:string;players:string[];starters:string[];points:number;wins:number;losses:number;waiverBudget:any}[]; matchups?:{rosterId:string;matchupId:number;points:number}[]; transactions?:{type:string;status:string;created:number;adds:Record<string,number>;drops:Record<string,number>}[]; error?:string; fetchedAt:string };
+type LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -49,7 +51,8 @@ export default function InSeasonManagementPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [lastChecked, setLastChecked] = useState<string | null>(null);\n  const [leagueData,setLeagueData] = useState<LeagueData[]>([]);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [leagueData,setLeagueData] = useState<LeagueData[]>([]);
 
   const refresh = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
