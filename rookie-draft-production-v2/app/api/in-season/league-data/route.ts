@@ -14,11 +14,15 @@ async function sleeper<T>(path: string): Promise<T> {
 }
 
 export async function GET() {
+  const [nflState, nflPlayers] = await Promise.all([
+    sleeper<any>("/state/nfl").catch(() => null),
+    sleeper<Record<string, any>>("/players/nfl").catch(() => ({})),
+  ]);
   const results = await Promise.all(LEAGUES.map(async (entry) => {
     try {
       const league = await sleeper<any>(`/league/${entry.id}`);
       const season = String(league.season || new Date().getFullYear());
-      const week = Number(league.settings?.leg || league.settings?.week || 0);
+      const week = Number(nflState?.week || league.settings?.leg || league.settings?.week || 0);
       const [rosters, users, matchups, transactions] = await Promise.all([
         sleeper<any[]>(`/league/${entry.id}/rosters`),
         sleeper<any[]>(`/league/${entry.id}/users`),
@@ -31,6 +35,18 @@ export async function GET() {
         ownerId: String(roster.owner_id || ""),
         owner: ownerById.get(String(roster.owner_id)) || "Unassigned team",
         players: Array.isArray(roster.players) ? roster.players : [],
+        playerDetails: (Array.isArray(roster.players) ? roster.players : []).map((playerId: string) => {
+          const player = nflPlayers[String(playerId)] || {};
+          return {
+            id: String(playerId),
+            name: player.full_name || [player.first_name, player.last_name].filter(Boolean).join(" ") || "Unknown player",
+            position: player.position || "—",
+            team: player.team || "FA",
+            status: player.status || "",
+            injuryStatus: player.injury_status || "",
+            depthChartPosition: player.depth_chart_position || null,
+          };
+        }),
         starters: Array.isArray(roster.starters) ? roster.starters : [],
         reserve: Array.isArray(roster.reserve) ? roster.reserve : [],
         settings: roster.settings || {},
