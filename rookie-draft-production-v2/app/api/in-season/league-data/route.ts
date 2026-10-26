@@ -34,7 +34,7 @@ export async function GET() {
         rosterId: String(roster.roster_id),
         ownerId: String(roster.owner_id || ""),
         owner: ownerById.get(String(roster.owner_id)) || "Unassigned team",
-        teamName: roster.metadata?.team_name || roster.metadata?.teamName || users.find((user: any) => String(user.user_id) === String(roster.owner_id))?.metadata?.team_name || ownerById.get(String(roster.owner_id)) || "Unassigned team",
+        teamName: roster.metadata?.team_name || roster.metadata?.teamName || users.find((user: any) => String(user.user_id) === String(roster.owner_id))?.metadata?.team_name || "",
         players: Array.isArray(roster.players) ? roster.players : [],
         playerDetails: (Array.isArray(roster.players) ? roster.players : []).map((playerId: string) => {
           const player = nflPlayers[String(playerId)] || {};
