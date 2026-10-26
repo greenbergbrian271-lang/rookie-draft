@@ -16,7 +16,7 @@ async function sleeper<T>(path: string): Promise<T> {
 export async function GET() {
   const [nflState, nflPlayers] = await Promise.all([
     sleeper<any>("/state/nfl").catch(() => null),
-    sleeper<Record<string, any>>("/players/nfl").catch(() => ({})),
+    sleeper<Record<string, any>>("/players/nfl").catch(() => ({} as Record<string, any>)),
   ]);
   const results = await Promise.all(LEAGUES.map(async (entry) => {
     try {
