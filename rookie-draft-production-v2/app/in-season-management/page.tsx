@@ -98,14 +98,6 @@ export default function InSeasonManagementPage() {
         </div>
       </header>
 
-      <nav className={styles.tabs} aria-label="In-season sections">
-        {SECTIONS.map((item) => (
-          <Link key={item.id} href={item.id === "overview" ? "/in-season-management" : `/in-season-management/${item.id}`} className={section === item.id ? styles.activeTab : ""} aria-current={section === item.id ? "page" : undefined}>
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-
       {error && (
         <div className={styles.errorBanner} role="alert">
           <AlertTriangle size={17} />
@@ -148,7 +140,7 @@ export default function InSeasonManagementPage() {
 
           <section className={styles.sectionBlock}>
             <div className={styles.sectionHeading}>
-              <div><div className={styles.sectionKicker}>Portfolio</div><h2>Your Sleeper leagues</h2><p>Connection and team ownership are checked against Sleeper. Recommendations remain gated until league settings and data sources are validated.</p></div>
+              <div><div className={styles.sectionKicker}>Portfolio</div><h2>Your Sleeper leagues</h2><p>Live league records, lineup slots, scoring, and waiver context for your three leagues.</p></div>
               <Link href="/integrations" className={styles.textLink}>Manage integrations <ChevronRight size={15} /></Link>
             </div>
             {loading && checks.length === 0 ? (
