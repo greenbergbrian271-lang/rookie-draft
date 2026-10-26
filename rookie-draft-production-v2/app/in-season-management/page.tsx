@@ -59,20 +59,28 @@ export default function InSeasonManagementPage() {
     else setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/integrations/sleeper-check", { cache: "no-store" });
-      if (!response.ok) throw new Error(`Sleeper check returned HTTP ${response.status}`);
-      const data = (await response.json()) as CheckResponse;
-      setChecks(Array.isArray(data.checks) ? data.checks : []);
+      const [checkResponse, leagueResponse] = await Promise.all([
+        fetch("/api/integrations/sleeper-check", { cache: "no-store" }),
+        fetch("/api/in-season/league-data", { cache: "no-store" }),
+      ]);
+      if (!checkResponse.ok) throw new Error(`Sleeper check returned HTTP ${checkResponse.status}`);
+      if (!leagueResponse.ok) throw new Error(`Sleeper league data returned HTTP ${leagueResponse.status}`);
+      const [checkData, leaguePayload] = await Promise.all([
+        checkResponse.json() as Promise<CheckResponse>,
+        leagueResponse.json() as Promise<LeagueDataResponse>,
+      ]);
+      setChecks(Array.isArray(checkData.checks) ? checkData.checks : []);
+      setLeagueData(Array.isArray(leaguePayload.leagues) ? leaguePayload.leagues : []);
       setLastChecked(new Date().toISOString());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to check Sleeper right now.");
+      setError(cause instanceof Error ? cause.message : "Unable to refresh Sleeper league data right now.");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { void refresh(); void fetch("/api/in-season/league-data",{cache:"no-store"}).then(r=>r.json()).then((d:LeagueDataResponse)=>setLeagueData(Array.isArray(d.leagues)?d.leagues:[])).catch(()=>setLeagueData([])); }, [refresh]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const summary = useMemo(() => ({
     total: checks.length,
