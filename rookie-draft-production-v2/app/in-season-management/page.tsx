@@ -87,7 +87,7 @@ export default function InSeasonManagementPage() {
         <div>
           <div className={styles.eyebrow}>Fantasy operations · Sleeper</div>
           <h1>In-Season Management</h1>
-          <p className={styles.subtitle}>A single command center for lineup decisions, waiver priorities, guillotine survival, and player signals across your leagues.</p>
+          <p className={styles.subtitle}>{section === "overview" ? "Your weekly matchup and guillotine survival position across your Sleeper leagues." : "Lineup decisions, waiver priorities, and player signals across your Sleeper leagues."}</p>
         </div>
         <div className={styles.headerActions}>
           <span className={styles.advisory}><ShieldCheck size={15} /> Recommendations only</span>
@@ -116,9 +116,10 @@ export default function InSeasonManagementPage() {
           ) : (
             <div className={styles.matchupGrid}>
               {leagueData.map((league) => {
-                const check = checks.find((item) => item.leagueId === league.id);
-                const ownRoster = check?.rosterMatch?.rosterId;
-                const myTeam = league.teams?.find((team) => team.rosterId === ownRoster);
+                // The integration status endpoint may be configured for other leagues. Resolve the user's Sleeper account globally, then find that owner in each of the three requested leagues.
+                const knownOwnerIds = checks.map((item) => item.rosterMatch?.ownerId).filter((id): id is string => Boolean(id));
+                const myTeam = league.teams?.find((team) => knownOwnerIds.includes(team.ownerId || "")) || league.teams?.find((team) => team.owner.toLowerCase() === "cds1204");
+                const ownRoster = myTeam?.rosterId;
                 const myScore = league.matchups?.find((match) => match.rosterId === ownRoster);
                 const guillotine = league.type.toLowerCase().includes("guillotine");
                 const eliminated = league.eliminated || Boolean(myTeam?.eliminated);
