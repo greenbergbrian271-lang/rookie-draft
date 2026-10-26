@@ -112,10 +112,10 @@ export default function InSeasonManagementPage() {
       {section === "overview" && (
         <>
           <section className={styles.summaryGrid} aria-label="League readiness summary">
-            <article className={styles.summaryCard}><span>Configured leagues</span><strong>{loading ? "—" : summary.total}</strong><small>Enabled Sleeper integrations returned</small><Users size={19} /></article>
-            <article className={styles.summaryCard}><span>Sleeper reachable</span><strong>{loading ? "—" : summary.connected}</strong><small>League metadata and roster endpoints respond</small><Activity size={19} /></article>
-            <article className={styles.summaryCard}><span>Roster identity verified</span><strong>{loading ? "—" : summary.verified}</strong><small>Configured team matched to a Sleeper roster</small><CheckCircle2 size={19} /></article>
-            <article className={styles.summaryCard}><span>Needs attention</span><strong className={summary.attention ? styles.warningNumber : ""}>{loading ? "—" : summary.attention}</strong><small>Connection or roster mapping needs review</small><AlertTriangle size={19} /></article>
+            <article className={styles.summaryCard}><span>Configured leagues</span><strong>{loading || (Boolean(error) && checks.length === 0) ? "—" : summary.total}</strong><small>Enabled Sleeper integrations returned</small><Users size={19} /></article>
+            <article className={styles.summaryCard}><span>Sleeper reachable</span><strong>{loading || (Boolean(error) && checks.length === 0) ? "—" : summary.connected}</strong><small>League metadata and roster endpoints respond</small><Activity size={19} /></article>
+            <article className={styles.summaryCard}><span>Roster identity verified</span><strong>{loading || (Boolean(error) && checks.length === 0) ? "—" : summary.verified}</strong><small>Configured team matched to a Sleeper roster</small><CheckCircle2 size={19} /></article>
+            <article className={styles.summaryCard}><span>Needs attention</span><strong className={summary.attention ? styles.warningNumber : ""}>{loading || (Boolean(error) && checks.length === 0) ? "—" : summary.attention}</strong><small>Connection or roster mapping needs review</small><AlertTriangle size={19} /></article>
           </section>
 
           <section className={styles.sectionBlock}>
@@ -126,7 +126,7 @@ export default function InSeasonManagementPage() {
             {loading && checks.length === 0 ? (
               <div className={styles.emptyState}><RefreshCw size={20} className={styles.spinning} /><strong>Checking configured leagues…</strong><span>Reading the existing Sleeper integration; no mock league data is used.</span></div>
             ) : checks.length === 0 ? (
-              <div className={styles.emptyState}><Users size={22} /><strong>No enabled Sleeper leagues were returned</strong><span>Connect or enable your leagues in Integrations, then refresh this page.</span><Link href="/integrations">Open Integrations <ChevronRight size={14} /></Link></div>
+              <div className={styles.emptyState}>{error ? <AlertTriangle size={22} /> : <Users size={22} />}<strong>{error ? "Unable to verify configured leagues" : "No enabled Sleeper leagues were returned"}</strong><span>{error ? "The league configuration could not be loaded, so the number of configured leagues is unknown. Try again before changing your integration settings." : "Connect or enable your leagues in Integrations, then refresh this page."}</span><Link href="/integrations">Open Integrations <ChevronRight size={14} /></Link></div>
             ) : (
               <div className={styles.leagueGrid}>
                 {checks.map((check) => {
