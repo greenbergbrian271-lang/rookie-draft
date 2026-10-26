@@ -132,7 +132,7 @@ export default function InSeasonManagementPage() {
                       </>
                     ) : (
                       <>
-                        <div className={styles.headToHeadScore}><div className={styles.scoreSide}><span>Your team</span><strong>{teamLabel}</strong><b>{myScore ? myScore.points.toFixed(2) : "—"}</b></div><div className={styles.scoreDivider}>VS</div><div className={styles.scoreSide}><span>Opponent</span><strong>{opponent ? (opponent.teamName && opponent.teamName.toLowerCase() !== opponent.owner.toLowerCase() ? opponent.teamName : `Roster ${opponent.rosterId}`) : "Opponent unavailable"}</strong><b>{opponentScore ? opponentScore.points.toFixed(2) : "—"}</b></div></div>
+                        <div className={styles.headToHeadScore}><div className={styles.scoreSide}><span>Your team</span><strong>{teamLabel}</strong><b>{myScore ? myScore.points.toFixed(2) : "—"}</b></div><div className={styles.scoreDivider}>VS</div><div className={styles.scoreSide}><span>Opponent</span><strong>{opponent ? (opponent.teamName || opponent.owner || `Roster ${opponent.rosterId}`) : "Opponent unavailable"}</strong><b>{opponentScore ? opponentScore.points.toFixed(2) : "—"}</b></div></div>
                         <div className={styles.matchupFoot}><span>{myScore && opponentScore ? myScore.points > opponentScore.points ? `Leading by ${(myScore.points - opponentScore.points).toFixed(2)}` : myScore.points < opponentScore.points ? `Trailing by ${(opponentScore.points - myScore.points).toFixed(2)}` : "Matchup tied" : "No matchup score returned"}</span><span>Season record · {myTeam.wins}-{myTeam.losses}{myTeam.ties ? `-${myTeam.ties}` : ""}</span></div>
                       </>
                     )}
