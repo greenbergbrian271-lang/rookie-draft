@@ -1,6 +1,7 @@
 import {getHistoricalScoutingRows,normHistoricalName,type HistoricalPosition,type HistoricalScoutingSnapshot} from "@/lib/historical-scouting";
 import {historicalEvaluations} from "@/lib/historical-scouting";
 import {allCompProfiles} from "@/lib/comp-profiles";
+import {allCompOverlays} from "@/lib/comp-profiles/overlays";
 
 /**
  * Player Comps: finds the most similar previously-scouted player for a card.
@@ -207,10 +208,14 @@ function extract(position:Pos,rows:EvalRow[],grades?:Record<string,unknown>|null
 let POOL:PoolEntry[]|null=null;
 export function getPool():PoolEntry[]{
   if(POOL)return POOL;
+  const overlayIndex=new Map(allCompOverlays.map(o=>[compKey(o.draftClass,o.position,o.name),o]));
   const out:PoolEntry[]=[];
   for(const year of POOL_YEARS)for(const position of ["QB","RB","WR","TE"] as Pos[]){
     for(const snap of getHistoricalScoutingRows(year,position) as readonly HistoricalScoutingSnapshot[]){
-      const evals=historicalEvaluations(snap) as EvalRow[];
+      let evals=historicalEvaluations(snap) as EvalRow[];
+      // comp-only backfill (e.g. 2022 analytics): adds labels the site data lacks, never overrides what is there
+      const ov=overlayIndex.get(compKey(year,position,snap.name));
+      if(ov){const have=new Set(evals.map(e=>splitCategory(String(e.category)).label));evals=[...evals,...ov.fields.filter(f=>!have.has(f.label)).map(f=>({category:`${f.group} · ${f.label}`,value:f.value}))]}
       const dr=parseDraftResult(snap.fields.find(f=>f.label==="Draft Result")?.value);
       const notes=String(snap.commentary||"");
       out.push({

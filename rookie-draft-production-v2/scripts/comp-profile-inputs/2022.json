@@ -1,0 +1,721 @@
+{
+ "draftClass": 2022,
+ "season": 2021,
+ "note": "Analytics-only comp profiles (players with no scouting profile) PLUS an analytics/stats overlay for the 78 scouted 2022 players, whose site data has no analytics group. ALL drafted QB/RB/WR/TE without a scouting profile are included regardless of NFL production; UDFAs only if they have scored NFL fantasy points (Sleeper, Oct 2026). Picks from the 262-pick 2022 list (rounds: 1-32, 33-64, 65-105, 106-143, 144-179, 180-221, 222-262). Overlay data is comp-only: it never touches grades, boards, cards or the scouting tab.",
+ "players": [
+  {
+   "name": "Bailey Zappe",
+   "pos": "QB",
+   "college": "Western Kentucky",
+   "overall": 137,
+   "round": 4,
+   "team": "Patriots"
+  },
+  {
+   "name": "Skylar Thompson",
+   "pos": "QB",
+   "college": "Kansas State",
+   "overall": 247,
+   "round": 7,
+   "team": "Dolphins"
+  },
+  {
+   "name": "Brock Purdy",
+   "pos": "QB",
+   "college": "Iowa State",
+   "overall": 262,
+   "round": 7,
+   "team": "49ers"
+  },
+  {
+   "name": "Trestan Ebner",
+   "pos": "RB",
+   "college": "Baylor",
+   "overall": 203,
+   "round": 6,
+   "team": "Bears"
+  },
+  {
+   "name": "Brittain Brown",
+   "pos": "RB",
+   "college": "UCLA",
+   "overall": 250,
+   "round": 7,
+   "team": "Raiders"
+  },
+  {
+   "name": "Jalen Nailor",
+   "pos": "WR",
+   "college": "Michigan State",
+   "overall": 191,
+   "round": 6,
+   "team": "Vikings"
+  },
+  {
+   "name": "Michael Woods II",
+   "pos": "WR",
+   "college": "Oklahoma",
+   "overall": 202,
+   "round": 6,
+   "team": "Browns"
+  },
+  {
+   "name": "Cade Otton",
+   "pos": "TE",
+   "college": "Washington",
+   "overall": 106,
+   "round": 4,
+   "team": "Buccaneers"
+  },
+  {
+   "name": "Daniel Bellinger",
+   "pos": "TE",
+   "college": "San Diego State",
+   "overall": 112,
+   "round": 4,
+   "team": "Giants"
+  },
+  {
+   "name": "Jake Ferguson",
+   "pos": "TE",
+   "college": "Wisconsin",
+   "overall": 129,
+   "round": 4,
+   "team": "Cowboys"
+  },
+  {
+   "name": "Cole Turner",
+   "pos": "TE",
+   "college": "Nevada",
+   "overall": 149,
+   "round": 5,
+   "team": "Commanders"
+  },
+  {
+   "name": "Teagan Quitoriano",
+   "pos": "TE",
+   "college": "Oregon State",
+   "overall": 170,
+   "round": 5,
+   "team": "Texans"
+  },
+  {
+   "name": "James Mitchell",
+   "pos": "TE",
+   "college": "Virginia Tech",
+   "overall": 177,
+   "round": 5,
+   "team": "Lions"
+  },
+  {
+   "name": "Grant Calcaterra",
+   "pos": "TE",
+   "college": "SMU",
+   "overall": 198,
+   "round": 6,
+   "team": "Eagles"
+  },
+  {
+   "name": "John FitzPatrick",
+   "pos": "TE",
+   "college": "Georgia",
+   "overall": 213,
+   "round": 6,
+   "team": "Falcons"
+  },
+  {
+   "name": "Ko Kieft",
+   "pos": "TE",
+   "college": "Minnesota",
+   "overall": 218,
+   "round": 6,
+   "team": "Buccaneers"
+  },
+  {
+   "name": "Nick Muse",
+   "pos": "TE",
+   "college": "South Carolina",
+   "overall": 227,
+   "round": 7,
+   "team": "Vikings"
+  },
+  {
+   "name": "Jaylen Warren",
+   "pos": "RB",
+   "college": "Oklahoma State"
+  },
+  {
+   "name": "Jordan Mason",
+   "pos": "RB",
+   "college": "Georgia Tech"
+  },
+  {
+   "name": "Jake Tonges",
+   "pos": "TE",
+   "college": "California"
+  },
+  {
+   "name": "Brandon Johnson",
+   "pos": "WR",
+   "college": "UCF"
+  },
+  {
+   "name": "Malik Davis",
+   "pos": "RB",
+   "college": "Florida"
+  },
+  {
+   "name": "Lucas Krull",
+   "pos": "TE",
+   "college": "Pittsburgh"
+  },
+  {
+   "name": "Deven Thompkins",
+   "pos": "WR",
+   "college": "Utah State"
+  },
+  {
+   "name": "Ronnie Rivers",
+   "pos": "RB",
+   "college": "Fresno State"
+  },
+  {
+   "name": "Britain Covey",
+   "pos": "WR",
+   "college": "Utah"
+  },
+  {
+   "name": "Tay Martin",
+   "pos": "WR",
+   "college": "Oklahoma State"
+  },
+  {
+   "name": "Raheem Blackshear",
+   "pos": "RB",
+   "college": "Virginia Tech"
+  },
+  {
+   "name": "Jalen Virgil",
+   "pos": "WR",
+   "college": "Appalachian State"
+  },
+  {
+   "name": "Zaire Mitchell-Paden",
+   "pos": "TE",
+   "college": "Florida Atlantic"
+  },
+  {
+   "name": "Kendric Pryor",
+   "pos": "WR",
+   "college": "Wisconsin"
+  },
+  {
+   "name": "Jashaun Corbin",
+   "pos": "RB",
+   "college": "Florida State"
+  },
+  {
+   "name": "Chig Okonkwo",
+   "pos": "TE",
+   "college": "Maryland",
+   "csv_name": "Chigoziem Okonkwo",
+   "overall": 143,
+   "round": 4,
+   "team": "Titans"
+  }
+ ],
+ "overlay_players": [
+  {
+   "name": "Kenny Pickett",
+   "pos": "QB",
+   "college": "Pittsburgh"
+  },
+  {
+   "name": "Matt Corral",
+   "pos": "QB",
+   "college": "Ole Miss"
+  },
+  {
+   "name": "Desmond Ridder",
+   "pos": "QB",
+   "college": "Cincinnati"
+  },
+  {
+   "name": "Malik Willis",
+   "pos": "QB",
+   "college": "Liberty"
+  },
+  {
+   "name": "Sam Howell",
+   "pos": "QB",
+   "college": "North Carolina"
+  },
+  {
+   "name": "Carson Strong",
+   "pos": "QB",
+   "college": "Nevada"
+  },
+  {
+   "name": "Breece Hall",
+   "pos": "RB",
+   "college": "Iowa State"
+  },
+  {
+   "name": "Rachaad White",
+   "pos": "RB",
+   "college": "Arizona State"
+  },
+  {
+   "name": "Isaiah Spiller",
+   "pos": "RB",
+   "college": "Texas A&M"
+  },
+  {
+   "name": "James Cook",
+   "pos": "RB",
+   "college": "Georgia"
+  },
+  {
+   "name": "Kenneth Walker",
+   "pos": "RB",
+   "college": "Michigan State"
+  },
+  {
+   "name": "Kyren Williams",
+   "pos": "RB",
+   "college": "Notre Dame"
+  },
+  {
+   "name": "Dameon Pierce",
+   "pos": "RB",
+   "college": "Florida"
+  },
+  {
+   "name": "Tyler Allgeier",
+   "pos": "RB",
+   "college": "BYU"
+  },
+  {
+   "name": "Tyler Badie",
+   "pos": "RB",
+   "college": "Mizzou"
+  },
+  {
+   "name": "Ty Chandler",
+   "pos": "RB",
+   "college": "North Carolina"
+  },
+  {
+   "name": "Pierre Strong Jr.",
+   "pos": "RB",
+   "college": "South Dakota State"
+  },
+  {
+   "name": "Jerrion Ealy",
+   "pos": "RB",
+   "college": "Ole Miss"
+  },
+  {
+   "name": "Jerome Ford",
+   "pos": "RB",
+   "college": "Cincinnati"
+  },
+  {
+   "name": "Leddie Brown",
+   "pos": "RB",
+   "college": "West Virginia"
+  },
+  {
+   "name": "Sincere McCormick",
+   "pos": "RB",
+   "college": "UTSA"
+  },
+  {
+   "name": "Abram Smith",
+   "pos": "RB",
+   "college": "Baylor"
+  },
+  {
+   "name": "Zonovan Knight",
+   "pos": "RB",
+   "college": "NC State"
+  },
+  {
+   "name": "Isiah Pacheco",
+   "pos": "RB",
+   "college": "Rutgers"
+  },
+  {
+   "name": "Tyler Goodson",
+   "pos": "RB",
+   "college": "Iowa"
+  },
+  {
+   "name": "Keaontay Ingram",
+   "pos": "RB",
+   "college": "USC"
+  },
+  {
+   "name": "Hassan Haskins",
+   "pos": "RB",
+   "college": "Michigan"
+  },
+  {
+   "name": "Ty Davis-Price",
+   "pos": "RB",
+   "college": "LSU"
+  },
+  {
+   "name": "Kennedy Brooks",
+   "pos": "RB",
+   "college": "Oklahoma"
+  },
+  {
+   "name": "Brian Robinson Jr.",
+   "pos": "RB",
+   "college": "Alabama"
+  },
+  {
+   "name": "Kevin Harris",
+   "pos": "RB",
+   "college": "South Carolina"
+  },
+  {
+   "name": "CJ Verdell",
+   "pos": "RB",
+   "college": "Oregon"
+  },
+  {
+   "name": "Master Teague",
+   "pos": "RB",
+   "college": "Ohio State"
+  },
+  {
+   "name": "Zamir White",
+   "pos": "RB",
+   "college": "Georgia"
+  },
+  {
+   "name": "D'vonte Price",
+   "pos": "RB",
+   "college": "FIU"
+  },
+  {
+   "name": "Zaquandre White",
+   "pos": "RB",
+   "college": "South Carolina"
+  },
+  {
+   "name": "Snoop Conner",
+   "pos": "RB",
+   "college": "Ole Miss"
+  },
+  {
+   "name": "Treylon Burks",
+   "pos": "WR",
+   "college": "Arkansas"
+  },
+  {
+   "name": "Drake London",
+   "pos": "WR",
+   "college": "USC"
+  },
+  {
+   "name": "Garrett Wilson",
+   "pos": "WR",
+   "college": "Ohio State"
+  },
+  {
+   "name": "Skyy Moore",
+   "pos": "WR",
+   "college": "Western Michigan"
+  },
+  {
+   "name": "Christian Watson",
+   "pos": "WR",
+   "college": "North Dakota State"
+  },
+  {
+   "name": "Alec Pierce",
+   "pos": "WR",
+   "college": "Cincinnati"
+  },
+  {
+   "name": "Jameson Williams",
+   "pos": "WR",
+   "college": "Alabama"
+  },
+  {
+   "name": "Chris Olave",
+   "pos": "WR",
+   "college": "Ohio State"
+  },
+  {
+   "name": "Wan'Dale Robinson",
+   "pos": "WR",
+   "college": "Kentucky"
+  },
+  {
+   "name": "David Bell",
+   "pos": "WR",
+   "college": "Purdue"
+  },
+  {
+   "name": "Kyle Phillips",
+   "pos": "WR",
+   "college": "UCLA"
+  },
+  {
+   "name": "Jahan Dotson",
+   "pos": "WR",
+   "college": "Penn State"
+  },
+  {
+   "name": "Calvin Austin III",
+   "pos": "WR",
+   "college": "Memphis"
+  },
+  {
+   "name": "George Pickens",
+   "pos": "WR",
+   "college": "Georgia"
+  },
+  {
+   "name": "Danny Gray",
+   "pos": "WR",
+   "college": "SMU"
+  },
+  {
+   "name": "Jalen Tolbert",
+   "pos": "WR",
+   "college": "South Alabama"
+  },
+  {
+   "name": "Velus Jones",
+   "pos": "WR",
+   "college": "Tennessee"
+  },
+  {
+   "name": "Khalil Shakir",
+   "pos": "WR",
+   "college": "Boise State"
+  },
+  {
+   "name": "Erik Ezukanma",
+   "pos": "WR",
+   "college": "Texas Tech"
+  },
+  {
+   "name": "John Metchie III",
+   "pos": "WR",
+   "college": "Alabama"
+  },
+  {
+   "name": "Tyquan Thornton",
+   "pos": "WR",
+   "college": "Baylor"
+  },
+  {
+   "name": "Isaiah Weston",
+   "pos": "WR",
+   "college": "Northern Iowa"
+  },
+  {
+   "name": "Charleston Rambo",
+   "pos": "WR",
+   "college": "Miami (FL)"
+  },
+  {
+   "name": "Justyn Ross",
+   "pos": "WR",
+   "college": "Clemson"
+  },
+  {
+   "name": "Jaivon Heiligh",
+   "pos": "WR",
+   "college": "Coastal Carolina"
+  },
+  {
+   "name": "Romeo Doubs",
+   "pos": "WR",
+   "college": "Nevada"
+  },
+  {
+   "name": "Reggie Roberson Jr.",
+   "pos": "WR",
+   "college": "SMU"
+  },
+  {
+   "name": "Bo Melton",
+   "pos": "WR",
+   "college": "Rutgers"
+  },
+  {
+   "name": "Kevin Austin Jr.",
+   "pos": "WR",
+   "college": "Notre Dame"
+  },
+  {
+   "name": "Dai'Jean Dixon",
+   "pos": "WR",
+   "college": "Nicholls State"
+  },
+  {
+   "name": "Samori Toure",
+   "pos": "WR",
+   "college": "Nebraska"
+  },
+  {
+   "name": "Makai Polk",
+   "pos": "WR",
+   "college": "Mississippi State"
+  },
+  {
+   "name": "Dontario Drummond",
+   "pos": "WR",
+   "college": "Ole Miss"
+  },
+  {
+   "name": "Slade Bolden",
+   "pos": "WR",
+   "college": "Alabama"
+  },
+  {
+   "name": "Jelani Woods",
+   "pos": "TE",
+   "college": "Virginia"
+  },
+  {
+   "name": "Greg Dulcich",
+   "pos": "TE",
+   "college": "UCLA"
+  },
+  {
+   "name": "Charlie Kolar",
+   "pos": "TE",
+   "college": "Iowa State"
+  },
+  {
+   "name": "Isaiah Likely",
+   "pos": "TE",
+   "college": "Coastal Carolina"
+  },
+  {
+   "name": "Trey McBride",
+   "pos": "TE",
+   "college": "Colorado State"
+  },
+  {
+   "name": "Jeremy Ruckert",
+   "pos": "TE",
+   "college": "Ohio State"
+  },
+  {
+   "name": "Jalen Wydermyer",
+   "pos": "TE",
+   "college": "Texas A&M"
+  }
+ ],
+ "not_buildable": [
+  {
+   "name": "Chris Oladokun",
+   "pos": "QB",
+   "reason": "drafted (South Dakota State) - not in the 2021-season PFF files (small school or no row)"
+  },
+  {
+   "name": "Montrell Washington",
+   "pos": "WR",
+   "reason": "drafted (Samford) - not in the 2021-season PFF files (small school or no row)"
+  },
+  {
+   "name": "Dareke Young",
+   "pos": "WR",
+   "reason": "drafted (Lenoir-Rhyne) - not in the 2021-season PFF files (small school or no row)"
+  },
+  {
+   "name": "Andrew Ogletree",
+   "pos": "TE",
+   "reason": "drafted (Youngstown State) - not in the 2021-season PFF files (small school or no row)"
+  },
+  {
+   "name": "Rashid Shaheed",
+   "pos": "WR",
+   "reason": "UDFA scorer (Weber State) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "KaVontae Turpin",
+   "pos": "WR",
+   "reason": "UDFA scorer (TCU) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Deon Jackson",
+   "pos": "RB",
+   "reason": "UDFA scorer (Duke) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Stone Smartt",
+   "pos": "TE",
+   "reason": "UDFA scorer (Old Dominion) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Julius Chestnut",
+   "pos": "RB",
+   "reason": "UDFA scorer (Sacred Heart) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Tanner Conner",
+   "pos": "TE",
+   "reason": "UDFA scorer (Idaho State) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Tucker Fisk",
+   "pos": "TE",
+   "reason": "UDFA scorer (Stanford) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Michael Strachan",
+   "pos": "WR",
+   "reason": "UDFA scorer (Charleston) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Irvin Charles",
+   "pos": "WR",
+   "reason": "UDFA scorer (Indiana (PA)) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Dennis Houston",
+   "pos": "WR",
+   "reason": "UDFA scorer (Western Illinois) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Maurice Alexander",
+   "pos": "WR",
+   "reason": "UDFA scorer (Florida International) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Jason Moore",
+   "pos": "WR",
+   "reason": "UDFA scorer (Findlay) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Nikola Kalinic",
+   "pos": "TE",
+   "reason": "UDFA scorer (York (CAN)) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Kaden Davis",
+   "pos": "WR",
+   "reason": "UDFA scorer (Northwest Missouri State) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Chris Evans",
+   "pos": "RB",
+   "reason": "UDFA scorer (Michigan) - not in the 2021-season PFF files"
+  },
+  {
+   "name": "Jacob Harris",
+   "pos": "WR",
+   "reason": "UDFA scorer (UCF) - not in the 2021-season PFF files"
+  }
+ ]
+}
