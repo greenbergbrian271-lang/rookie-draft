@@ -122,6 +122,29 @@ export default function InSeasonManagementPage() {
 
           <section className={styles.sectionBlock}>
             <div className={styles.sectionHeading}>
+              <div><div className={styles.sectionKicker}>Your teams</div><h2>League dashboard</h2><p>Track your redraft and guillotine leagues in one place.</p></div>
+            </div>
+            <div className={styles.leagueGrid}>
+              <article className={styles.leagueCard}>
+                <div className={styles.leagueTop}><span className={styles.statusDot} /><span className={styles.statusLabel}>Redraft</span><span className={styles.leagueSeason}>Sleeper</span></div>
+                <h3>Redraft League</h3><div className={styles.leagueMeta}><span>League ID · 1389753161815707648</span></div>
+                <p className={styles.leagueNote}>Lineup and weekly matchup decisions will be organized here.</p>
+              </article>
+              <article className={styles.leagueCard}>
+                <div className={styles.leagueTop}><span className={styles.statusDot} /><span className={styles.statusLabel}>Guillotine</span><span className={styles.leagueSeason}>Active team</span></div>
+                <h3>Guillotine League</h3><div className={styles.leagueMeta}><span>League ID · 1387508275846586368</span></div>
+                <p className={styles.leagueNote}>Weekly survival, waiver priorities, and roster risk will be highlighted here.</p>
+              </article>
+              <article className={styles.leagueCard}>
+                <div className={styles.leagueTop}><span className={styles.statusDot} /><span className={styles.statusLabel}>Guillotine</span><span className={styles.leagueSeason}>Eliminated</span></div>
+                <h3>Guillotine League · Season ended for your team</h3><div className={styles.leagueMeta}><span>League ID · 1399445627359797248</span></div>
+                <p className={styles.leagueWarning}>You’ve been eliminated from this league. This team will be excluded from active lineup and survival recommendations, while its results can remain available for review.</p>
+              </article>
+            </div>
+          </section>
+
+          <section className={styles.sectionBlock}>
+            <div className={styles.sectionHeading}>
               <div><div className={styles.sectionKicker}>Portfolio</div><h2>Your Sleeper leagues</h2><p>Connection and team ownership are checked against Sleeper. Recommendations remain gated until league settings and data sources are validated.</p></div>
               <Link href="/integrations" className={styles.textLink}>Manage integrations <ChevronRight size={15} /></Link>
             </div>
