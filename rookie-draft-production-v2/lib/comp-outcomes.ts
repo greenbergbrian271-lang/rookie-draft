@@ -19,8 +19,10 @@ function indexFor(db:Record<string,any>){
   }
   nameIndex={db,map};return map;
 }
+// spellings that differ between the scouting data and Sleeper
+const NAME_ALIASES=new Map<string,string>([[normName("Ty Davis-Price"),normName("Tyrion Davis-Price")],[normName("Kyle Phillips"),normName("Kyle Philips")]]);
 async function resolveIndexed(c:{name:string;position:string}){
-  const db=await loadPlayerDb(),matches=indexFor(db).get(normName(c.name));
+  const db=await loadPlayerDb(),idx=indexFor(db),k=normName(c.name),matches=idx.get(k)||idx.get(NAME_ALIASES.get(k)||"");
   if(!matches?.length)return null;
   const pos=String(c.position||"").toUpperCase();
   const score=(p:any)=>(pos&&p.position===pos?-1000:0)+(p.status==="Active"?-200:0)+(p.team?-100:0)+(Number(p.search_rank)||9999999)/100000;
