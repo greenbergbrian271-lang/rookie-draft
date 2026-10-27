@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw, ShieldCheck, Sparkles, TrendingUp, WalletCards } from "lucide-react";
 import styles from "./in-season-management.module.css";
