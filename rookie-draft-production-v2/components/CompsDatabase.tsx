@@ -38,6 +38,7 @@ function MatchList({data,byKey}:{data:Matches;byKey:Map<string,Player>}){
         <div><b>{p.name}</b> <span className="cdb-muted">{p.position} · {p.draftClass} · {p.college||"—"} · {pick(p.draftResult)}</span>{p.compOnly&&<span className="comp-flag">analytics-only</span>}</div>
         <OutcomeChips o={p.outcome} pos={p.position}/>
         {m.shared.length>0&&<div className="comp-chips">{m.shared.slice(0,3).map(x=><span key={x}>{x}</span>)}</div>}
+        <div className="cdb-evidence">{m.coverage}{m.difference?` · biggest gap: ${m.difference.label} (${data.target.name.split(" ").slice(-1)[0]} ${m.difference.target} vs ${p.name.split(" ").slice(-1)[0]} ${m.difference.comp})`:""}</div>
       </div>
       <div className="cdb-pct"><b>{m.matchPct}%</b><small>match</small></div>
     </div>})}
@@ -62,6 +63,7 @@ function ReverseList({data,min,setMin,byKey}:{data:Reverse;min:number;setMin:(n:
         <div><b>{h.name}</b> <span className="cdb-muted">{h.position} · {h.draftClass} · {h.college||"—"}{p?` · ${pick(p.draftResult)}`:""}</span>{h.source==="prospect"?<span className="cdb-prospect">prospect</span>:h.compOnly&&<span className="comp-flag">analytics-only</span>}</div>
         {p?<OutcomeChips o={p.outcome} pos={p.position}/>:<span className="cdb-muted">{h.draftClass} class prospect</span>}
         {h.shared.length>0&&<div className="comp-chips">{h.shared.slice(0,3).map(x=><span key={x}>{x}</span>)}</div>}
+        <div className="cdb-evidence">{h.coverage}{h.difference?` · biggest gap: ${h.difference.label} (${h.name.split(" ").slice(-1)[0]} ${h.difference.target} vs ${data.target.name.split(" ").slice(-1)[0]} ${h.difference.comp})`:""}</div>
       </div>
       <div className="cdb-pct"><b>{h.matchPct}%</b><small>match</small></div>
     </div>})}
