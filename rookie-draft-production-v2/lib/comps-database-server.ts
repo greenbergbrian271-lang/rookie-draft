@@ -1,7 +1,7 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
-import {findComps,findCompsForKey,poolSummary,type CompMatch,type CompResult,type PoolSummary} from "@/lib/player-comps";
+import {findComps,findCompsForKey,findReverseForKey,poolSummary,type CompMatch,type CompResult,type PoolSummary,type ReverseHit} from "@/lib/player-comps";
 import {loadOutcome,type Outcome} from "@/lib/comp-outcomes";
-import {loadTarget,loadWeights} from "@/lib/player-comps-server";
+import {loadProspectTargets,loadTarget,loadWeights} from "@/lib/player-comps-server";
 
 /** Slim outcome for the list view (full season detail stays on the player cards). */
 export type SlimOutcome={status:Outcome["status"];tier:Outcome["tier"];earlyCareer:boolean;best:Outcome["best"];top12:number;top24:number;seasonsCount:number;careerGp:number;careerPpg:number|null;sleeperId:string|null;teamAbbr:string|null;nfl:string|null};
@@ -49,4 +49,15 @@ export async function buildMatches(input:{key?:string|null;playerId?:string|null
     return respond({name:t.name,position:t.position,draftClass:t.draftClass,key:null},findComps(t,{limit:1000,weights}));
   }
   return null;
+}
+
+export type ReverseResponse={target:{key:string;name:string;position:string;draftClass:number};floor:number;prospectsIncluded:number;hits:ReverseHit[]};
+/** Later-class players (pool + 2027+ prospects) that this pool player would show up as a comp for, at or above the floor. The UI filters by the user's threshold. */
+export async function buildReverse(key:string,floor:number):Promise<ReverseResponse|null>{
+  const p=poolSummary().find(x=>x.key===key);
+  if(!p)return null;
+  const [weights,prospects]=await Promise.all([loadWeights(),loadProspectTargets().catch(()=>[])]);
+  const hits=findReverseForKey(key,{minPct:floor,weights,extraTargets:prospects});
+  if(!hits)return null;
+  return {target:{key:p.key,name:p.name,position:p.position,draftClass:p.draftClass},floor,prospectsIncluded:prospects.filter(t=>t.position===p.position&&t.draftClass>p.draftClass).length,hits};
 }

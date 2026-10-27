@@ -7,10 +7,13 @@ type Player={key:string;name:string;college:string|null;draftClass:number;positi
 type Prospect={id:string;name:string;position:string;college:string|null;draftClass:number};
 type Match={key:string;matchPct:number;shared:string[];difference:{label:string;target:string;comp:string}|null;coverage:string;compOnly:boolean};
 type Matches={target:{name:string;position:string;draftClass:number;key:string|null};confidence:string;note:string|null;poolSize:number;candidates:Match[]};
+type Hit={targetKey:string|null;name:string;college:string|null;draftClass:number;position:string;source:"pool"|"prospect";matchPct:number;shared:string[];difference:{label:string;target:string;comp:string}|null;coverage:string;compOnly:boolean};
+type Reverse={target:{key:string;name:string;position:string;draftClass:number};floor:number;prospectsIncluded:number;hits:Hit[]};
 
 const pick=(r:string|null)=>r?r.replace(/^(\d+)\.(\d+),\s*/,"Rd $1, pick $2 · "):"Draft result n/a";
 const GROUPS:Record<string,string>={meas:"measurables",prod:"production",anal:"analytics",skill:"scouting ratings",grade:"grades"};
 const tierOf=(o:Outcome|null)=>!o||o.status!=="ok"?"No NFL stats":o.earlyCareer?"Early career":String(o.tier);
+const DEFAULT_MIN=70;
 
 function OutcomeChips({o,pos}:{o:Outcome|null;pos:string}){
   if(!o||o.status!=="ok")return <span className="cdb-muted">{o?.status==="unavailable"?"NFL outcome unavailable":"No NFL stats found"}</span>;
@@ -21,6 +24,7 @@ function OutcomeChips({o,pos}:{o:Outcome|null;pos:string}){
     {o.nfl&&<span className="cdb-muted">{o.nfl}</span>}</span>;
 }
 
+/** Earlier-class players a target could be comped to (ranked). */
 function MatchList({data,byKey}:{data:Matches;byKey:Map<string,Player>}){
   const [all,setAll]=useState(false);
   const list=all?data.candidates:data.candidates.slice(0,25);
@@ -41,10 +45,35 @@ function MatchList({data,byKey}:{data:Matches;byKey:Map<string,Player>}){
   </div>;
 }
 
+/** Later-class players (and 2027+ prospects) who remind you of the open player, at or above the chosen minimum match. */
+function ReverseList({data,min,setMin,byKey}:{data:Reverse;min:number;setMin:(n:number)=>void;byKey:Map<string,Player>}){
+  const [all,setAll]=useState(false);
+  const hits=data.hits.filter(h=>h.matchPct>=min),list=all?hits:hits.slice(0,25);
+  return <div className="cdb-matches">
+    <div className="cdb-thr">
+      <label>Minimum match <input type="number" min={50} max={95} step={5} value={min} onChange={e=>setMin(Math.max(50,Math.min(95,Math.round(Number(e.target.value)||DEFAULT_MIN))))}/>%</label>
+      <span className="cdb-muted"><b>{hits.length}</b> later-class {hits.length===1?"player reminds":"players remind"} you of {data.target.name}{data.prospectsIncluded?` (includes ${data.prospectsIncluded} prospects from 2027+)`:""}</span>
+    </div>
+    {!hits.length&&<p className="cdb-muted">{data.target.draftClass>=2026&&!data.prospectsIncluded?"No later classes in the pool yet.":"No one clears that minimum. Try lowering it."}</p>}
+    {list.map((h,i)=>{const p=h.targetKey?byKey.get(h.targetKey):undefined;return <div className="cdb-match" key={(h.targetKey||h.name)+i}>
+      <span className="cdb-rank">{i+1}</span>
+      <Headshot id={p?.outcome?.sleeperId} name={h.name} size={36}/>
+      <div className="cdb-match-main">
+        <div><b>{h.name}</b> <span className="cdb-muted">{h.position} · {h.draftClass} · {h.college||"—"}{p?` · ${pick(p.draftResult)}`:""}</span>{h.source==="prospect"?<span className="cdb-prospect">prospect</span>:h.compOnly&&<span className="comp-flag">analytics-only</span>}</div>
+        {p?<OutcomeChips o={p.outcome} pos={p.position}/>:<span className="cdb-muted">{h.draftClass} class prospect</span>}
+        {h.shared.length>0&&<div className="comp-chips">{h.shared.slice(0,3).map(x=><span key={x}>{x}</span>)}</div>}
+      </div>
+      <div className="cdb-pct"><b>{h.matchPct}%</b><small>match</small></div>
+    </div>})}
+    {hits.length>25&&<button className="ghost small" onClick={()=>setAll(!all)}>{all?"Show top 25 only":`Show all ${hits.length}`}</button>}
+  </div>;
+}
+
 export default function CompsDatabase(){
   const [db,setDb]=useState<{players:Player[];prospects:Prospect[];classes:number[]}|null>(null),[error,setError]=useState("");
   const [q,setQ]=useState(""),[pos,setPos]=useState("All"),[cls,setCls]=useState("All"),[profile,setProfile]=useState("All"),[tier,setTier]=useState("All"),[sort,setSort]=useState("class"),[shown,setShown]=useState(40);
-  const [open,setOpen]=useState<string|null>(null),[matches,setMatches]=useState<Matches|null>(null),[mLoading,setMLoading]=useState(false),[mError,setMError]=useState("");
+  const [open,setOpen]=useState<string|null>(null),[mode,setMode]=useState<"reverse"|"forward">("reverse"),[min,setMin]=useState(DEFAULT_MIN);
+  const [rev,setRev]=useState<Reverse|null>(null),[fwd,setFwd]=useState<Matches|null>(null),[busy,setBusy]=useState(false),[mError,setMError]=useState("");
   const [pq,setPq]=useState(""),[pMatches,setPMatches]=useState<Matches|null>(null),[pLoading,setPLoading]=useState(false);
   useEffect(()=>{fetch("/api/comps-database").then(r=>r.json()).then(j=>{if(j.error)throw new Error(j.error);setDb(j)}).catch(e=>setError(String(e?.message||e)))},[]);
   const byKey=useMemo(()=>new Map((db?.players||[]).map(p=>[p.key,p] as [string,Player])),[db]);
@@ -56,29 +85,27 @@ export default function CompsDatabase(){
     return rows.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):sort==="best"?rank(a)-rank(b)||a.name.localeCompare(b.name):sort==="ppg"?(b.outcome?.careerPpg??-1)-(a.outcome?.careerPpg??-1):b.draftClass-a.draftClass||(a.overall??999)-(b.overall??999)||a.name.localeCompare(b.name));
   },[db,q,pos,cls,profile,tier,sort]);
   useEffect(()=>setShown(40),[q,pos,cls,profile,tier,sort]);
-  async function loadMatches(url:string,set:(m:Matches|null)=>void,busy:(b:boolean)=>void){
-    busy(true);setMError("");
-    try{const r=await fetch(url),j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not load comps");set(j)}catch(e:any){setMError(String(e?.message||e));set(null)}finally{busy(false)}
+  async function get(url:string){const r=await fetch(url),j=await r.json();if(!r.ok)throw new Error(j?.error||"Could not load");return j}
+  async function load(key:string,m:"reverse"|"forward"){
+    setBusy(true);setMError("");
+    try{
+      if(m==="reverse"){setRev(await get("/api/comps-database/reverse?key="+encodeURIComponent(key)+"&min=50"))}
+      else setFwd(await get("/api/comps-database/matches?key="+encodeURIComponent(key)));
+    }catch(e:any){setMError(String(e?.message||e))}finally{setBusy(false)}
   }
   function toggle(p:Player){
-    if(open===p.key){setOpen(null);setMatches(null);return}
-    setOpen(p.key);setMatches(null);void loadMatches("/api/comps-database/matches?key="+encodeURIComponent(p.key),setMatches,setMLoading);
+    if(open===p.key){setOpen(null);return}
+    setOpen(p.key);setRev(null);setFwd(null);setMode("reverse");void load(p.key,"reverse");
   }
+  function switchMode(key:string,m:"reverse"|"forward"){setMode(m);if(m==="reverse"?!rev:!fwd)void load(key,m)}
   const suggestions=useMemo(()=>{const n=pq.trim().toLowerCase();return n.length<2||!db?[]:db.prospects.filter(p=>p.name.toLowerCase().includes(n)).slice(0,8)},[pq,db]);
   if(error)return <section className="cdb-panel"><p className="cdb-muted">{error}</p></section>;
   if(!db)return <section className="cdb-panel"><p className="cdb-muted">Loading the comp pool and NFL outcomes… (the first load can take a few seconds)</p></section>;
   const counts=`${db.players.length} players · ${db.players.filter(p=>!p.compOnly).length} scouted · ${db.players.filter(p=>p.compOnly).length} analytics-only`;
   return <div className="cdb">
     <section className="cdb-panel">
-      <h2>Find comps for a prospect</h2>
-      <p className="cdb-muted">Search any {db.prospects.length?`${db.prospects.length} `:""}prospect from the 2027+ classes to see every player in the pool he could be comped to, ranked.</p>
-      <input className="cdb-search" placeholder="Search a prospect…" value={pq} onChange={e=>setPq(e.target.value)}/>
-      {suggestions.length>0&&<div className="cdb-suggest">{suggestions.map(s=><button key={s.id} onClick={()=>{setPq(s.name);setPMatches(null);void loadMatches("/api/comps-database/matches?playerId="+encodeURIComponent(s.id),setPMatches,setPLoading)}}><b>{s.name}</b><span className="cdb-muted">{s.position} · {s.college||"—"} · {s.draftClass}</span></button>)}</div>}
-      {pLoading&&<p className="cdb-muted">Finding comps…</p>}
-      {pMatches&&<MatchList data={pMatches} byKey={byKey}/>}
-    </section>
-    <section className="cdb-panel">
       <div className="cdb-head"><h2>Comp pool</h2><span className="cdb-muted">{counts}</span></div>
+      <p className="cdb-muted">Every player who can be used as a comp. If someone isn&apos;t listed here, he can&apos;t be matched. Open a player to see who reminds you of him from later classes, or who he could be comped to from earlier ones.</p>
       <div className="cdb-filters">
         <input className="cdb-search" placeholder="Search name or school…" value={q} onChange={e=>setQ(e.target.value)}/>
         <select value={pos} onChange={e=>setPos(e.target.value)}><option>All</option>{["QB","RB","WR","TE"].map(x=><option key={x}>{x}</option>)}</select>
@@ -87,7 +114,7 @@ export default function CompsDatabase(){
         <select value={tier} onChange={e=>setTier(e.target.value)}><option value="All">Any outcome</option>{["Elite","Starter","Flex","Miss","Early career","No NFL stats"].map(x=><option key={x}>{x}</option>)}</select>
         <select value={sort} onChange={e=>setSort(e.target.value)}><option value="class">Sort: newest class</option><option value="name">Sort: name</option><option value="best">Sort: best finish</option><option value="ppg">Sort: career PPG</option></select>
       </div>
-      <p className="cdb-muted">{filtered.length} shown. A player can only be comped to players from earlier classes, so the 2022 class has no comps of its own.</p>
+      <p className="cdb-muted">{filtered.length} shown.</p>
       <div className="cdb-list">
         {filtered.slice(0,shown).map(p=><div className={"cdb-row"+(open===p.key?" open":"")} key={p.key}>
           <button className="cdb-row-main" onClick={()=>toggle(p)} aria-expanded={open===p.key}>
@@ -102,14 +129,27 @@ export default function CompsDatabase(){
           {open===p.key&&<div className="cdb-detail">
             <div className="comp-chips">{Object.entries(p.coverage).filter(([,n])=>n>0).map(([g,n])=><span key={g}>{n} {GROUPS[g]}</span>)}{p.hasNotes&&<span>scouting notes</span>}</div>
             <p className="cdb-muted">{p.featureCount} data points{p.compOnly?" · no scouting profile (analytics only)":""}</p>
-            {mLoading&&<p className="cdb-muted">Finding comps…</p>}
+            <div className="cdb-seg" role="tablist">
+              <button className={mode==="reverse"?"active":""} onClick={()=>switchMode(p.key,"reverse")}>Reminds me of him<small>later classes</small></button>
+              <button className={mode==="forward"?"active":""} onClick={()=>switchMode(p.key,"forward")}>He could be comped to<small>earlier classes</small></button>
+            </div>
+            {busy&&<p className="cdb-muted">Finding comps…</p>}
             {mError&&<p className="profile-transfer-error">{mError}</p>}
-            {matches&&<MatchList data={matches} byKey={byKey}/>}
+            {mode==="reverse"&&rev&&rev.target.key===p.key&&<ReverseList data={rev} min={min} setMin={setMin} byKey={byKey}/>}
+            {mode==="forward"&&fwd&&fwd.target.key===p.key&&(fwd.candidates.length?<MatchList data={fwd} byKey={byKey}/>:<p className="cdb-muted">{fwd.note||"No earlier classes to compare against."}</p>)}
           </div>}
         </div>)}
-        {!filtered.length&&<p className="cdb-muted">No players match those filters.</p>}
+        {!filtered.length&&<p className="cdb-muted">{q.trim()?`“${q.trim()}” isn’t in the comp pool with those filters. A player needs college data (a scouting profile or PFF stats) to be used as a comp.`:"No players match those filters."}</p>}
       </div>
       {filtered.length>shown&&<button className="ghost small" onClick={()=>setShown(shown+60)}>Show 60 more</button>}
+    </section>
+    <section className="cdb-panel">
+      <h2>Find comps for a prospect</h2>
+      <p className="cdb-muted">Search any of the {db.prospects.length} prospects in the 2027+ classes to see every player in the pool he could be comped to, ranked.</p>
+      <input className="cdb-search" placeholder="Search a prospect…" value={pq} onChange={e=>setPq(e.target.value)}/>
+      {suggestions.length>0&&<div className="cdb-suggest">{suggestions.map(s=><button key={s.id} onClick={()=>{setPq(s.name);setPMatches(null);setPLoading(true);void get("/api/comps-database/matches?playerId="+encodeURIComponent(s.id)).then(setPMatches).catch(e=>setMError(String(e?.message||e))).finally(()=>setPLoading(false))}}><b>{s.name}</b><span className="cdb-muted">{s.position} · {s.college||"—"} · {s.draftClass}</span></button>)}</div>}
+      {pLoading&&<p className="cdb-muted">Finding comps…</p>}
+      {pMatches&&<MatchList data={pMatches} byKey={byKey}/>}
     </section>
   </div>;
 }

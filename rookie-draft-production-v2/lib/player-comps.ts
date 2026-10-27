@@ -319,6 +319,29 @@ export function findCompsForKey(key:string,opts:MatchOpts={}):CompResult|null{
   return matchPool({position:e.position,draftClass:e.draftClass,targetKey:e.key,targetRaw:e.raw,targetVec:e.notesChars>=NOTE_MIN_CHARS?vec(e.tokens):null},opts);
 }
 
+export type ReverseHit={targetKey:string|null;name:string;college:string|null;draftClass:number;position:Pos;source:"pool"|"prospect";matchPct:number;shared:string[];difference:CompMatch["difference"];coverage:string;compOnly:boolean};
+
+/** Players from LATER classes (pool players, plus any extra prospects passed in) for whom the given pool player shows up as a comp at or above minPct. */
+export function findReverseForKey(key:string,opts:{minPct:number;weights?:Weights;extraTargets?:(CompTarget&{id?:string})[]}):ReverseHit[]|null{
+  const me=getPool().find(p=>p.key===key);
+  if(!me)return null;
+  const hits:ReverseHit[]=[];
+  const consider=(t:{targetKey:string|null;name:string;college:string|null;draftClass:number;source:ReverseHit["source"];compOnly:boolean},r:CompResult)=>{
+    const m=r.candidates.find(c=>c.key===key);
+    if(m&&m.matchPct>=opts.minPct)hits.push({...t,position:me.position,matchPct:m.matchPct,shared:m.shared,difference:m.difference,coverage:m.coverage});
+  };
+  for(const t of getPool()){
+    if(t.position!==me.position||t.draftClass<=me.draftClass)continue;
+    consider({targetKey:t.key,name:t.name,college:t.college,draftClass:t.draftClass,source:"pool",compOnly:!!t.compOnly},
+      matchPool({position:t.position,draftClass:t.draftClass,targetKey:t.key,targetRaw:t.raw,targetVec:t.notesChars>=NOTE_MIN_CHARS?vec(t.tokens):null},{limit:5000,weights:opts.weights}));
+  }
+  for(const t of opts.extraTargets||[]){
+    if(t.position!==me.position||t.draftClass<=me.draftClass)continue;
+    consider({targetKey:null,name:t.name,college:t.college||null,draftClass:t.draftClass,source:"prospect",compOnly:false},findComps(t,{limit:5000,weights:opts.weights}));
+  }
+  return hits.sort((a,b)=>b.matchPct-a.matchPct);
+}
+
 export type PoolSummary={key:string;name:string;college:string|null;draftClass:number;position:Pos;draftResult:string|null;overall:number|null;compOnly:boolean;hasNotes:boolean;coverage:Record<Group,number>;featureCount:number};
 export function poolSummary():PoolSummary[]{
   return getPool().map(e=>{

@@ -39,12 +39,15 @@ export async function saveOverride(targetKey:string,action:"pin"|"exclude"|"clea
   await q.execute({sql:"insert into settings(key,value,updated_at) values(?,?,?) on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at",args:[OVERRIDE_KEY,JSON.stringify(all),new Date().toISOString()]});
 }
 
-async function boardRowFor(playerId:string,draftClass:number){
+async function boardRows(draftClass:number):Promise<any[]>{
   try{
     const r=await getFinalBoard(new Request("http://internal/api/final-board/live?view=base&draftClass="+encodeURIComponent(String(draftClass))));
     const j=await r.json();
-    return r.ok&&Array.isArray(j?.rows)?j.rows.find((x:any)=>String(x.id)===String(playerId)):null;
-  }catch{return null}
+    return r.ok&&Array.isArray(j?.rows)?j.rows:[];
+  }catch{return []}
+}
+async function boardRowFor(playerId:string,draftClass:number){
+  return (await boardRows(draftClass)).find((x:any)=>String(x.id)===String(playerId))||null;
 }
 
 // Live stats, measurables and analytics live in the player-data rows (same source the card's Production/Analytics tabs use)
@@ -127,4 +130,44 @@ export async function buildComps(playerId:string):Promise<CompsResponse|null>{
   const moreRaw=result.candidates.filter(c=>!shown.has(c.key)).slice(0,6);
   const more=await Promise.all(moreRaw.map(async c=>{const h=await resolveHeadshot({name:c.name,position:c.position});return {...c,sleeperId:h?.sleeperId??null,teamAbbr:h?.teamAbbr??null}}));
   return {...base,cards,more,excluded:excludedNames};
+}
+
+export type ProspectTarget=CompTarget&{id:string};
+let prospectMemo:{at:number;targets:ProspectTarget[]}|null=null;
+/** All 2027+ prospects as comp targets, loaded in bulk (a handful of queries instead of one round trip per player). Cached 15 minutes. */
+export async function loadProspectTargets():Promise<ProspectTarget[]>{
+  if(prospectMemo&&Date.now()-prospectMemo.at<15*60*1000)return prospectMemo.targets;
+  const q=await ensureTursoSchema();
+  const players=rows(await q.execute("select id,name,position,college,draft_class from players where draft_class>=2027 and position in ('QB','RB','WR','TE')")) as any[];
+  if(!players.length)return [];
+  const ids=players.map(p=>String(p.id)),ph=ids.map(()=>"?").join(",");
+  const [evalRows,sessionRows]=await Promise.all([
+    q.execute({sql:`select player_id,category,value,commentary from evaluations where player_id in (${ph})`,args:ids}).then(rows) as Promise<any[]>,
+    q.execute({sql:`select player_id,raw_notes,overall_writeup from scouting_sessions where player_id in (${ph})`,args:ids}).then(rows) as Promise<any[]>,
+  ]);
+  const combos=[...new Set(players.map(p=>`${p.position}:${p.draft_class}`))],classes=[...new Set(players.map(p=>Number(p.draft_class)))];
+  const dataByCombo=new Map<string,any[]>(),boardByClass=new Map<number,any[]>();
+  await Promise.all([
+    ...combos.map(async c=>{
+      const [pos,cls]=c.split(":");
+      try{const r=await getPlayerData(new Request("http://internal/api/player-data?position="+pos+"&draftClass="+cls)),j=await r.json();dataByCombo.set(c,r.ok&&Array.isArray(j?.rows)?j.rows:[])}catch{dataByCombo.set(c,[])}
+    }),
+    ...classes.map(async c=>{boardByClass.set(c,await boardRows(c))}),
+  ]);
+  const targets:ProspectTarget[]=players.map(p=>{
+    const id=String(p.id),cls=Number(p.draft_class),position=p.position as Pos;
+    const evals=evalRows.filter(e=>String(e.player_id)===id) as any[];
+    const row=(dataByCombo.get(`${position}:${cls}`)||[]).find((x:any)=>playerNameKey(x?.Player)===playerNameKey(String(p.name)));
+    const dataEvals:EvalRow[]=row?Object.entries(row).filter(([k,v])=>k!=="Player"&&v!=null&&String(v).trim()!==""&&String(v).length<40).map(([k,v])=>({category:k,value:v as any})):[];
+    const have=new Set(evals.map(e=>String(e.category)));
+    const board=(boardByClass.get(cls)||[]).find((x:any)=>String(x.id)===id);
+    const grades:Record<string,unknown>={};
+    if(board?.scoutingGrade!=null)grades["Scouting Grade"]=board.scoutingGrade;
+    if(board?.analyticalGrade!=null)grades["Analytical Grade"]=board.analyticalGrade;
+    const legacy=String(evals.find(e=>String(e.category)==="__COMMENTARY__")?.value??"");
+    const notes=[legacy,...sessionRows.filter(s2=>String(s2.player_id)===id).map(s2=>[s2.raw_notes,s2.overall_writeup].filter(Boolean).join("\n"))].filter(Boolean).join("\n\n");
+    return {id,name:String(p.name),position,draftClass:cls,college:p.college,evaluations:[...(evals as EvalRow[]),...dataEvals.filter(r=>!have.has(String(r.category)))],grades,notes};
+  });
+  prospectMemo={at:Date.now(),targets};
+  return targets;
 }
