@@ -304,16 +304,36 @@ const MISSING_PRIOR=.4;
 const GROUP_LABEL:Record<Group|"notes",string>={meas:"measurables",prod:"production",anal:"analytics",skill:"scouting ratings",grade:"grades",notes:"notes"};
 const minShared=(count:number)=>Math.min(count,Math.max(2,Math.ceil(count*.4)));
 
-export function findComps(target:CompTarget,opts:{limit?:number;excludeKeys?:Set<string>;weights?:Weights}={}):CompResult{
-  const GROUP_WEIGHT=opts.weights?normalizeWeights(opts.weights):DEFAULT_WEIGHTS;
-  const position=target.position,specs=SPECS[position];
-  const targetRaw=extract(position,target.evaluations,target.grades);
-  const targetKey=compKey(target.draftClass,position,target.name);
-  const targetFeatureCount=Object.values(targetRaw).filter(v=>v!=null).length;
-  const notesText=String(target.notes||"");
-  const targetVec=notesText.length>=NOTE_MIN_CHARS?vec(tokens(notesText)):null;
+type MatchOpts={limit?:number;excludeKeys?:Set<string>;weights?:Weights};
+type MatchInput={position:Pos;draftClass:number;targetKey:string;targetRaw:Record<string,number|null>;targetVec:ReturnType<typeof vec>|null};
 
-  const pool=getPool().filter(e=>e.position===position&&e.draftClass<target.draftClass&&e.key!==targetKey&&!opts.excludeKeys?.has(e.key));
+export function findComps(target:CompTarget,opts:MatchOpts={}):CompResult{
+  const position=target.position,notesText=String(target.notes||"");
+  return matchPool({position,draftClass:target.draftClass,targetKey:compKey(target.draftClass,position,target.name),targetRaw:extract(position,target.evaluations,target.grades),targetVec:notesText.length>=NOTE_MIN_CHARS?vec(tokens(notesText)):null},opts);
+}
+
+/** Comps for a player who is already in the comp pool (used by the Comps Database). Same engine, same weights. */
+export function findCompsForKey(key:string,opts:MatchOpts={}):CompResult|null{
+  const e=getPool().find(p=>p.key===key);
+  if(!e)return null;
+  return matchPool({position:e.position,draftClass:e.draftClass,targetKey:e.key,targetRaw:e.raw,targetVec:e.notesChars>=NOTE_MIN_CHARS?vec(e.tokens):null},opts);
+}
+
+export type PoolSummary={key:string;name:string;college:string|null;draftClass:number;position:Pos;draftResult:string|null;overall:number|null;compOnly:boolean;hasNotes:boolean;coverage:Record<Group,number>;featureCount:number};
+export function poolSummary():PoolSummary[]{
+  return getPool().map(e=>{
+    const coverage={meas:0,prod:0,anal:0,skill:0,grade:0} as Record<Group,number>;
+    for(const f of SPECS[e.position])if(e.raw[f.id]!=null)coverage[f.group]++;
+    return {key:e.key,name:e.name,college:e.college,draftClass:e.draftClass,position:e.position,draftResult:e.draftResult,overall:e.overall,compOnly:!!e.compOnly,hasNotes:e.notesChars>=NOTE_MIN_CHARS,coverage,featureCount:Object.values(coverage).reduce((a,b)=>a+b,0)};
+  });
+}
+
+function matchPool(t:MatchInput,opts:MatchOpts):CompResult{
+  const GROUP_WEIGHT=opts.weights?normalizeWeights(opts.weights):DEFAULT_WEIGHTS;
+  const {position,targetRaw,targetKey,targetVec}=t,specs=SPECS[position];
+  const targetFeatureCount=Object.values(targetRaw).filter(v=>v!=null).length;
+
+  const pool=getPool().filter(e=>e.position===position&&e.draftClass<t.draftClass&&e.key!==targetKey&&!opts.excludeKeys?.has(e.key));
   if(!pool.length)return {position,poolSize:0,candidates:[],targetFeatureCount,confidence:"None",note:"No earlier scouted classes to compare against."};
   if(targetFeatureCount<4)return {position,poolSize:pool.length,candidates:[],targetFeatureCount,confidence:"None",note:"Not enough data on this player yet to find a comp."};
 
