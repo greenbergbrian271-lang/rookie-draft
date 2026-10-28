@@ -725,3 +725,24 @@
   .comp-head{flex-direction:column;gap:8px}
   .comp-cards{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Comps Database */
+.cdb{display:grid;gap:18px;max-width:100%}.cdb-panel{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);min-width:0}.cdb-panel h2{margin:0 0 4px}
+.cdb-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}.cdb-muted{color:#8fa7c8;font-size:12px}
+.cdb-search{width:100%;margin:8px 0}.cdb-filters{display:grid;grid-template-columns:2fr repeat(5,minmax(0,1fr));gap:8px;align-items:center}.cdb-filters .cdb-search{margin:0}.cdb-filters select{min-width:0}
+.cdb-suggest{display:grid;gap:4px;margin-bottom:8px}.cdb-suggest button{display:flex;justify-content:space-between;gap:10px;text-align:left;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:inherit;cursor:pointer}
+.cdb-list{display:grid;gap:8px;margin:10px 0}.cdb-row{border:1px solid var(--line);border-radius:12px;background:var(--panel2);min-width:0}.cdb-row.open{border-color:#3b5b86}
+.cdb-row-main{display:flex;gap:12px;align-items:center;width:100%;padding:10px 12px;background:none;border:0;color:inherit;text-align:left;cursor:pointer;min-width:0}
+.cdb-row-text{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;overflow-wrap:anywhere}.cdb-chevron{font-size:20px;color:#8fa7c8;flex:none}
+.cdb-outcome{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12px}
+.cdb-scouted{margin-left:8px;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:5px;background:#14402f;color:#5fd4a0}.cdb-row-text .comp-flag{margin-left:8px;display:inline-block}
+.comp-tier.early-career{background:#243656;color:#8fa7c8}.comp-tier.no-nfl-stats{background:#243656;color:#8fa7c8}
+.cdb-detail{padding:0 12px 12px;display:grid;gap:8px}
+.cdb-matches{display:grid;gap:8px;margin-top:6px}.cdb-matches-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cdb-match{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#0c1d35;min-width:0}.cdb-match-main{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;overflow-wrap:anywhere}
+.cdb-rank{flex:none;width:22px;color:#8fa7c8;font-size:12px;font-weight:800;padding-top:8px}.cdb-pct{flex:none;text-align:right;line-height:1}.cdb-pct b{font-size:20px;color:var(--cyan)}.cdb-pct small{display:block;font-size:10px;color:#8fa7c8;margin-top:2px}
+@media(max-width:760px){.cdb-filters{grid-template-columns:1fr 1fr}.cdb-filters .cdb-search{grid-column:1/-1}.cdb-panel{padding:12px}.cdb-match{padding:8px}}
+.cdb-seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}.cdb-seg button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:inherit;font-weight:800;text-align:left;cursor:pointer;min-width:0}.cdb-seg button small{font-weight:600;color:#8fa7c8;font-size:11px}.cdb-seg button.active{border-color:var(--cyan);background:#0e2a4a}
+.cdb-thr{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.cdb-thr label{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px}.cdb-thr input{width:64px;text-align:right}
+.cdb-prospect{margin-left:8px;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:5px;background:#3a2f12;color:#f0c35a}
+.cdb-evidence{font-size:11px;color:#6f87aa;line-height:1.35}
