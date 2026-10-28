@@ -31,6 +31,7 @@ const checks=[
   ["app/api/comps-database/reverse/route.ts",/buildReverse/,"comps database: later-class players that remind you of a pool player"],
   ["components/CompsDatabase.tsx",/DEFAULT_MIN=70/,"reverse-match minimum defaults to 70% (adjustable)"],
   ["lib/player-comps-server.ts",/loadProspectTargets/,"2027+ prospects load in bulk for reverse matching"],
+  ["lib/player-comps.ts",/LOWER_IS_BETTER=new Set\(\["drop","twp","int_rate","forty"\]\)/,"comp trait labels treat a lower 40-yard dash as better"],
   ["lib/comp-outcomes.ts",/pass_yd:\.04.*rec:1/,"player comp outcomes score standard PPR"],
   ["app/api/player-comps/route.ts",/saveOverride/,"player comp pin/exclude overrides"],
   ["components/PlayerProfile.tsx",/tab==="Pro Comps"&&<div className="profile-pane"><PlayerComps/,"Pro Comps tab on the player card"],

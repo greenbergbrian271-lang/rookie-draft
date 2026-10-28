@@ -304,6 +304,16 @@ const MISSING_PRIOR=.4;
 const GROUP_LABEL:Record<Group|"notes",string>={meas:"measurables",prod:"production",anal:"analytics",skill:"scouting ratings",grade:"grades",notes:"notes"};
 const minShared=(count:number)=>Math.min(count,Math.max(2,Math.ceil(count*.4)));
 
+/** Stats where a LOWER number is better (a fast 40 is a low time). */
+const LOWER_IS_BETTER=new Set(["drop","twp","int_rate","forty"]);
+/** Size/speed measurables are descriptive, not good/bad, so they get plain wording instead of Strong/Weak. [high, low] */
+const TRAIT_WORDS:Record<string,[string,string]>={height:["Above-average height","Below-average height"],weight:["Above-average weight","Below-average weight"],bmi:["High BMI","Low BMI"],forty:["Slow 40-yard dash","Fast 40-yard dash"]};
+function traitLabel(spec:FeatureSpec,high:boolean){
+  const words=TRAIT_WORDS[spec.id];
+  if(words)return high?words[0]:words[1];
+  return `${(high!==LOWER_IS_BETTER.has(spec.id))?"Strong":"Weak"} ${spec.label.toLowerCase()}`;
+}
+
 type MatchOpts={limit?:number;excludeKeys?:Set<string>;weights?:Weights};
 type MatchInput={position:Pos;draftClass:number;targetKey:string;targetRaw:Record<string,number|null>;targetVec:ReturnType<typeof vec>|null};
 
@@ -396,11 +406,7 @@ function matchPool(t:MatchInput,opts:MatchOpts):CompResult{
 
     const shared=diffs.filter(d=>Math.abs(d.zt)>=.8&&Math.abs(d.zc)>=.8&&Math.sign(d.zt)===Math.sign(d.zc)&&Math.abs(d.zt-d.zc)<=.6)
       .sort((a,b)=>(Math.abs(b.zt)+Math.abs(b.zc))-(Math.abs(a.zt)+Math.abs(a.zc))).slice(0,4)
-      .map(d=>{
-        const neg=d.spec.id==="drop"||d.spec.id==="twp"||d.spec.id==="int_rate";
-        const high=d.zt>0;
-        return `${(high!==neg)?"Strong":"Weak"} ${d.spec.label.toLowerCase()}`;
-      });
+      .map(d=>traitLabel(d.spec,d.zt>0));
     const worst=diffs.filter(d=>d.spec.group!=="grade").sort((a,b)=>Math.abs(b.zt-b.zc)-Math.abs(a.zt-a.zc))[0];
     const difference=worst&&Math.abs(worst.zt-worst.zc)>=1?{label:worst.spec.label,target:fmtVal(worst.spec,worst.t),comp:fmtVal(worst.spec,worst.c)}:null;
     scored.push({
