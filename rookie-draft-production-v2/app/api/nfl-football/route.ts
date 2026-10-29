@@ -2,7 +2,7 @@ import {cacheGet,cacheSet} from "@/lib/cache";
 
 export async function GET(req:Request){
   const u=new URL(req.url),date=(u.searchParams.get("date")||"").replace(/[^0-9]/g,""),fresh=u.searchParams.get("fresh")==="1";
-  if(!/^\\d{8}$/.test(date))return Response.json({error:"Provide date as YYYYMMDD"},{status:400});
+  if(!/^\d{8}$/.test(date))return Response.json({error:"Provide date as YYYYMMDD"},{status:400});
   const key="nfl:schedule:"+date;
   try{
     let data=fresh?null:await cacheGet<any>(key);
