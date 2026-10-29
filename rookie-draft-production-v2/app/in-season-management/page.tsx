@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw, ShieldCheck, Sparkles, TrendingUp, WalletCards } from "lucide-react";
+import { buildAlerts, sortLeagues, type LeagueData } from "@/lib/in-season";
+import ActionQueue from "./action-queue";
+import LeagueOverviewView from "./league-overview-view";
+import LineupView from "./lineup-view";
 import styles from "./in-season-management.module.css";
 
 type Section = "overview" | "lineups" | "league-overview" | "waivers" | "players";
@@ -20,7 +24,6 @@ type SleeperCheck = {
   error?: string;
 };
 type CheckResponse = { checks?: SleeperCheck[] };
-type LeagueData = { id:string; type:string; eliminated:boolean; ok:boolean; name:string; season?:string; status?:string; week?:number; totalRosters?:number; rosterPositions?:string[]; settings?:Record<string,any>; scoringSettings?:Record<string,number>; playoffTeams?:number; playoffWeekStart?:number; schedule?:{week:number;matchups:{rosterId:string;matchupId:number}[]}[]; teams?:{rosterId:string;owner:string;teamName?:string;ownerId?:string;eliminated?:boolean;players:string[];playerDetails?:{id:string;name:string;position:string;team:string;status:string;injuryStatus:string;depthChartPosition?:string|null}[];starters:string[];points:number;wins:number;losses:number;ties?:number;waiverBudget:any}[]; matchups?:{rosterId:string;matchupId:number;points:number;starters?:string[];startersPoints?:Record<string,number>}[]; transactions?:{type:string;status:string;created:number;adds:Record<string,number>;drops:Record<string,number>;rosterIds?:string[];addedNames?:string[];droppedNames?:string[];waiverBudget?:any[]}[]; error?:string; fetchedAt:string };
 type LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
 
 function displayDate(value: string | null) {
@@ -57,8 +60,11 @@ export default function InSeasonManagementPage() {
         leagueResponse.json() as Promise<LeagueDataResponse>,
       ]);
       setChecks(Array.isArray(checkData.checks) ? checkData.checks : []);
-      setLeagueData(Array.isArray(leaguePayload.leagues) ? leaguePayload.leagues : []);
-      setLastChecked(new Date().toISOString());
+      const fresh = Array.isArray(leaguePayload.leagues) ? sortLeagues(leaguePayload.leagues) : [];
+      const at = new Date().toISOString();
+      setLeagueData(fresh);
+      setLastChecked(at);
+      try { window.sessionStorage.setItem("ism-league-data", JSON.stringify({ leagues: fresh, checks: Array.isArray(checkData.checks) ? checkData.checks : [], at })); } catch { /* cache is optional */ }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to refresh Sleeper league data right now.");
     } finally {
@@ -67,7 +73,20 @@ export default function InSeasonManagementPage() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  // Show the last snapshot immediately, then refresh from Sleeper in the background.
+  useEffect(() => {
+    try {
+      const cached = JSON.parse(window.sessionStorage.getItem("ism-league-data") || "null");
+      if (cached?.leagues?.length) {
+        setLeagueData(sortLeagues(cached.leagues));
+        setChecks(cached.checks || []);
+        setLastChecked(cached.at || null);
+      }
+    } catch { /* cache is optional */ }
+    void refresh();
+  }, [refresh]);
+
+  const alerts = useMemo(() => buildAlerts(leagueData), [leagueData]);
 
 
 
@@ -95,6 +114,8 @@ export default function InSeasonManagementPage() {
           <button type="button" onClick={() => void refresh(true)}>Try again</button>
         </div>
       )}
+
+      {section === "overview" && <ActionQueue alerts={alerts} loaded={leagueData.length > 0} />}
 
       {section === "overview" && (
         <section className={styles.overviewMatchups} aria-label="This week in your leagues">
@@ -143,8 +164,9 @@ export default function InSeasonManagementPage() {
           )}
         </section>
       )}
-      {section === "lineups" && <LiveLeagueView kind="lineups" leagues={leagueData} checks={checks} />}
-      {section === "league-overview" && <LeagueOverview leagues={leagueData} checks={checks} /> }
+      {section === "overview" && leagueData.length > 0 && <DataHealth leagues={leagueData} />}
+      {section === "lineups" && <LineupView leagues={leagueData} />}
+      {section === "league-overview" && <LeagueOverviewView leagues={leagueData} />}
 
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
 
@@ -182,32 +204,29 @@ function LiveLeagueView({kind,leagues,checks}:{kind:"lineups"|"waivers"|"players
 
 function isMyTeam(league:LeagueData,team:NonNullable<LeagueData["teams"]>[number],checks:SleeperCheck[]) {
   const ownerIds=checks.map((item)=>item.rosterMatch?.ownerId).filter(Boolean);
-  return ownerIds.includes(team.ownerId||"") || team.owner.toLowerCase()==="cds1204";
+  return Boolean(team.isMine) || ownerIds.includes(team.ownerId||"") || team.owner.toLowerCase()==="cds1204";
 }
-function LeagueOverview({leagues,checks}:{leagues:LeagueData[];checks:SleeperCheck[]}) {
-  const selected=leagues.filter((league)=>league.ok&&!league.eliminated&&(league.type.toLowerCase().includes("dynasty")||league.id==="1389753161815707648"||league.type.toLowerCase().includes("guillotine")));
-  return <section className={styles.modulePage}>
-    <div className={styles.moduleHero}><div className={styles.moduleIcon}><Sparkles size={19}/></div><div><div className={styles.sectionKicker}>League-wide matchups</div><h2>League Overview & Rooting Guide</h2><p>All matchups plus your personalized weekly playoff-seeding targets. Rooting guidance is based on current records and this week's slate, not a mathematical clinch guarantee.</p></div></div>
-    {selected.map((league)=>{
-      const teams=league.teams||[];
-      const mine=teams.find((team)=>isMyTeam(league,team,checks));
-      const standings=[...teams].sort((a,b)=>b.wins-a.wins||a.losses-b.losses||b.points-a.points);
-      const rank=mine?standings.findIndex((team)=>team.rosterId===mine.rosterId)+1:0;
-      const playoffTeams=league.playoffTeams||Number(league.settings?.playoff_teams||0)||Math.min(6,teams.length);
-      const byeSlots=playoffTeams>0?playoffTeams-2**Math.floor(Math.log2(playoffTeams)):0;
-      const matchupOpponent=(rosterId:string)=>{const m=league.matchups?.find((item)=>item.rosterId===rosterId);const o=m&&league.matchups?.find((item)=>item.matchupId===m.matchupId&&item.rosterId!==rosterId);return teams.find((team)=>team.rosterId===o?.rosterId);};
-      const targets=rank>playoffTeams?standings.slice(Math.max(0,playoffTeams-1),rank):standings.slice(playoffTeams,Math.min(standings.length,playoffTeams+2));
-      const byeTargets=byeSlots>0?standings.slice(Math.max(0,byeSlots-1),byeSlots+2):[];
-      const guide=[...new Map([...targets,...byeTargets].filter((team)=>team.rosterId!==mine?.rosterId).map((team)=>[team.rosterId,team])).values()].map((team)=>({team,opponent:matchupOpponent(team.rosterId)})).filter((item)=>item.opponent);
-      const groups=new Map<string,NonNullable<LeagueData["matchups"]>>();
-      for(const match of league.matchups||[]){const key=String(match.matchupId??match.rosterId);groups.set(key,[...(groups.get(key)||[]),match]);}
-      const guillotine=league.type.toLowerCase().includes("guillotine");
-      const scoreRows=[...teams].filter((team)=>team.players.length&&!team.eliminated).map((team)=>({team,score:league.matchups?.find((m)=>m.rosterId===team.rosterId)?.points})).filter((item)=>item.score!==undefined).sort((a,b)=>(b.score||0)-(a.score||0));
-      return <article className={styles.leagueCard} key={league.id}><div className={styles.leagueTop}><span className={styles.statusDot}/><span className={styles.statusLabel}>{league.type}</span><span className={styles.leagueSeason}>Week {league.week||"—"}</span></div><h3>{league.name}</h3>
-        {mine?<div className={styles.moduleNotice}><div><strong>{guillotine?"Your survival guide":"Your playoff rooting guide"}</strong><p>{guillotine?("Current lowest active score: "+(scoreRows[scoreRows.length-1]?.team.teamName||scoreRows[scoreRows.length-1]?.team.owner||"Unavailable")+" at "+(scoreRows[scoreRows.length-1]?.score?.toFixed(2)||"—")+" points. Keep your score above the lowest active team at the end of the week."):("You are currently "+(rank?"ranked "+rank+" of "+standings.length:"unranked")+". Playoff spots: "+playoffTeams+"; first-round bye slots: "+byeSlots+". "+(rank&&rank<=byeSlots?"Protect your bye position by winning and rooting against the teams chasing the bye.":rank&&rank<=playoffTeams?"You are inside the playoff field; a win protects your seed and losses by teams just below the cutoff help preserve your place.":"Win your matchup and root for teams just above the playoff line to lose."))}</p></div></div>:<p className={styles.leagueWarning}>Your roster was not matched, so a personalized guide is unavailable.</p>}
-        {!guillotine&&guide.length>0&&<ul className={styles.rootingList}>{guide.map(({team,opponent})=><li key={team.rosterId}><span className={styles.rootingArrow}>↘</span><div><strong>Root against {team.teamName||team.owner}</strong><small>{team.wins}-{team.losses} · faces {opponent?.teamName||opponent?.owner||"an unavailable opponent"}</small></div><span className={styles.rootingResult}>Lose</span></li>)}</ul>}
-        <h4 className={styles.subsectionTitle}>This week's matchups</h4>{guillotine?<div className={styles.scoreTable}>{scoreRows.map((item,index)=><div className={styles.scoreTableRow} key={item.team.rosterId}><span>{index+1}</span><strong>{item.team.teamName||item.team.owner}</strong><span>{item.score?.toFixed(2)||"—"} pts</span>{index===scoreRows.length-1&&<b className={styles.injuryFlag}>Current low</b>}</div>)}</div>:<div className={styles.matchupList}>{[...groups.entries()].map(([key,matches])=>{const a=matches[0],b=matches[1];const ta=teams.find((team)=>team.rosterId===a.rosterId),tb=b&&teams.find((team)=>team.rosterId===b.rosterId);return <div className={styles.matchupRow} key={key}><div><strong>{ta?.teamName||ta?.owner||"Team"}</strong><span>{ta?ta.wins+"-"+ta.losses:""}</span></div><b>{a.points.toFixed(2)}</b><span className={styles.matchupVersus}>vs</span><b>{b?b.points.toFixed(2):"—"}</b><div><strong>{tb?.teamName||tb?.owner||"Team"}</strong><span>{tb?tb.wins+"-"+tb.losses:""}</span></div></div>})}</div>}
-      </article>;
-    })}
-  </section>;
+
+function DataHealth({ leagues }: { leagues: LeagueData[] }) {
+  return (
+    <section className={styles.dataHealth} aria-label="Data health">
+      <div className={styles.sectionHeading}><div><div className={styles.sectionKicker}>Data health</div><h2>What the numbers are based on</h2><p>Each league is read live from Sleeper. Anything missing shows up here instead of being filled in.</p></div></div>
+      <ul>
+        {leagues.map((league) => {
+          const notes = [...(league.warnings || []), ...(league.ok ? [] : [league.error || "Sleeper could not return this league."])];
+          const state = !league.ok ? "error" : notes.length ? "warning" : "ready";
+          return (
+            <li key={league.id}>
+              <span className={`${styles.healthDot} ${styles[`health_${state}`]}`} />
+              <div>
+                <strong>{league.name}</strong>
+                <small>{league.type}{league.eliminated ? " · Eliminated" : ""}{league.ok ? ` · ${league.totalRosters || "—"} teams · Week ${league.week || "—"}` : ""}</small>
+                {notes.map((note) => <em key={note}>{note}</em>)}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }

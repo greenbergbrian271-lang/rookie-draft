@@ -7,7 +7,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test:regression": "node scripts/regression.mjs",
-    "check": "npm run typecheck && npm run test:regression && npm run build"
+    "check": "npm run typecheck && npm run test:regression && npm run test:unit && npm run build",
+    "test:unit": "node scripts/in-season.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

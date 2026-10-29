@@ -171,3 +171,63 @@
 .scoreTableRow>span{color:#9ab0ce;font-size:10px;white-space:nowrap}
 .scoreTableRow>small{max-width:180px;color:#8199b9;font-size:9px;text-align:right}
 @media(max-width:700px){.lineupColumns{grid-template-columns:1fr}.myMatchupBanner{grid-template-columns:1fr 1fr}.myMatchupBanner>div:first-child{grid-column:1/-1}.matchupRow{grid-template-columns:minmax(0,1fr) auto auto minmax(0,1fr);gap:6px}.matchupRow .matchupVersus{display:none}.scoreTableRow{flex-wrap:wrap}.scoreTableRow>strong{flex-basis:45%}}
+
+/* ---- Lineups (modeled on the Dynasty Rosters panels) ---- */
+.typeBadge{display:inline-block;padding:3px 9px;border-radius:999px;border:1px solid #31527f;background:#10213a;color:#b9dcff;font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.scoreStrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0}
+.scoreStrip>div{min-width:0;padding:8px 10px;border:1px solid #20395f;border-radius:9px;background:#10213a}
+.scoreStrip span{display:block;color:#7890b1;font-size:9px;text-transform:uppercase;letter-spacing:.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scoreStrip strong{display:block;margin-top:3px;font-size:15px;font-variant-numeric:tabular-nums}
+.stripVs{display:flex;align-items:center;justify-content:center;color:#7890b1;font-size:10px;font-weight:900;text-transform:uppercase}
+.leadUp strong{color:#75e99b}.leadDown strong{color:#ff8797}
+.lineupLayout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px;align-items:start}
+.lineupSide{display:grid;gap:12px;min-width:0}
+.lineupPanel{background:#0c1930;border:1px solid #20395f;border-radius:10px;overflow:hidden;min-width:0}
+.lineupPanelTitle{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:#10213a;border-bottom:1px solid #20395f}
+.lineupPanelTitle b{font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.lineupPanelTitle span{color:#7890b1;font-size:10px;text-align:right}
+.lineupRow{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:44px;padding:6px 12px;border-bottom:1px solid #18304f}
+.lineupRow:nth-child(even){background:#0e2039}.lineupRow:last-child{border-bottom:0}
+.playerCell{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.playerCell small{color:#7890b1;font-size:10px}
+.playerCell :global(.player-name-link){font-size:13px;font-weight:800}
+.pointsCell{min-width:48px;text-align:right;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:#dbe8fb}
+.emptySlot{color:#ff8797;font-size:12px}
+.posBadge{display:inline-block;min-width:38px;text-align:center;padding:4px 6px;border-radius:6px;font-size:10px;font-weight:900;background:#1b2f4d;color:#cfe0f5}
+.qb{background:#5a2a3d;color:#ffc3d2}.rb{background:#1f4d3d;color:#a8f0d0}.wr{background:#1f3f6b;color:#b7d4ff}.te{background:#5a4620;color:#ffe0a0}.flexPos{background:#33305a;color:#d4ceff}.otherPos{background:#2a3446;color:#cfd8e6}
+.statusChip{padding:2px 7px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+.flag_critical{background:#4a1f2a;color:#ffb3bf}.flag_high{background:#4a3a1a;color:#ffd98a}.flag_watch{background:#33291a;color:#f8dfaa}
+
+/* ---- League Overview ---- */
+.tableWrap{overflow:auto}
+.standingsTable{width:100%;border-collapse:collapse;font-size:12px}
+.standingsTable th,.standingsTable td{padding:7px 10px;border-bottom:1px solid #18304f;text-align:left;white-space:nowrap}
+.standingsTable th{color:#7890b1;font-size:9px;text-transform:uppercase;letter-spacing:.04em}
+.standingsTable .num{text-align:right;font-variant-numeric:tabular-nums}.standingsTable .center,.center{text-align:center}
+.mineRow{background:rgba(32,226,221,.07)!important}
+.outRow{opacity:.5}
+.youTag{margin-left:7px;padding:2px 6px;border-radius:999px;background:rgba(32,226,221,.15);color:#20e2dd;font-size:8px;font-weight:900;text-transform:uppercase}
+.windowTag{padding:3px 8px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+.windowContender{background:#173d63;color:#b9dcff;border:1px solid #31577f}.windowRebuilder{background:#2d3a1c;color:#d6f0a0;border:1px solid #556b2e}.windowMiddle{background:#2a3446;color:#cfd8e6;border:1px solid #3d4a60}
+.dash{color:#4d6485}
+.guideBox{margin:12px 0;padding:11px 13px;border:1px solid #20395f;border-left:3px solid var(--cyan);border-radius:10px;background:#0e2039}
+.guideBox strong{display:block;font-size:13px}.guideBox p{margin:5px 0 0;color:#a9bdd6;font-size:12px;line-height:1.55}.guideBox small{display:block;margin-top:6px;color:#7890b1;font-size:10px}
+.rootingLow{opacity:.65}.rootingMine{border-color:rgba(32,226,221,.45)!important}
+
+/* ---- Overview: action queue and data health ---- */
+.actionQueue,.dataHealth{margin-bottom:22px}
+.queueList{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.queueItem{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;padding:11px 13px;border:1px solid #20395f;border-left-width:3px;border-radius:10px;background:#0b1930}
+.queueItem strong{display:block;font-size:13px}.queueItem small{display:block;margin-top:2px;color:#7890b1;font-size:10px}.queueItem p{margin:6px 0 0;color:#a9bdd6;font-size:12px;line-height:1.5}
+.queueSeverity{align-self:start;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;text-align:center}
+.queue_critical{border-left-color:#ff7184}.queue_critical .queueSeverity{background:#4a1f2a;color:#ffb3bf}
+.queue_high{border-left-color:#ffd166}.queue_high .queueSeverity{background:#4a3a1a;color:#ffd98a}
+.queue_watch{border-left-color:#8fa7c8}.queue_watch .queueSeverity{background:#1b2f4d;color:#cfe0f5}
+.queueClear{display:flex;gap:11px;align-items:center;padding:13px;border:1px solid rgba(98,232,137,.3);border-radius:10px;background:rgba(98,232,137,.06);color:#8df0aa}
+.queueClear strong{display:block;font-size:13px}.queueClear span{display:block;margin-top:2px;color:#a9bdd6;font-size:11px}
+.dataHealth ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.dataHealth li{display:flex;gap:10px;padding:10px 12px;border:1px solid #20395f;border-radius:10px;background:#0b1930;min-width:0}
+.dataHealth strong{display:block;font-size:12px}.dataHealth small{display:block;margin-top:2px;color:#7890b1;font-size:10px}.dataHealth em{display:block;margin-top:4px;color:#ffd98a;font-size:10px;font-style:normal}
+.healthDot{flex:0 0 8px;width:8px;height:8px;margin-top:5px;border-radius:50%}
+.health_ready{background:#62e889}.health_warning{background:#ffd166}.health_error{background:#ff7184}
+@media(max-width:900px){.lineupLayout,.dataHealth ul{grid-template-columns:1fr}.queueItem{grid-template-columns:1fr}.queueSeverity{justify-self:start}}
