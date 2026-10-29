@@ -148,7 +148,8 @@ export function buildManagerCards(leagues: LeagueData[], transactions: LeagueTra
         const ids = (list: string[] | undefined) => list || [];
         const got = ids(trade.got[card.ownerId]), gave = ids(trade.gave[card.ownerId]);
         const inPicks = trade.picksIn[card.ownerId] || [], outPicks = trade.picksOut[card.ownerId] || [];
-        card.picksIn += inPicks.length; card.picksOut += outPicks.length;
+        // Redraft/guillotine pick swaps are just draft-slot moves, so only dynasty picks count toward pick tendencies.
+        if (isDynasty({ type: entry.leagueType })) { card.picksIn += inPicks.length; card.picksOut += outPicks.length; }
         got.forEach((id) => { const age = tx.players[id]?.age; if (age != null) gotAges.push(age); });
         gave.forEach((id) => { const age = tx.players[id]?.age; if (age != null) gaveAges.push(age); });
         for (const other of trade.owners.filter((owner) => owner !== card.ownerId)) {
