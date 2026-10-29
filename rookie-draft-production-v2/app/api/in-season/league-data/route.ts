@@ -1,82 +1,22 @@
-import { getIntegrations } from "@/lib/integrations";
+import { classifyLeague, isMineRoster, loadLeagueEntries, nflPlayersCached, playerName, playersCache, sleeper } from "@/lib/in-season-leagues";
 import { leagueIntelMode } from "@/lib/dynasty-intelligence-core";
 import { sortLeagues } from "@/lib/in-season";
+import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 
 export const maxDuration = 60;
 
-const CORE_LEAGUES = [
-  { id: "1389753161815707648", type: "Redraft", eliminated: false },
-  { id: "1387508275846586368", type: "Guillotine", eliminated: false },
-  { id: "1399445627359797248", type: "Guillotine", eliminated: true },
-] as const;
-
-async function sleeper<T>(path: string, cacheable = true): Promise<T> {
-  const response = await fetch("https://api.sleeper.app/v1" + path, {
-    headers: { accept: "application/json" },
-    ...(cacheable ? { next: { revalidate: 300 } } : { cache: "no-store" as const }),
-  });
-  if (!response.ok) throw new Error("Sleeper returned HTTP " + response.status);
-  return response.json() as Promise<T>;
-}
-
-function classifyLeague(entry: { id: string; type?: string; name?: string }, league: any) {
-  if (entry.id === "1387508275846586368" || entry.id === "1399445627359797248") return "Guillotine";
-  const name = String(league.name || entry.name || "").toLowerCase();
-  const leagueType = Number(league.settings?.type);
-  if (name.includes("guillotine")) return "Guillotine";
-  if (leagueType === 2 || name.includes("dynasty")) return "Dynasty";
-  if (leagueType === 1 || name.includes("keeper")) return "Keeper";
-  if (entry.type && entry.type !== "Configured") return entry.type;
-  // Leagues added through Integrations are the dynasty leagues unless Sleeper says otherwise.
-  return entry.type === "Configured" ? "Dynasty" : "Redraft";
-}
-
-// The NFL player file is several MB, which is over Next's 2 MB fetch-cache limit, so keep it in memory instead.
-let playersCache: { at: number; data: Record<string, any> } | null = null;
-async function nflPlayersCached(): Promise<Record<string, any>> {
-  if (playersCache && Date.now() - playersCache.at < 30 * 60 * 1000) return playersCache.data;
-  const data = await sleeper<Record<string, any>>("/players/nfl", false);
-  playersCache = { at: Date.now(), data };
-  return data;
-}
-
-function playerName(id: string, players: Record<string, any>) {
-  const player = players[id] || {};
-  return player.full_name || [player.first_name, player.last_name].filter(Boolean).join(" ") || "Player " + id;
-}
-
-const norm = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-// Same rule the dynasty tools use: the configured team identity may be a roster id, owner id, username, display name or team name.
-function isMineRoster(entry: any, roster: any, users: any[]) {
-  const user = users.find((item: any) => String(item.user_id) === String(roster.owner_id));
-  const candidates = [roster.roster_id, roster.owner_id, user?.display_name, user?.username, user?.metadata?.team_name].map(norm);
-  const wanted = [entry.teamIdentity, "cds1204"].map(norm).filter(Boolean);
-  return wanted.some((value) => candidates.includes(value));
-}
-
 export async function GET() {
-  const configured = await getIntegrations().catch(() => ({ sleeper: { leagues: [] as any[] } }));
-  const byId = new Map<string, any>();
-  CORE_LEAGUES.forEach((entry) => byId.set(entry.id, entry));
-  for (const entry of configured.sleeper.leagues || []) {
-    if (entry.enabled === false) continue;
-    if (!byId.has(String(entry.leagueId))) {
-      byId.set(String(entry.leagueId), {
-        id: String(entry.leagueId),
-        type: "Configured",
-        eliminated: false,
-        name: entry.name,
-        key: entry.key,
-        teamIdentity: entry.teamIdentity || "",
-        tePremium: Boolean(entry.tePremium),
-      });
-    }
-  }
-  const leagueEntries = [...byId.values()];
+  const leagueEntries = await loadLeagueEntries();
   const [nflState, nflPlayers] = await Promise.all([
     sleeper<any>("/state/nfl").catch(() => null),
     nflPlayersCached().catch(() => playersCache?.data || ({} as Record<string, any>)),
   ]);
+  const stateWeek = Number(nflState?.week || 0);
+  const stateSeason = String(nflState?.league_season || nflState?.season || new Date().getFullYear());
+  let projectionError: string | undefined;
+  const projectionRows = stateWeek > 0
+    ? await getWeekProjections(stateSeason, stateWeek).catch((error) => { projectionError = error instanceof Error ? error.message : "Projections unavailable"; return null; })
+    : null;
 
   const results = await Promise.all(leagueEntries.map(async (entry) => {
     try {
@@ -94,10 +34,18 @@ export async function GET() {
         }))),
         week > 0 ? sleeper<any[]>(`/league/${entry.id}/transactions/${week}`).catch(() => []) : Promise.resolve([]),
       ]);
+      // Completed weeks: gives season-to-date points per player and each team's weekly scores (used for averages and guillotine history).
+      const lastScored = Number(league.settings?.last_scored_leg || 0) || Math.max(0, week - 1);
+      const pastWeeks = week > 0 && league.status === "in_season" ? Array.from({ length: Math.min(lastScored, 18) }, (_, i) => i + 1) : [];
+      const pastResponses = await Promise.all(pastWeeks.map(async (pastWeek) => ({
+        week: pastWeek,
+        matchups: await sleeper<any[]>(`/league/${entry.id}/matchups/${pastWeek}`).catch(() => [] as any[]),
+      })));
       const ownerById = new Map(users.map((user: any) => [String(user.user_id), user.display_name || user.username || "Team"]));
       const teams = rosters.map((roster: any) => ({
         rosterId: String(roster.roster_id),
         ownerId: String(roster.owner_id || ""),
+        avatar: users.find((user: any) => String(user.user_id) === String(roster.owner_id))?.avatar || null,
         owner: ownerById.get(String(roster.owner_id)) || "Unassigned team",
         teamName: roster.metadata?.team_name || roster.metadata?.teamName || users.find((user: any) => String(user.user_id) === String(roster.owner_id))?.metadata?.team_name || "",
         players: Array.isArray(roster.players) ? roster.players.map(String) : [],
@@ -111,6 +59,7 @@ export async function GET() {
             status: player.status || "",
             injuryStatus: player.injury_status || "",
             depthChartPosition: player.depth_chart_position || null,
+            age: typeof player.age === "number" ? player.age : null,
           };
         }),
         isMine: isMineRoster(entry, roster, users),
@@ -128,6 +77,33 @@ export async function GET() {
         eliminated: Boolean(roster.settings?.eliminated),
       }));
       const matchups = matchupResponses.find((response) => response.week === week)?.matchups || [];
+      const weeklyScores: Record<string, number[]> = {};
+      const playerSeason: Record<string, { pts: number; gp: number }> = {};
+      const mineRoster = teams.find((team: any) => team.isMine);
+      for (const { matchups: weekMatchups } of pastResponses) {
+        for (const match of weekMatchups) {
+          const key = String(match.roster_id);
+          (weeklyScores[key] ||= []).push(Number(match.points || 0));
+          if (mineRoster && key === mineRoster.rosterId) {
+            for (const [playerId, points] of Object.entries(match.players_points || {})) {
+              if (!(match.starters || []).map(String).includes(playerId)) continue;
+              const entryTotals = (playerSeason[playerId] ||= { pts: 0, gp: 0 });
+              entryTotals.pts += Number(points || 0);
+              entryTotals.gp += 1;
+            }
+          }
+        }
+      }
+      // Projections under this league's own scoring, for my whole roster and every team's starters this week.
+      const projections: Record<string, { pts: number; opp: string | null; date: string | null }> = {};
+      if (projectionRows) {
+        const wanted = new Set<string>(mineRoster ? mineRoster.players : []);
+        for (const match of matchups) for (const id of match.starters || []) wanted.add(String(id));
+        for (const id of wanted) {
+          const row = projectionRows.get(id);
+          if (row) projections[id] = { pts: projectPoints(row.stats, league.scoring_settings), opp: row.opponent, date: row.date };
+        }
+      }
       const type = classifyLeague(entry, league);
       // Team window (Contender / Rebuilder / Stuck in the Middle) comes from the same engine as League Intelligence.
       let windows: Record<string, { classification: string; windowScore: number; powerRank: number }> | undefined;
@@ -145,6 +121,7 @@ export async function GET() {
       if (league.status === "in_season" && !matchups.length) warnings.push("Sleeper returned no matchups for this week.");
       if (type === "Dynasty" && !entry.key) warnings.push("This league is not in Integrations, so team windows are unavailable.");
       if (windowError) warnings.push("Team windows unavailable: " + windowError);
+      if (league.status === "in_season" && (projectionError || !projectionRows)) warnings.push("Projections unavailable right now.");
       return {
         id: entry.id,
         type,
@@ -161,6 +138,10 @@ export async function GET() {
         playoffTeams: Number(league.settings?.playoff_teams || 0),
         playoffWeekStart,
         teams,
+        projections,
+        playerSeason,
+        weeklyScores,
+        lastScoredLeg: lastScored,
         windows,
         windowError,
         warnings,
@@ -169,7 +150,9 @@ export async function GET() {
           matchupId: match.matchup_id,
           points: Number(match.points || 0),
           starters: (match.starters || []).map(String),
-          startersPoints: match.starters_points || {},
+          // Sleeper returns starters_points as an array aligned with starters, so key it by player id.
+          startersPoints: Object.fromEntries((match.starters || []).map((id: string, index: number) => [String(id), Number((match.starters_points || [])[index] || 0)])),
+          projected: Math.round((match.starters || []).reduce((sum: number, id: string) => sum + (projections[String(id)]?.pts || 0), 0) * 100) / 100,
         })),
         schedule: matchupResponses.map(({ week: scheduleWeek, matchups: weekMatchups }) => ({
           week: scheduleWeek,

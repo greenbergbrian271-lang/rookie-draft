@@ -9,6 +9,7 @@ export type PlayerDetail = {
   status: string;
   injuryStatus: string;
   depthChartPosition?: string | null;
+  age?: number | null;
 };
 
 export type TeamData = {
@@ -16,6 +17,8 @@ export type TeamData = {
   owner: string;
   teamName?: string;
   ownerId?: string;
+  avatar?: string | null;
+  settings?: Record<string, any>;
   isMine?: boolean;
   eliminated?: boolean;
   players: string[];
@@ -38,9 +41,13 @@ export type MatchupData = {
   points: number;
   starters?: string[];
   startersPoints?: Record<string, number>;
+  projected?: number;
 };
 
-export type WindowInfo = { classification: string; windowScore: number; powerRank: number };
+export type Intent = "Contend" | "Rebuild";
+export type Intents = Record<string, Intent>;
+export type WindowInfo = { classification: string; windowScore: number; powerRank: number; declared?: boolean };
+export type ProjectionInfo = { pts: number; opp: string | null; date: string | null };
 
 export type LeagueData = {
   id: string;
@@ -71,6 +78,10 @@ export type LeagueData = {
     droppedNames?: string[];
     waiverBudget?: any[];
   }[];
+  projections?: Record<string, ProjectionInfo>;
+  playerSeason?: Record<string, { pts: number; gp: number }>;
+  weeklyScores?: Record<string, number[]>;
+  lastScoredLeg?: number;
   windows?: Record<string, WindowInfo>;
   windowError?: string;
   warnings?: string[];
@@ -112,6 +123,33 @@ export function findMine(league: LeagueData, knownOwnerIds: string[] = []): Team
   );
 }
 
+/* ---------- weekly reset (Tuesday, Eastern) ---------- */
+
+/** Fantasy weeks turn over on Tuesday. Returns the date (YYYY-MM-DD, Eastern) of the most recent Tuesday. */
+export function weekKey(now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(now);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  const dayIndex = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
+  const date = new Date(Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day"))));
+  date.setUTCDate(date.getUTCDate() - ((dayIndex - 2 + 7) % 7));
+  return date.toISOString().slice(0, 10);
+}
+
+/** Your declared Contend/Rebuild intent overrides the computed window for your own team. */
+export function effectiveWindow(league: LeagueData, team: TeamData | undefined, intents: Intents = {}): WindowInfo | undefined {
+  if (!team) return undefined;
+  const computed = league.windows?.[team.rosterId];
+  const declared = isDynasty(league) && team.isMine ? intents[league.id] : undefined;
+  if (declared) return { classification: declared === "Contend" ? "Contender" : "Rebuilder", windowScore: computed?.windowScore ?? 0, powerRank: computed?.powerRank ?? 0, declared: true };
+  return computed;
+}
+
+export const projectionFor = (league: LeagueData, playerId: string) => league.projections?.[playerId];
+export function seasonAverage(league: LeagueData, playerId: string): number | null {
+  const season = league.playerSeason?.[playerId];
+  return season && season.gp > 0 ? season.pts / season.gp : null;
+}
+
 /* ---------- standings ---------- */
 
 export type StandingRow = {
@@ -125,16 +163,21 @@ export type StandingRow = {
   max: number;
   /** Share of the maximum possible points the team actually scored (PF / Max PF). */
   efficiency: number | null;
+  /** Points per scored week (PF divided by the weeks the team actually scored). */
+  avg: number | null;
+  weeks: number;
   window?: WindowInfo;
   isMine: boolean;
   eliminated: boolean;
 };
 
-export function buildStandings(league: LeagueData, mineId?: string): StandingRow[] {
+export function buildStandings(league: LeagueData, mineId?: string, intents: Intents = {}): StandingRow[] {
   const guillotine = isGuillotine(league);
   const rows = (league.teams || []).map((team) => {
     const max = team.maxPoints || 0;
     const eliminated = Boolean(team.eliminated) || (guillotine && team.players.length === 0);
+    const scored = (league.weeklyScores?.[team.rosterId] || []).filter((value) => value > 0).length;
+    const weeks = scored || team.wins + team.losses + (team.ties || 0) || 0;
     return {
       team,
       rank: 0,
@@ -145,7 +188,9 @@ export function buildStandings(league: LeagueData, mineId?: string): StandingRow
       pa: team.pointsAgainst || 0,
       max,
       efficiency: max > 0 ? team.points / max : null,
-      window: league.windows?.[team.rosterId],
+      avg: weeks > 0 ? team.points / weeks : null,
+      weeks,
+      window: effectiveWindow(league, team, intents),
       isMine: mineId ? team.rosterId === mineId : Boolean(team.isMine),
       eliminated,
     } as StandingRow;
@@ -192,6 +237,8 @@ export type LineupSlot = {
   id: string | null;
   player: PlayerDetail | null;
   points: number | null;
+  proj: number | null;
+  game: { opp: string | null; date: string | null } | null;
 };
 
 export type LineupView = {
@@ -199,6 +246,7 @@ export type LineupView = {
   bench: PlayerDetail[];
   reserve: PlayerDetail[];
   taxi: PlayerDetail[];
+  projectedTotal: number;
 };
 
 const POSITION_ORDER: Record<string, number> = { QB: 1, RB: 2, WR: 3, TE: 4, K: 5, DEF: 6 };
@@ -219,6 +267,8 @@ export function buildLineup(league: LeagueData, team: TeamData, matchup?: Matchu
       id,
       player: id ? details.get(id) || null : null,
       points: id && matchup?.startersPoints && matchup.startersPoints[id] != null ? matchup.startersPoints[id] : null,
+      proj: id ? projectionFor(league, id)?.pts ?? null : null,
+      game: id && projectionFor(league, id) ? { opp: projectionFor(league, id)!.opp, date: projectionFor(league, id)!.date } : null,
     };
   });
   const used = new Set(ids.filter((id) => id && id !== "0"));
@@ -230,24 +280,40 @@ export function buildLineup(league: LeagueData, team: TeamData, matchup?: Matchu
     bench: players.filter((p) => !used.has(p.id) && !reserveIds.has(p.id) && !taxiIds.has(p.id)).sort(byPosition),
     reserve: players.filter((p) => reserveIds.has(p.id)).sort(byPosition),
     taxi: players.filter((p) => taxiIds.has(p.id)).sort(byPosition),
+    projectedTotal: starters.reduce((sum, row) => sum + (row.proj ?? 0), 0),
   };
 }
 
 /* ---------- alerts / action queue ---------- */
 
 export type Severity = "critical" | "high" | "watch";
-export type InSeasonAlert = {
-  id: string;
+
+export type AlertOption = { id: string; name: string; position: string; proj: number | null; avg: number | null };
+export type AlertAlternative = {
   leagueId: string;
   leagueName: string;
   leagueType: string;
+  slot: string;
+  action: "auto-sub" | "swap" | "none";
+  /** Auto-Subs the league allows per week (Sleeper's max_subs). */
+  maxSubs: number;
+  note: string;
+  options: AlertOption[];
+};
+
+export type InSeasonAlert = {
+  id: string;
+  kind: "player" | "ir" | "empty" | "intent";
   severity: Severity;
   title: string;
   detail: string;
+  /** Higher = better player (best of weekly projection and season average). Drives sort order. */
+  quality: number;
+  leagues: { id: string; name: string; type: string }[];
   playerId?: string;
+  alternatives?: AlertAlternative[];
+  intentLeagueId?: string;
 };
-
-const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, high: 1, watch: 2 };
 
 export function playerFlag(player: PlayerDetail): { severity: Severity; label: string } | null {
   const injury = (player.injuryStatus || "").trim();
@@ -259,51 +325,123 @@ export function playerFlag(player: PlayerDetail): { severity: Severity; label: s
   return null;
 }
 
-/** Healthy bench players who are allowed to fill the given slot. */
-export function healthyBenchFor(slot: string, bench: PlayerDetail[]): PlayerDetail[] {
+const playerQuality = (league: LeagueData, playerId: string) =>
+  Math.max(projectionFor(league, playerId)?.pts ?? 0, seasonAverage(league, playerId) ?? 0);
+
+/** Healthy bench players allowed in the slot, best first (by projection, then season average). */
+export function healthyBenchFor(slot: string, bench: PlayerDetail[], league?: LeagueData): PlayerDetail[] {
   const allowed = SLOT_ELIGIBILITY[slot] || [slot];
-  return bench.filter((player) => allowed.includes(player.position) && !playerFlag(player) && player.team !== "FA");
+  const score = (player: PlayerDetail) => (league ? playerQuality(league, player.id) : 0);
+  return bench
+    .filter((player) => allowed.includes(player.position) && !playerFlag(player) && player.team !== "FA")
+    .sort((a, b) => score(b) - score(a));
 }
 
-export function buildAlerts(leagues: LeagueData[]): InSeasonAlert[] {
-  const alerts: InSeasonAlert[] = [];
+/** Can this status go in an IR slot under the league's own reserve rules? */
+export function irEligible(league: LeagueData, player: PlayerDetail): boolean {
+  const settings = league.settings || {};
+  const status = (player.injuryStatus || "").toLowerCase();
+  if (status === "ir") return true;
+  if (status === "out") return Number(settings.reserve_allow_out ?? 1) === 1;
+  if (status === "doubtful") return Number(settings.reserve_allow_doubtful || 0) === 1;
+  if (status === "sus") return Number(settings.reserve_allow_sus || 0) === 1;
+  if (status === "cov") return Number(settings.reserve_allow_cov || 0) === 1;
+  if (status === "na") return Number(settings.reserve_allow_na || 0) === 1;
+  return false;
+}
+
+export function openIrSlots(league: LeagueData, team: TeamData): number {
+  return Math.max(0, Number(league.settings?.reserve_slots || 0) - (team.reserve || []).length);
+}
+
+export const maxSubsFor = (league: LeagueData) => Number(league.settings?.max_subs || 0);
+
+/** First week the "stuck in the middle" nudge fires, through the last regular-season week. */
+export const MIDDLE_ALERT_START_WEEK = 8;
+
+export function buildAlerts(leagues: LeagueData[], intents: Intents = {}): InSeasonAlert[] {
+  const byPlayer = new Map<string, InSeasonAlert>();
+  const irByPlayer = new Map<string, InSeasonAlert>();
+  const out: InSeasonAlert[] = [];
+  const optionOf = (league: LeagueData, player: PlayerDetail): AlertOption => ({
+    id: player.id, name: player.name, position: player.position,
+    proj: projectionFor(league, player.id)?.pts ?? null, avg: seasonAverage(league, player.id),
+  });
+
   for (const league of sortLeagues(leagues)) {
     if (!league.ok || league.eliminated || league.status !== "in_season") continue;
     const mine = findMine(league);
     if (!mine || mine.eliminated) continue;
     const matchup = league.matchups?.find((m) => m.rosterId === mine.rosterId);
     const lineup = buildLineup(league, mine, matchup);
-    const base = { leagueId: league.id, leagueName: league.name, leagueType: league.type };
+    const tag = { id: league.id, name: league.name, type: league.type };
+    const maxSubs = maxSubsFor(league);
+
     for (const row of lineup.starters) {
       if (!row.id) {
-        alerts.push({ ...base, id: `${league.id}:empty:${row.slot}:${row.label}`, severity: "critical", title: `Empty ${row.label} slot`, detail: "No player is set in this starting slot." });
+        out.push({ id: `empty:${league.id}:${row.label}`, kind: "empty", severity: "critical", title: `Empty ${row.label} slot in ${league.name}`, detail: "No player is set in this starting slot.", quality: 999, leagues: [tag] });
         continue;
       }
       if (!row.player) continue;
       const flag = playerFlag(row.player);
       if (!flag) continue;
-      const options = healthyBenchFor(row.slot, lineup.bench).slice(0, 3);
-      alerts.push({
-        ...base,
-        id: `${league.id}:starter:${row.id}`,
-        playerId: row.id,
-        severity: flag.severity,
-        title: `${row.player.name} (${row.player.position}) is ${flag.label} in your ${row.label} slot`,
-        detail: options.length
-          ? `Healthy bench options for this slot: ${options.map((p) => `${p.name} (${p.position})`).join(", ")}.`
-          : "No healthy bench player is eligible for this slot.",
-      });
-    }
-    const reserveSlots = Number(league.settings?.reserve_slots || 0);
-    if (reserveSlots > 0) {
-      for (const player of lineup.bench) {
-        if (/^ir$/i.test(player.injuryStatus || "")) {
-          alerts.push({ ...base, id: `${league.id}:ir:${player.id}`, playerId: player.id, severity: "watch", title: `${player.name} is on injured reserve but still on your active roster`, detail: "Moving him to an IR slot opens a roster spot." });
-        }
+      const options = healthyBenchFor(row.slot, lineup.bench, league).slice(0, 3).map((p) => optionOf(league, p));
+      const uncertain = flag.severity !== "critical";
+      const action: AlertAlternative["action"] = !options.length ? "none" : uncertain && maxSubs > 0 ? "auto-sub" : "swap";
+      const note = !options.length
+        ? "No healthy bench player is eligible for this slot."
+        : action === "auto-sub"
+          ? `Set an Auto-Sub on ${row.player.name} so ${options[0].name} steps in only if he is out. This league allows up to ${maxSubs} Auto-Subs.`
+          : uncertain
+            ? "Auto-Subs aren't enabled in this league, so swap manually if he doesn't play."
+            : `${row.player.name} is ${flag.label}. Move a healthy bench player into this slot.`;
+      const alternative: AlertAlternative = { leagueId: league.id, leagueName: league.name, leagueType: league.type, slot: row.label, action, maxSubs, note, options };
+      const quality = playerQuality(league, row.id);
+      const existing = byPlayer.get(row.id);
+      if (existing) {
+        existing.leagues.push(tag);
+        existing.alternatives!.push(alternative);
+        existing.quality = Math.max(existing.quality, quality);
+      } else {
+        byPlayer.set(row.id, {
+          id: `player:${row.id}`, kind: "player", severity: flag.severity, playerId: row.id, quality, leagues: [tag], alternatives: [alternative],
+          title: `${row.player.name} (${row.player.position}, ${row.player.team}) is ${flag.label}`,
+          detail: "",
+        });
       }
     }
+
+    // IR: only suggest a move when the league's IR rules allow this status AND a slot is open.
+    const openIr = openIrSlots(league, mine);
+    if (openIr > 0) {
+      for (const player of lineup.bench) {
+        if (!irEligible(league, player)) continue;
+        const existing = irByPlayer.get(player.id);
+        if (existing) { existing.leagues.push(tag); continue; }
+        irByPlayer.set(player.id, {
+          id: `ir:${player.id}`, kind: "ir", severity: "watch", playerId: player.id, quality: playerQuality(league, player.id), leagues: [tag],
+          title: `Move ${player.name} to IR`, detail: "He's injured and still on your active roster. This league has an open IR slot.",
+        });
+      }
+    }
+
+    // Dynasty: being in the middle is not a strategy. Nag weekly from Week 8 through the last regular-season week.
+    const last = (league.playoffWeekStart || 15) - 1;
+    const window = isDynasty(league) ? effectiveWindow(league, mine, intents) : undefined;
+    if (window?.classification === "Stuck in the Middle" && (league.week || 0) >= MIDDLE_ALERT_START_WEEK && (league.week || 0) <= last) {
+      out.push({
+        id: `intent:${league.id}`, kind: "intent", severity: "high", quality: 998, leagues: [tag], intentLeagueId: league.id,
+        title: `${league.name}: you're in the middle`,
+        detail: "Being in the middle isn't an effective strategy. Decide to go for it or step out, and you can re-evaluate in the offseason.",
+      });
+    }
   }
-  return alerts.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.leagueName.localeCompare(b.leagueName));
+
+  for (const alert of byPlayer.values()) {
+    const count = alert.alternatives!.length;
+    alert.detail = count > 1 ? `Starting in ${count} of your leagues.` : `Starting in ${alert.leagues[0].name}.`;
+  }
+  return [...out, ...byPlayer.values(), ...irByPlayer.values()].sort((a, b) => b.quality - a.quality || a.title.localeCompare(b.title));
 }
 
 /* ---------- rooting guide ---------- */
@@ -338,12 +476,12 @@ export function matchupPairs(league: LeagueData): [string, string][] {
   return [...groups.values()].filter((ids) => ids.length === 2).map((ids) => [ids[0], ids[1]] as [string, string]);
 }
 
-export function buildRootingGuide(league: LeagueData): RootingGuide {
+export function buildRootingGuide(league: LeagueData, intents: Intents = {}): RootingGuide {
   const guillotine = isGuillotine(league);
   if (guillotine) {
     return { mode: "survival", headline: "Survival guide", detail: "Keep your weekly score above the lowest active team.", items: [] };
   }
-  const standings = buildStandings(league);
+  const standings = buildStandings(league, undefined, intents);
   const mine = standings.find((row) => row.isMine);
   if (!mine) {
     return { mode: "playoff-race", headline: "Rooting guide unavailable", detail: "Your roster was not matched in this league.", items: [] };
@@ -377,7 +515,7 @@ export function buildRootingGuide(league: LeagueData): RootingGuide {
 
   if (window?.classification === "Contender") {
     mode = "contender";
-    headline = "Contender window: root for the weaker teams";
+    headline = window.declared ? "You declared Contend: root for the weaker teams" : "Contender window: root for the weaker teams";
     detail = `You are ranked ${mine.rank} of ${count}. As a contender, you want the weaker team to win each game so the teams ahead of or near you pick up losses.`;
     for (const [a, b] of others) {
       const rowA = byRoster.get(a)!, rowB = byRoster.get(b)!;
@@ -388,7 +526,7 @@ export function buildRootingGuide(league: LeagueData): RootingGuide {
     }
   } else if (window?.classification === "Rebuilder") {
     mode = "rebuilder";
-    headline = "Rebuilder window: root for the stronger teams";
+    headline = window.declared ? "You declared Rebuild: root for the stronger teams" : "Rebuilder window: root for the stronger teams";
     detail = `You are ranked ${mine.rank} of ${count}. As a rebuilder, you want the stronger team to win each game so the weaker teams keep losing and their picks hold value.`;
     for (const [a, b] of others) {
       const rowA = byRoster.get(a)!, rowB = byRoster.get(b)!;
@@ -441,4 +579,37 @@ export function buildRootingGuide(league: LeagueData): RootingGuide {
     });
   }
   return { mode, headline, detail, note, items };
+}
+
+/* ---------- guillotine ---------- */
+
+export type GuillotineStatus = {
+  rank: number;
+  of: number;
+  basis: "points" | "projection";
+  points: number;
+  projected: number | null;
+  low: { label: string; value: number } | null;
+  /** Your score (or projection) minus the lowest active team's. Negative = you are the one being cut. */
+  marginToLow: number | null;
+};
+
+/** Weekly rank among the teams still alive. Uses live points once anyone has scored, otherwise projections. */
+export function guillotineStatus(league: LeagueData, rosterId: string): GuillotineStatus | null {
+  const alive = new Set((league.teams || []).filter((t) => !t.eliminated && t.players.length > 0).map((t) => t.rosterId));
+  const rows = (league.matchups || []).filter((m) => alive.has(m.rosterId));
+  if (!rows.length || !alive.has(rosterId)) return null;
+  const started = rows.some((m) => m.points > 0);
+  const basis: GuillotineStatus["basis"] = started ? "points" : "projection";
+  const value = (m: MatchupData) => (started ? m.points : m.projected ?? 0);
+  const ranked = [...rows].sort((a, b) => value(b) - value(a));
+  const index = ranked.findIndex((m) => m.rosterId === rosterId);
+  const mine = ranked[index];
+  const lowest = ranked[ranked.length - 1];
+  const lowTeam = (league.teams || []).find((t) => t.rosterId === lowest.rosterId);
+  return {
+    rank: index + 1, of: ranked.length, basis, points: mine.points, projected: mine.projected ?? null,
+    low: lowTeam ? { label: teamLabel(lowTeam), value: value(lowest) } : null,
+    marginToLow: lowest.rosterId === rosterId ? 0 : value(mine) - value(lowest),
+  };
 }

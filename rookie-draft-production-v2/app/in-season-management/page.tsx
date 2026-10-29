@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw, ShieldCheck, Sparkles, TrendingUp, WalletCards } from "lucide-react";
 import { buildAlerts, sortLeagues, type LeagueData } from "@/lib/in-season";
 import ActionQueue from "./action-queue";
+import { useInSeasonState } from "./use-in-season-state";
 import LeagueOverviewView from "./league-overview-view";
 import LineupView from "./lineup-view";
+import ManagersView from "./managers-view";
+import type { LeagueTransactions } from "@/lib/in-season-managers";
 import styles from "./in-season-management.module.css";
 
-type Section = "overview" | "lineups" | "league-overview" | "waivers" | "players";
+type Section = "overview" | "lineups" | "league-overview" | "waivers" | "players" | "managers";
 type SleeperCheck = {
   key: string;
   configuredName: string;
@@ -36,13 +39,17 @@ function displayDate(value: string | null) {
 
 export default function InSeasonManagementPage() {
   const pathname = usePathname();
-  const section: Section = pathname.endsWith("/lineups") ? "lineups" : pathname.endsWith("/league-overview") ? "league-overview" : pathname.endsWith("/waivers") ? "waivers" : pathname.endsWith("/players") ? "players" : "overview";
+  const section: Section = pathname.endsWith("/lineups") ? "lineups" : pathname.endsWith("/league-overview") ? "league-overview" : pathname.endsWith("/waivers") ? "waivers" : pathname.endsWith("/players") ? "players" : pathname.endsWith("/managers") ? "managers" : "overview";
   const [checks, setChecks] = useState<SleeperCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [leagueData,setLeagueData] = useState<LeagueData[]>([]);
+  const [transactions, setTransactions] = useState<LeagueTransactions[]>([]);
+  const [txLoading, setTxLoading] = useState(false);
+  const [txError, setTxError] = useState("");
+  const { intents, dismissed, saveError, setIntent, dismiss, restore } = useInSeasonState();
 
   const refresh = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -86,7 +93,18 @@ export default function InSeasonManagementPage() {
     void refresh();
   }, [refresh]);
 
-  const alerts = useMemo(() => buildAlerts(leagueData), [leagueData]);
+  // Trade and waiver history is only needed for Manager Cards, so it loads when that page opens.
+  useEffect(() => {
+    if (section !== "managers" || transactions.length) return;
+    setTxLoading(true);
+    fetch("/api/in-season/managers", { cache: "no-store" })
+      .then((response) => { if (!response.ok) throw new Error(`Trade history returned HTTP ${response.status}`); return response.json(); })
+      .then((payload) => setTransactions((payload.leagues || []).filter((item: any) => !item.error)))
+      .catch((cause) => setTxError(cause instanceof Error ? cause.message : "Trade history is unavailable right now."))
+      .finally(() => setTxLoading(false));
+  }, [section, transactions.length]);
+
+  const alerts = useMemo(() => buildAlerts(leagueData, intents), [leagueData, intents]);
 
 
 
@@ -115,7 +133,7 @@ export default function InSeasonManagementPage() {
         </div>
       )}
 
-      {section === "overview" && <ActionQueue alerts={alerts} loaded={leagueData.length > 0} />}
+      {section === "overview" && <ActionQueue alerts={alerts} dismissed={dismissed} loaded={leagueData.length > 0} onDismiss={dismiss} onRestore={restore} onIntent={setIntent} saveError={saveError} />}
 
       {section === "overview" && (
         <section className={styles.overviewMatchups} aria-label="This week in your leagues">
@@ -165,8 +183,9 @@ export default function InSeasonManagementPage() {
         </section>
       )}
       {section === "overview" && leagueData.length > 0 && <DataHealth leagues={leagueData} />}
-      {section === "lineups" && <LineupView leagues={leagueData} />}
-      {section === "league-overview" && <LeagueOverviewView leagues={leagueData} />}
+      {section === "managers" && <ManagersView leagues={leagueData} transactions={transactions} txLoading={txLoading} txError={txError} intents={intents} />}
+      {section === "lineups" && <LineupView leagues={leagueData} intents={intents} />}
+      {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} />}
 
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
 
