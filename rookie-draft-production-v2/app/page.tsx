@@ -19,7 +19,7 @@ function easternHour(d:string){return Number(new Intl.DateTimeFormat("en-US",{ti
 function windowKey(d:string){const h=easternHour(d);return h<15?"Early Afternoon":h<19?"Mid-Afternoon":h<22?"Evening":"Late Night"}
 function networkName(e:any){const comp=e.competitions?.[0]||{};const b=(comp.broadcasts||[]).flatMap((x:any)=>x.names||x.media?.shortName||[]).filter(Boolean);return b[0]||comp.geoBroadcasts?.[0]?.media?.shortName||comp.broadcast||"TBD"}
 function rankingMap(rankings:any[]){const poll=rankings.find(r=>/college football playoff/i.test(r.name||r.shortName||""))||rankings.find(r=>/AP Top 25/i.test(r.name||r.shortName||""));const m:Record<string,number>={};for(const x of poll?.ranks||[]){const team=x.team||x;for(const k of [team.location,team.displayName,team.name,team.abbreviation].filter(Boolean))m[norm(String(k))]=Number(x.current||x.rank||x.ranking)}return m}
-function weekStart(offset=0){const now=new Date(),dow=now.getDay(),back=(dow+3)%7,d=new Date(now);d.setHours(12,0,0,0);d.setDate(now.getDate()-back+offset*7);return d}
+function weekStart(offset=0){const now=new Date(),dow=now.getDay(),back=(dow+4)%7,d=new Date(now);d.setHours(12,0,0,0);d.setDate(now.getDate()-back+offset*7);return d}
 function weekRange(offset:number){const start=weekStart(offset),end=new Date(start);end.setDate(start.getDate()+6);const fmt=(d:Date)=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;return {start,end,startKey:fmt(start),endKey:fmt(end)}}
 function weekLabel(offset:number){const {start,end}=weekRange(offset),f=(d:Date)=>`${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;return {title:`Week ${offset+4}`,dates:`${f(start)} - ${f(end)}`}}
 export default function Home(){
