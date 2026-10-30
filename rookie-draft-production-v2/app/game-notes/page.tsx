@@ -15,7 +15,8 @@ const KNOWN_GAME_META:Record<string,any>={
  "401856716":{awayRank:null,homeRank:14,awayScore:6,homeScore:27,pffWeek:6,awaySlug:"texas-am-aggies",espnUrl:"https://www.espn.com/college-football/game/_/gameId/401856716/texas-am-missouri"},
  "401856717":{awayRank:1,homeRank:null,awayScore:24,homeScore:27,pffWeek:6,awaySlug:"texas-longhorns",espnUrl:"https://www.espn.com/college-football/game/_/gameId/401856717/texas-oklahoma"}
 };
-const PFF_TEAM_SLUGS:Record<string,string>={notredame:"notre-dame-fighting-irish",texasam:"texas-am-aggies",texas:"texas-longhorns",auburn:"auburn-tigers",ohiostate:"ohio-state-buckeyes"};
+const PFF_TEAM_SLUGS:Record<string,string>={notredamefightingirish:"notre-dame-fighting-irish",texasamaggies:"texas-am-aggies",texaslonghorns:"texas-longhorns",auburntigers:"auburn-tigers",ohiostatebuckeyes:"ohio-state-buckeyes"};
+const pffSlugify=(s:any)=>String(s||"").toLowerCase().replace(/&/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 function eventFor(x:any){return events.find((e:any)=>String(e.id)===String(x.espn_event_id))||null}
 function titleParts(x:any){const clean=String(x.title||"").replace(/\s*-\s*[A-Z][a-z]+\s+\d{1,2},\s+\d{4}$/,""),parts=clean.split(/\s+vs\s+/i);return parts.length===2?parts:[x.away_team||"",x.home_team||""]}
 function teamBits(x:any,name:string,index:number){
@@ -27,7 +28,7 @@ function teamBits(x:any,name:string,index:number){
  const rank=eventRankKnown?(Number.isFinite(eventRank)&&eventRank!>0&&eventRank!<=25?eventRank:null):(savedRank!=null&&Number.isFinite(savedRank)&&savedRank>0?savedRank:fallbackRank);
  const rankKnown=eventRankKnown||saved?.rankKnown===true||saved?.rank!=null||!!meta;
  const logo=saved?.logo||comp?.team?.logo||comp?.team?.logos?.[0]?.href||"";
- const slug=saved?.slug||comp?.team?.slug||(index===0?meta?.awaySlug:"")||PFF_TEAM_SLUGS[teamKey(name)]||"";
+ const slug=saved?.slug||comp?.team?.slug||(index===0?meta?.awaySlug:"")||PFF_TEAM_SLUGS[teamKey(name)]||pffSlugify(name);
  return {logo,rank,rankKnown,slug};
 }
 function matchup(x:any){const [a,b]=titleParts(x);return <>{[a,b].map((name,i)=>{const t=teamBits(x,name,i);return <span className="game-note-team" key={name+i}>{t.logo&&<img src={t.logo} alt="" loading="lazy"/>}{t.rankKnown&&<sup title="AP Top 25 ranking at kickoff">{t.rank?"#"+t.rank:"NR"}</sup>}<span>{name}</span>{i===0&&<em>vs</em>}</span>})}<span className="game-note-date">· {new Date(x.kickoff).toLocaleDateString([],{month:"long",day:"numeric",year:"numeric"})}</span></>}
