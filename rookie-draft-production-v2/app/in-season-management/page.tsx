@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw, ShieldCheck, Sparkles, TrendingUp, WalletCards } from "lucide-react";
 import { buildAlerts, sortLeagues, type LeagueData } from "@/lib/in-season";
+import { buildLineupAlerts } from "@/lib/in-season-optimizer";
 import ActionQueue from "./action-queue";
 import { useInSeasonState } from "./use-in-season-state";
 import LeagueOverviewView from "./league-overview-view";
@@ -111,7 +112,7 @@ export default function InSeasonManagementPage() {
   const managerCards = useMemo(() => buildManagerCards(leagueData, transactions, intents), [leagueData, transactions, intents]);
   const openManager = useCallback((ownerId: string) => setManagerId(ownerId), []);
 
-  const alerts = useMemo(() => buildAlerts(leagueData, intents), [leagueData, intents]);
+  const alerts = useMemo(() => [...buildAlerts(leagueData, intents), ...buildLineupAlerts(leagueData)].sort((a, b) => b.quality - a.quality || a.title.localeCompare(b.title)), [leagueData, intents]);
 
 
 

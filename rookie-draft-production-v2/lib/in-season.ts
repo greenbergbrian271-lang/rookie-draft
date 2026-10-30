@@ -344,7 +344,7 @@ export type AlertAlternative = {
 
 export type InSeasonAlert = {
   id: string;
-  kind: "player" | "ir" | "empty" | "intent";
+  kind: "player" | "ir" | "empty" | "intent" | "lineup";
   severity: Severity;
   title: string;
   detail: string;
@@ -354,6 +354,8 @@ export type InSeasonAlert = {
   playerId?: string;
   alternatives?: AlertAlternative[];
   intentLeagueId?: string;
+  /** Extra lines shown under "See changes" (used by lineup-change alerts). */
+  details?: string[];
 };
 
 export function playerFlag(player: PlayerDetail): { severity: Severity; label: string } | null {

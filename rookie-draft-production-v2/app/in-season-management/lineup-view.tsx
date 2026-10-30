@@ -1,6 +1,8 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
+import { optimizeLineup, type OptimizerResult } from "@/lib/in-season-optimizer";
 import NflPlayerName from "@/components/NflPlayerName";
 import {
   buildLineup,
@@ -77,14 +79,14 @@ function BenchTable({ title, players, league }: { title: string; players: Player
   );
 }
 
-function StartersPanel({ title, lineup, subtitle }: { title: string; lineup: Lineup; subtitle?: React.ReactNode }) {
+function StartersPanel({ title, lineup, subtitle, changed }: { title: string; lineup: Lineup; subtitle?: React.ReactNode; changed?: Set<string> }) {
   const total = lineup.starters.reduce((sum, row) => sum + (row.points ?? 0), 0);
   const started = total > 0;
   return (
     <section className={styles.lineupPanel}>
       <div className={styles.lineupPanelTitle}><b>{title}{subtitle ? <em className={styles.panelSub}>{subtitle}</em> : null}</b><span className={styles.colHead}><i>Proj</i><i>Pts</i></span></div>
       {lineup.starters.map((row, index) => (
-        <div className={styles.lineupRow} key={`${row.slot}-${index}`}>
+        <div className={`${styles.lineupRow} ${row.id && changed?.has(row.id) ? styles.changedRow : ""}`} key={`${row.slot}-${index}`}>
           <SlotBadge label={row.label} />
           {row.player ? (
             <div className={styles.playerCell}>
@@ -155,17 +157,52 @@ function Scoreboard({ league, team, intents, onOpenManager }: { league: LeagueDa
   );
 }
 
+function LineupCheck({ result, showing, onToggle }: { result: OptimizerResult; showing: boolean; onToggle: () => void }) {
+  if (result.note) return <p className={styles.leagueNote}>{result.note}</p>;
+  const locked = result.lockedCount > 0 ? ` ${result.lockedCount} starter${result.lockedCount === 1 ? " has" : "s have"} already played and can't move.` : "";
+  if (result.optimal) {
+    return (
+      <div className={`${styles.optBox} ${styles.optGood}`}>
+        <div className={styles.optHead}><CheckCircle2 size={16} /><div><strong>Your lineup is already the highest-projected one this league allows</strong><small>Projected total {result.currentTotal.toFixed(1)}.{locked}</small></div></div>
+      </div>
+    );
+  }
+  return (
+    <div className={`${styles.optBox} ${styles.optChange}`}>
+      <div className={styles.optHead}>
+        <Sparkles size={16} />
+        <div><strong>Suggested lineup: +{result.delta.toFixed(1)} projected points</strong><small>{result.currentTotal.toFixed(1)} now, {result.suggestedTotal.toFixed(1)} suggested, {result.swaps.length} change{result.swaps.length === 1 ? "" : "s"}.{locked}</small></div>
+        <button type="button" className={styles.queueGhost} onClick={onToggle}>{showing ? "Show current lineup" : "Show suggested lineup"}</button>
+      </div>
+      <ul className={styles.optList}>
+        {result.swaps.map((swap) => (
+          <li key={swap.in.id}>
+            <span className={`${styles.optDelta} ${swap.delta >= 0 ? styles.optUp : styles.optDown}`}>{swap.delta >= 0 ? "+" : ""}{swap.delta.toFixed(1)}</span>
+            <div><b>Start {swap.in.name}{swap.out ? ` in place of ${swap.out.name}` : ` in the empty ${swap.slot} slot`}</b><small>{swap.reason}</small></div>
+          </li>
+        ))}
+      </ul>
+      {result.moves.length > 0 && <p className={styles.optMoves}>Slot moves needed: {result.moves.join(" · ")}</p>}
+    </div>
+  );
+}
+
 function TeamLineup({ league, team, intents, onOpenManager }: { league: LeagueData; team: TeamData; intents: Intents; onOpenManager?: (id: string) => void }) {
   const { matchup, opponentMatch, opponent } = matchupOf(league, team);
-  const lineup = buildLineup(league, team, matchup);
+  const [showSuggested, setShowSuggested] = useState(false);
+  const optimized = optimizeLineup(league, team, matchup);
+  const shown = showSuggested && !optimized.optimal ? optimized.suggested : optimized.current;
+  const changedIds = showSuggested && !optimized.optimal ? new Set(optimized.changes.map((change) => change.in.id)) : undefined;
+  const lineup = shown;
   const theirs = opponent && !isGuillotine(league) ? buildLineup(league, opponent, opponentMatch) : null;
   return (
     <>
       <Scoreboard league={league} team={team} intents={intents} onOpenManager={onOpenManager} />
+      <LineupCheck result={optimized} showing={showSuggested} onToggle={() => setShowSuggested((value) => !value)} />
       {theirs && opponent ? (
         <>
           <div className={styles.lineupVs}>
-            <StartersPanel title="Your lineup" lineup={lineup} />
+            <StartersPanel title={showSuggested && !optimized.optimal ? "Suggested lineup" : "Your lineup"} lineup={lineup} changed={changedIds} />
             <StartersPanel title="Opponent" lineup={theirs} subtitle={<ManagerLink ownerId={opponent.ownerId} onOpen={onOpenManager}>{teamLabel(opponent)}</ManagerLink>} />
           </div>
           <div className={styles.lineupBenchRow}>
@@ -176,7 +213,7 @@ function TeamLineup({ league, team, intents, onOpenManager }: { league: LeagueDa
         </>
       ) : (
         <div className={styles.lineupLayout}>
-          <StartersPanel title="Starting lineup" lineup={lineup} />
+          <StartersPanel title={showSuggested && !optimized.optimal ? "Suggested lineup" : "Starting lineup"} lineup={lineup} changed={changedIds} />
           <div className={styles.lineupSide}>
             <BenchTable title="Bench" players={lineup.bench} league={league} />
             <BenchTable title="Injured reserve" players={lineup.reserve} league={league} />

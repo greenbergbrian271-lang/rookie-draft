@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {optimizeLineup,buildLineupAlerts} from "../lib/in-season-optimizer.ts";
 import {buildManagerCards} from "../lib/in-season-managers.ts";
 import {buildAlerts,buildLineup,buildRootingGuide,buildStandings,byeSlots,findMine,sortLeagues,weekKey,effectiveWindow,guillotineStatus,guillotineBoard,irEligible,livePlayerProjection,matchupProjected,projectedOutcome} from "../lib/in-season.ts";
 
@@ -129,4 +130,41 @@ assert.equal(projectedOutcome(vs(120,110),"1").verdict,"win");
 assert.equal(projectedOutcome(vs(100,110),"1").verdict,"lose");
 assert.equal(projectedOutcome(vs(110.5,110),"1").verdict,"toss-up");
 assert.equal(projectedOutcome({...league,matchups:[]},"1").verdict,"none");
+
+// ---- lineup optimizer ----
+const NOW=new Date("2026-10-30T16:00:00Z");
+const mkP=(id,pos,extra={})=>({id,name:"P"+id,position:pos,team:"BUF",status:"Active",injuryStatus:"",...extra});
+const ROSTER=[mkP("q1","QB"),mkP("q2","QB"),mkP("r1","RB"),mkP("r2","RB"),mkP("r3","RB"),mkP("w1","WR"),mkP("w2","WR"),mkP("t1","TE")];
+const VAL={q1:20,q2:18,r1:15,r2:14,r3:12,w1:13,w2:11,t1:9};
+const optProj=Object.fromEntries(Object.entries(VAL).map(([id,pts])=>[id,{pts,opp:"CHI",date:"2026-11-01"}]));
+const optLeague=(starters,over={},projOver={})=>({...league,id:"O",rosterPositions:["QB","RB","WR","FLEX","SUPER_FLEX","BN","BN"],projections:{...optProj,...projOver},
+  teams:[team("1",5,2,700,{isMine:true,players:ROSTER.map(p=>p.id),starters,playerDetails:over.details||ROSTER,reserve:[],taxi:[]})],matchups:[{rosterId:"1",matchupId:1,points:0,starters,startersPoints:over.pts||{}}]});
+const t1=optLeague(["q1","r1","w1","t1","r3"]);
+const res=optimizeLineup(t1,t1.teams[0],t1.matchups[0],NOW);
+assert.equal(res.currentTotal,69);assert.equal(res.suggestedTotal,80);assert.equal(res.delta,11);
+assert.deepEqual(res.suggested.starters.map(r=>r.id).sort(),["q1","q2","r1","r2","w1"].sort());
+assert.equal(res.changes.length,2);assert.ok(res.changes.every(c=>c.delta>0));
+assert.equal(res.swaps.length,2);assert.equal(Math.round(res.swaps.reduce((a,x)=>a+x.delta,0)*100)/100,res.delta,"swap deltas add up to the total gain");
+assert.equal(res.suggested.starters[0].id,"q1","players keep their current slots where possible");
+// already optimal
+const best=optLeague(["q1","r1","w1","r2","q2"]);
+assert.equal(optimizeLineup(best,best.teams[0],best.matchups[0],NOW).optimal,true);
+// every suggested player is eligible for the slot he is in
+const SLOT_OK={QB:["QB"],RB:["RB"],WR:["WR"],FLEX:["RB","WR","TE"],SUPER_FLEX:["QB","RB","WR","TE"]};
+res.suggested.starters.forEach(r=>assert.ok(SLOT_OK[r.slot].includes(r.player.position),r.slot+" "+r.player.position));
+// an Out starter is excluded and counts for nothing
+const hurtRoster=ROSTER.map(p=>p.id==="r1"?{...p,injuryStatus:"Out"}:p);
+const hurt=optLeague(["q1","r1","w1","r2","q2"],{details:hurtRoster});
+const hr=optimizeLineup(hurt,hurt.teams[0],hurt.matchups[0],NOW);
+assert.ok(!hr.suggested.starters.some(r=>r.id==="r1"));assert.equal(hr.swaps[0].outFlagged,true);assert.ok(hr.delta>0);
+// a player whose game is already over stays put, and a played bench player cannot be started
+const lockedLeague=optLeague(["q1","r1","w1","t1","r3"],{pts:{q1:21,r1:10,w1:8,t1:2,r3:0}},{r1:{pts:15,opp:"X",date:"2026-10-29"},r2:{pts:14,opp:"X",date:"2026-10-29"}});
+const lk=optimizeLineup(lockedLeague,lockedLeague.teams[0],lockedLeague.matchups[0],NOW);
+assert.equal(lk.suggested.starters[1].id,"r1","played starter is locked in his slot");
+assert.ok(!lk.suggested.starters.some(r=>r.id==="r2"),"played bench player cannot be started");
+assert.equal(lk.lockedCount,1);
+// alert only when a non-injury change clears the threshold; hurt-starter swaps are left to the player alert
+assert.equal(buildLineupAlerts([t1],1,NOW).length,1);
+assert.equal(buildLineupAlerts([best],1,NOW).length,0);
+assert.equal(buildLineupAlerts([hurt],1,NOW).length,0);
 console.log("in-season unit checks passed");
