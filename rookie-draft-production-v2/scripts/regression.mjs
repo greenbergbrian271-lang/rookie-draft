@@ -36,6 +36,8 @@ const checks=[
   ["app/api/college-football/route.ts",/rankings=fresh\?null:await cacheGet/,"college-football refresh bypasses rankings cache"],
   ["lib/college-football-sync.ts",/export async function syncDates/,"date-scoped historical ESPN scoreboard lookup"],
   ["app/api/college-football/route.ts",/dateParam/,"Game Notes can request historical game dates"],
+  ["app/api/college-football/route.ts",/idParam/,"historical scoreboard results are limited to saved game IDs"],
+  ["app/game-notes/page.tsx",/eventRank!<=25/,"ESPN unranked sentinel values are not shown as #99"],
   ["app/game-notes/page.tsx",/KNOWN_GAME_META/,"requested games have verified historical scores and AP ranks"],
   ["app/game-notes/page.tsx",/ESPN Box Score/,"completed Game Notes rows link to ESPN box scores"],
   ["app/game-notes/page.tsx",/PFF Breakdown/,"completed Game Notes rows link to visiting-team PFF breakdowns"],

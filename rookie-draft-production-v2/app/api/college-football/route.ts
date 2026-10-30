@@ -5,12 +5,12 @@ const parse=(s:string)=>new Date(Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice
 
 export async function GET(req:Request){
   try{
-    const u=new URL(req.url),fresh=u.searchParams.get("fresh")==="1",dateParam=u.searchParams.get("dates");
+    const u=new URL(req.url),fresh=u.searchParams.get("fresh")==="1",dateParam=u.searchParams.get("dates"),idParam=u.searchParams.get("ids");
     let start=u.searchParams.get("start"),end=u.searchParams.get("end"),events:any[]=[];
     if(dateParam){
       const dates=Array.from(new Set(dateParam.split(",").map(x=>x.trim()).filter(x=>/^\d{8}$/.test(x)))).slice(0,20);
       if(!dates.length)return Response.json({error:"Provide one or more YYYYMMDD dates."},{status:400});
-      events=await syncDates(dates,fresh);start=dates[0];end=dates[dates.length-1];
+      events=await syncDates(dates,fresh);if(idParam){const ids=new Set(idParam.split(",").map(x=>x.trim()).filter(x=>/^\\d+$/.test(x)).slice(0,40));events=events.filter((event:any)=>ids.has(String(event.id)))}start=dates[0];end=dates[dates.length-1];
     }else{
       if(!start||!end){const w=currentFootballWeek();start=ymd(w.start);end=ymd(w.end)}
       const key="cfb:schedule:"+start+":"+end;
