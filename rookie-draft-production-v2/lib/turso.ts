@@ -56,6 +56,7 @@ for(const sql of [
   `alter table all_star_invites add column participation_status text not null default 'ACTIVE'`,
   `alter table planned_games add column draft_class integer not null default 2027`,
   `alter table game_notes add column draft_class integer not null default 2027`,
+  `alter table game_notes add column game_status text not null default 'COMPLETED'`,
   `alter table players add column player_uid text`
 ]){try{await c.execute(sql)}catch(e:unknown){const message=e instanceof Error?e.message:String(e);if(!message.toLowerCase().includes("duplicate column"))throw e}}
 await c.execute("update players set player_uid='rdp-' || id where (player_uid is null or trim(player_uid)='') and coalesce((select is_locked from draft_class_state where draft_class=players.draft_class),0)=0");
