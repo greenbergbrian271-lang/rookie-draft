@@ -31,7 +31,8 @@ export default function Home(){
  const {openNflPlayer}=useNflPlayerCard();
  const [homeMode,setHomeMode]=useState<"Auto"|"NFL"|"CFB">(()=>{try{return (localStorage.getItem("home-football-mode") as any)||"Auto"}catch{return "Auto"}});
  const [week,setWeek]=useState(()=>{try{const mode=(localStorage.getItem("home-football-mode")||"Auto") as "NFL"|"CFB"|"Auto",stored=Number(localStorage.getItem("scouting-week"));return Number.isFinite(stored)?Math.max(0,stored):currentWeekOffset(mode)}catch{return currentWeekOffset("CFB")}});
- const [nflEvents,setNflEvents]=useState<any[]>([]);\n const [nflFantasyPoints,setNflFantasyPoints]=useState<Record<string,number>>({});
+ const [nflEvents,setNflEvents]=useState<any[]>([]);
+ const [nflFantasyPoints,setNflFantasyPoints]=useState<Record<string,number>>({});
  const [ownedNflPlayers,setOwnedNflPlayers]=useState<any[]>([]);
  const [nflLoading,setNflLoading]=useState(false);
  const [events,setEvents]=useState<any[]>(()=>readCache("scouting-events",[])),[players,setPlayers]=useState<any[]>(()=>readCache("scouting-players",[])),[rankings,setRankings]=useState<any[]>(()=>readCache("scouting-rankings",[])),[rosters,setRosters]=useState<Record<string,any[]>>(()=>readCache("scouting-rosters",{})),[day,setDay]=useState(()=>{try{return localStorage.getItem("scouting-day")||"All"}catch{return "All"}}),[window,setWindow]=useState(()=>{try{return localStorage.getItem("scouting-window")||"All"}catch{return "All"}}),[level,setLevel]=useState(()=>{try{return localStorage.getItem("scouting-level")||"Both"}catch{return "Both"}}),[network,setNetwork]=useState(()=>{try{return localStorage.getItem("scouting-network")||"All"}catch{return "All"}}),[minPlayers,setMinPlayers]=useState(()=>{try{return Number(localStorage.getItem("scouting-min-players")||0)}catch{return 0}}),[dashboard,setDashboard]=useState<{notes:any[],watch:any[],board:any[]}>({notes:[],watch:[],board:[]}),[dashboardLoading,setDashboardLoading]=useState(true),[scheduleRefreshing,setScheduleRefreshing]=useState(false),[scheduleRefreshMessage,setScheduleRefreshMessage]=useState("");
@@ -59,7 +60,12 @@ export default function Home(){
   finally{setScheduleRefreshing(false)}
  }
  async function watchLater(g:any){if(isLocked)return;const home=g.sides.find((s:any)=>s.homeAway==="home"),away=g.sides.find((s:any)=>s.homeAway==="away");await fetch("/api/watch-list",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:g.id,kickoff:g.date,homeTeam:home?.name,awayTeam:away?.name,draftClass})})}
- async function watchNow(g:any){if(isLocked)return;const home=g.sides.find((s:any)=>s.homeAway==="home"),away=g.sides.find((s:any)=>s.homeAway==="away"),date=new Date(g.date).toLocaleDateString([],{month:"long",day:"numeric",year:"numeric"});const section=(s:any)=>s.name+"\n"+(s.prospects.length?s.prospects.map((p:any)=>"• "+(p.jersey?"#"+p.jersey+" ":"")+p.position+" "+p.name+"\n  ◦ ").join("\n"):"• No Draft Eligible Players");const title=(away?.name||"Team A")+" vs "+(home?.name||"Team B")+" - "+date,notes=section(away||g.sides[0])+"\n\n"+section(home||g.sides[1]);await fetch("/api/game-notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:g.id,kickoff:g.date,homeTeam:home?.name,awayTeam:away?.name,title,notes,draftClass})});location.href="/game-notes"}
+ async function watchNow(g:any){if(isLocked)return;const home=g.sides.find((s:any)=>s.homeAway==="home"),away=g.sides.find((s:any)=>s.homeAway==="away"),date=new Date(g.date).toLocaleDateString([],{month:"long",day:"numeric",year:"numeric"});const section=(s:any)=>s.name+"
+"+(s.prospects.length?s.prospects.map((p:any)=>"• "+(p.jersey?"#"+p.jersey+" ":"")+p.position+" "+p.name+"
+  ◦ ").join("
+"):"• No Draft Eligible Players");const title=(away?.name||"Team A")+" vs "+(home?.name||"Team B")+" - "+date,notes=section(away||g.sides[0])+"
+
+"+section(home||g.sides[1]);await fetch("/api/game-notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:g.id,kickoff:g.date,homeTeam:home?.name,awayTeam:away?.name,title,notes,draftClass})});location.href="/game-notes"}
  const activeProspects=players.filter(p=>p.draft_class===draftClass&&p.scouting_status!=="FINISHED").length,watchedCount=players.filter(p=>p.draft_class===draftClass&&p.scouting_status==="WATCHED").length,needGrade=dashboard.notes.filter(n=>n.need_to_grade).length,watchCount=dashboard.watch.filter(g=>new Date(g.kickoff).getTime()>=Date.now()-86400000).length,boardTop=dashboard.board.filter(r=>r.overallRank!=null).slice(0,4);
  const weekOptions=Array.from({length:20},(_,i)=>i);
  const fmtWeek=(i:number)=>{const w=weekLabel(i,homeMode);return `${homeMode==="Auto"?"":w.title+" · "}${w.dates}${i===week?" · Current":""}`};
