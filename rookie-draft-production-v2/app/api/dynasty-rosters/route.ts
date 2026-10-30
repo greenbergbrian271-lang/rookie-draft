@@ -197,19 +197,21 @@ export async function GET(){
           ...roster,
           players:roster.players.map(player=>{
             if(player.jersey)return player;
-            // Legacy snapshots may not have playerId. Resolve by exact player
-            // name + position + team against the same Sleeper DB used by nfl-card.
+            // Old cached roster snapshots may have neither playerId nor jersey.
+            // Match against the exact Sleeper database used by the NFL player card.
             const direct=player.playerId?playerDb?.[String(player.playerId)]:null;
             const normalize=(value:string)=>String(value||"").toLowerCase().replace(/[^a-z0-9]/g,"");
             const target=normalize(player.name);
-            const match=direct||Object.values(playerDb||{}).find((candidate:any)=>{
+            const candidates=Object.values(playerDb||{}).filter((candidate:any)=>{
               const candidateName=candidate?.full_name||[candidate?.first_name,candidate?.last_name].filter(Boolean).join(" ");
-              const candidateTeam=String(candidate?.team||"");
-              const expectedTeam=Object.entries(TEAM_NAMES).find(([,name])=>name.toLowerCase()===String(player.team||"").toLowerCase())?.[0]||String(player.team||"");
               return normalize(candidateName)===target
                 &&String(candidate?.position||"").toUpperCase()===String(player.position||"").toUpperCase()
-                &&candidateTeam.toUpperCase()===expectedTeam.toUpperCase();
-            }) as any;
+                &&candidate?.number!=null;
+            }) as any[];
+            const expectedTeam=Object.entries(TEAM_NAMES).find(([abbr,name])=>
+              [abbr,name].some(value=>normalize(value)===normalize(player.team))
+            )?.[0]||String(player.team||"").toUpperCase();
+            const match=direct||candidates.find((candidate:any)=>String(candidate?.team||"").toUpperCase()===expectedTeam)||candidates[0];
             const number=match?.number;
             return number==null?player:{...player,jersey:String(number)};
           }),
