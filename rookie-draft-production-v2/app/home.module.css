@@ -39,3 +39,9 @@
 
 /* Requested completed-score color from the Game Notes score treatment. */
 .completedScore{color:#69b7ff;font-size:1.08em;font-weight:950;font-variant-numeric:tabular-nums}
+
+.homeLeagueToggle .splitIcon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:48px;height:28px;overflow:hidden}
+.homeLeagueToggle .splitIcon img{position:absolute;width:23px;height:23px;object-fit:contain}
+.homeLeagueToggle .splitIcon img:first-child{left:0;clip-path:inset(0 0 0 0)}
+.homeLeagueToggle .splitIcon img:last-child{right:0}
+.homeLeagueToggle .splitIcon i{position:absolute;z-index:2;left:50%;top:-3px;width:2px;height:34px;background:currentColor;transform:rotate(42deg);transform-origin:center;opacity:.9}
