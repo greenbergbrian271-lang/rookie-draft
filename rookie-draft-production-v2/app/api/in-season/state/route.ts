@@ -1,30 +1,7 @@
-import { ensureTursoSchema } from "@/lib/turso";
+import { loadInSeasonState as load, saveInSeasonState as save } from "@/lib/in-season-state";
 import { weekKey } from "@/lib/in-season";
 
 export const dynamic = "force-dynamic";
-
-// Small owner-only state for the In-Season workspace: declared dynasty intent per league, and dismissed alerts.
-type State = { intents: Record<string, "Contend" | "Rebuild">; dismissed: Record<string, string> };
-const KEY = "in-season-state";
-
-async function load(): Promise<State> {
-  const c = await ensureTursoSchema();
-  const result = await c.execute({ sql: "select value from settings where key=?", args: [KEY] });
-  try {
-    const parsed = JSON.parse(String(result.rows[0]?.value || "{}"));
-    return { intents: parsed.intents || {}, dismissed: parsed.dismissed || {} };
-  } catch {
-    return { intents: {}, dismissed: {} };
-  }
-}
-
-async function save(state: State) {
-  const c = await ensureTursoSchema();
-  await c.execute({
-    sql: "insert into settings(key,value,updated_at) values(?,?,?) on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at",
-    args: [KEY, JSON.stringify(state), new Date().toISOString()],
-  });
-}
 
 export async function GET() {
   try {

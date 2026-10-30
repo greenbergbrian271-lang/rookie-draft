@@ -43,7 +43,7 @@ export default function MyTeamInsights({leagueKey,refreshToken=0,exposure=[]}:{l
     <div className="my-team-intel-grid">
       <article>
         <h3>Roster Construction</h3>
-        <div className="my-team-stat-row"><span>Team Type</span><strong>{mine.classification}</strong></div>
+        <div className="my-team-stat-row"><span>Team Type</span><strong>{mine.classification}{mine.declared?" (declared)":""}</strong></div>
         <div className="my-team-stat-row"><span>Win-Now Score</span><strong>{mine.windowScore}/100</strong></div>
         <div className="my-team-stat-row"><span>Roster Strategy</span><strong>{mine.construction}</strong></div>
         <div className="my-team-value-split"><div><span>Starters</span><strong>{fmt.format(Math.round(mine.starterValue||0))}</strong><em>#{mine.starterRank}</em></div><div><span>Bench</span><strong>{fmt.format(Math.round(mine.benchValue||0))}</strong><em>#{mine.benchRank||"—"}</em></div></div>

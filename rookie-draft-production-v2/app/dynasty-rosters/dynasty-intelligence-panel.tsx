@@ -93,7 +93,7 @@ export default function DynastyIntelligencePanel({leagueKey,refreshToken=0}:{lea
         <Card title="Team Windows & Strategy" wide>
           <div className="di-table-wrap"><table className="di-table"><thead><tr><th>Team</th><th>Type</th><th>Win-Now</th><th>Starters</th><th>Bench</th><th>Avg Age</th><th>Roster Strategy</th></tr></thead><tbody>
             {(data.teams||[]).sort((a:any,b:any)=>a.powerRank-b.powerRank).map((t:any)=><tr key={t.rosterId} className={t.isMine?"mine":""}>
-              <td><strong>#{t.powerRank} {t.name}</strong></td><td>{t.classification}</td><td>{t.windowScore}/100</td><td>#{t.starterRank} · {money(t.starterValue)}</td><td>{money(t.benchValue)}</td><td>{Number(t.avgAge||0).toFixed(1)}</td><td>{t.construction}</td>
+              <td><strong>#{t.powerRank} {t.name}</strong></td><td>{t.classification}{t.declared?" (declared)":""}</td><td>{t.windowScore}/100</td><td>#{t.starterRank} · {money(t.starterValue)}</td><td>{money(t.benchValue)}</td><td>{Number(t.avgAge||0).toFixed(1)}</td><td>{t.construction}</td>
             </tr>)}
           </tbody></table></div>
         </Card>

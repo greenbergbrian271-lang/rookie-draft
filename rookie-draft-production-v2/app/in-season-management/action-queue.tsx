@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ChevronDown, ChevronRight, ChevronUp, EyeOff, RotateCcw, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, ChevronUp, RotateCcw, X } from "lucide-react";
 import type { AlertAlternative, InSeasonAlert, Intent } from "@/lib/in-season";
 import styles from "./in-season-management.module.css";
 
@@ -10,11 +10,11 @@ const LABEL = { critical: "Fix now", high: "Check today", watch: "Keep an eye on
 const ACTION = { "auto-sub": "Set an Auto-Sub", swap: "Swap in your lineup", none: "No option" } as const;
 const pts = (value: number | null) => (value == null ? "—" : value.toFixed(1));
 
-function Alternatives({ items }: { items: AlertAlternative[] }) {
+function Alternatives({ items, focus }: { items: AlertAlternative[]; focus: string }) {
   return (
     <div className={styles.altList}>
       {items.map((alt) => (
-        <div className={styles.altRow} key={alt.leagueId}>
+        <div className={`${styles.altRow} ${focus === alt.leagueId ? styles.altFocus : ""}`} key={alt.leagueId}>
           <div className={styles.altHead}>
             <span className={styles.typeBadge}>{alt.leagueType}</span>
             <strong>{alt.leagueName}</strong>
@@ -65,7 +65,7 @@ export default function ActionQueue({ alerts, dismissed, loaded, onDismiss, onRe
   const totalOpen = alerts.filter((alert) => !dismissed[alert.id]).length;
 
   const renderAlert = (alert: InSeasonAlert, isDismissed: boolean) => {
-    const alternatives = (alert.alternatives || []).filter((alt) => filter === "all" || alt.leagueId === filter);
+    const alternatives = alert.alternatives || [];
     const expanded = open[alert.id];
     const shownLeagues = filter === "all" ? alert.leagues : alert.leagues.filter((league) => league.id === filter);
     return (
@@ -86,30 +86,32 @@ export default function ActionQueue({ alerts, dismissed, loaded, onDismiss, onRe
               <button type="button" className={styles.queueToggle} onClick={() => setOpen((current) => ({ ...current, [alert.id]: !expanded }))}>
                 {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />} {expanded ? "Hide" : "See"} {alternatives.length > 1 ? `options by league (${alternatives.length})` : "options"}
               </button>
-              {expanded && <Alternatives items={alternatives} />}
+              {expanded && <Alternatives items={alternatives} focus={filter} />}
             </>
           )}
+          <div className={styles.queueFooter}>
+            {isDismissed
+              ? <button type="button" className={styles.queueGhost} onClick={() => onRestore(alert.id)}><RotateCcw size={12} /> Restore</button>
+              : <button type="button" className={styles.queueGhost} onClick={() => onDismiss(alert.id)} title="Hide this alert until the Tuesday reset"><X size={12} /> Dismiss until Tuesday</button>}
+          </div>
         </div>
-        <button type="button" className={styles.queueDismiss} aria-label={isDismissed ? "Restore alert" : "Dismiss until Tuesday"} title={isDismissed ? "Restore" : "Dismiss until Tuesday"} onClick={() => (isDismissed ? onRestore(alert.id) : onDismiss(alert.id))}>
-          {isDismissed ? <RotateCcw size={14} /> : <X size={15} />}
-        </button>
       </li>
     );
   };
 
+  const fixNow = alerts.filter((alert) => !dismissed[alert.id] && alert.severity === "critical").length;
   return (
     <section className={styles.actionQueue} aria-label="Action queue">
-      <div className={styles.sectionHeading}>
-        <div>
-          <div className={styles.sectionKicker}>Action queue</div>
-          <h2>What needs your attention{loaded ? ` (${totalOpen})` : ""}</h2>
-          {!hidden && <p>One alert per player, best players first. Dismissed alerts come back after the next Tuesday reset.</p>}
-        </div>
-        <div className={styles.queueActions}>
-          <button type="button" className={styles.textLink} onClick={toggleHidden}>{hidden ? <ChevronDown size={13} /> : <EyeOff size={13} />} {hidden ? "Show queue" : "Hide queue"}</button>
-          {!hidden && <Link className={styles.textLink} href="/in-season-management/lineups">Open lineups <ChevronRight size={13} /></Link>}
-        </div>
-      </div>
+      <button type="button" className={styles.queueBar} aria-expanded={!hidden} onClick={toggleHidden}>
+        <span className={styles.queueBarText}>
+          <span className={styles.sectionKicker}>Action queue</span>
+          <strong>What needs your attention</strong>
+          <small>{!loaded ? "Checking your lineups…" : totalOpen === 0 ? "Nothing open right now" : `${totalOpen} open${fixNow ? ` · ${fixNow} to fix now` : ""}${Object.keys(dismissed).length ? ` · ${Object.keys(dismissed).length} dismissed` : ""}`}</small>
+        </span>
+        <span className={styles.queueCount}>{loaded ? totalOpen : "…"}</span>
+        <span className={styles.queueChevron}>{hidden ? <ChevronDown size={18} /> : <ChevronUp size={18} />}</span>
+      </button>
+      {!hidden && <p className={styles.queueHint}>One alert per player, best players first. Dismissed alerts come back after the next Tuesday reset. <Link href="/in-season-management/lineups">Open lineups <ChevronRight size={12} /></Link></p>}
       {saveError && <p className={styles.leagueWarning}>{saveError}</p>}
       {hidden || !loaded ? null : (
         <>

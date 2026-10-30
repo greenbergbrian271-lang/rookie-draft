@@ -111,7 +111,7 @@ export async function GET() {
       if (type === "Dynasty" && entry.key) {
         try {
           const intel: any = await leagueIntelMode({ key: entry.key, name: entry.name || league.name, leagueId: entry.id, teamIdentity: entry.teamIdentity, tePremium: Boolean(entry.tePremium), enabled: true });
-          windows = Object.fromEntries((intel.teams || []).map((team: any) => [String(team.rosterId), { classification: team.classification, windowScore: team.windowScore, powerRank: team.powerRank }]));
+          windows = Object.fromEntries((intel.teams || []).map((team: any) => [String(team.rosterId), { classification: team.computedClassification || team.classification, windowScore: team.windowScore, powerRank: team.powerRank }]));
         } catch (error) {
           windowError = error instanceof Error ? error.message : "Team windows unavailable";
         }

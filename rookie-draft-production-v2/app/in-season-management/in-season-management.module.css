@@ -295,3 +295,56 @@
 .mgrTrade{margin:7px 0;padding:8px 10px;border-radius:8px;background:#10213a;font-size:11px;color:#dbe8fb;line-height:1.45}.mgrTrade small{display:block;margin-bottom:2px;color:#7890b1;font-size:9px}
 .mgrChips{list-style:none;display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;padding:0}.mgrChips li{padding:4px 9px;border-radius:999px;background:#10213a;border:1px solid #20395f;font-size:11px}.mgrChips b{color:#20e2dd;margin-left:2px}
 @media(max-width:700px){.mgrGrid{grid-template-columns:1fr}}
+
+/* ---- Round 3: queue bar + visible dismiss (global button styles add padding, so set everything explicitly) ---- */
+.queueBar{display:flex;align-items:center;gap:14px;width:100%;margin:0 0 8px;padding:13px 16px;border:1px solid #20395f;border-radius:12px;background:#0c1930;color:#fff;text-align:left;cursor:pointer;font-weight:400}
+.queueBar:hover{border-color:#31527f;background:#0e2039}
+.queueBarText{flex:1;min-width:0;display:block}
+.queueBarText strong{display:block;margin-top:3px;font-size:16px}
+.queueBarText small{display:block;margin-top:3px;color:#9fb5d3;font-size:12px}
+.queueCount{min-width:34px;padding:5px 10px;border-radius:999px;background:#1b2f4d;color:#fff;text-align:center;font-size:13px;font-weight:900}
+.queueChevron{display:flex;color:#9fb5d3}
+.queueHint{margin:0 0 12px;color:#7890b1;font-size:12px}.queueHint a{color:#20e2dd;font-weight:800;margin-left:6px}
+.queueFooter{display:flex;justify-content:flex-end;margin-top:8px}
+.queueGhost{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid #31527f;border-radius:8px;background:transparent;color:#cfe0f5;font-size:11px;font-weight:800;cursor:pointer}
+.queueGhost:hover{border-color:#20e2dd;color:#20e2dd}
+.queueItem{grid-template-columns:104px minmax(0,1fr)!important}
+@media(max-width:700px){.queueItem{grid-template-columns:1fr!important}}
+.altFocus{border-color:#20e2dd}
+
+/* ---- Round 3: league nav, fold-down headers, opponent lineup, overview snapshot, manager pop-up ---- */
+.leagueNav{position:sticky;top:46px;z-index:20;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 14px;padding:9px 12px;border:1px solid #20395f;border-radius:12px;background:rgba(8,20,38,.96);backdrop-filter:blur(6px)}
+.leagueNavChips{display:flex;gap:14px;flex-wrap:wrap;min-width:0}
+.leagueNavGroup{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.leagueNavGroup span{color:#7890b1;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+.leagueNavGroup button,.leagueNavActions button{padding:5px 10px;border:1px solid #20395f;border-radius:999px;background:#0b1930;color:#cfe0f5;font-size:11px;font-weight:800;cursor:pointer}
+.leagueNavGroup button:hover,.leagueNavActions button:hover{border-color:#20e2dd;color:#20e2dd}
+.leagueNavActions{display:flex;gap:6px}
+.leagueCard{scroll-margin-top:112px}
+.leagueHeader{display:flex;align-items:center;gap:12px;width:100%;margin:0;padding:0;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer;font-weight:400}
+.leagueHeaderMain{flex:1;min-width:0;display:block}
+.leagueHeaderTop{display:flex;gap:10px;align-items:center}
+.leagueHeaderMain strong{display:block;margin-top:8px;font-size:19px}
+.leagueHeaderMain small{display:block;margin-top:4px;color:#9fb5d3;font-size:12px}
+.leagueHeaderChevron{display:flex;color:#9fb5d3}
+.lineupVs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+.lineupBenchRow{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px;align-items:start}
+.panelSub{margin-left:8px;font-style:normal;font-weight:600;color:#9fb5d3;text-transform:none;letter-spacing:0}
+.mgrLink{display:inline;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-weight:inherit;text-align:inherit;text-decoration:underline dotted #31527f;text-underline-offset:3px;cursor:pointer}
+.mgrLink:hover{color:#20e2dd;text-decoration-color:#20e2dd}
+.snapLink{position:absolute;inset:0;z-index:1;border-radius:inherit}
+.matchupCard{position:relative}
+.matchupCard :global(a),.matchupCard .mgrLink{position:relative;z-index:2}
+.snapSides{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center;margin-top:12px}
+.snapSides span{display:block;color:#9fb5d3;font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snapSides strong{display:block;margin-top:2px;font-size:24px;font-variant-numeric:tabular-nums}.snapSides small{display:block;color:#7890b1;font-size:11px}
+.snapRight{text-align:right}.snapMid{text-align:center}.snapMid b{display:inline-block;padding:4px 10px;border-radius:999px;background:#0b1930;border:1px solid #20395f;font-size:10px;text-transform:uppercase}
+.snapGuillotine{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;margin-top:12px}
+.snapRank{text-align:center;min-width:84px}.snapRank strong{display:block;font-size:40px;line-height:1}.snapRank span{display:block;color:#a9bdd6;font-size:11px;margin-top:3px}.snapRank small{display:block;color:#7890b1;font-size:10px}
+.snapStats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.snapStats span{display:block;color:#7890b1;font-size:9px;text-transform:uppercase;letter-spacing:.05em}.snapStats strong{display:block;margin-top:2px;font-size:16px;font-variant-numeric:tabular-nums}.snapStats small{display:block;color:#7890b1;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mgrBackdrop{position:fixed;inset:0;z-index:500;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.68)}
+.mgrModal{position:relative;width:min(720px,100%);max-height:92vh;overflow:auto;padding:20px;border:1px solid #29476e;border-radius:16px;background:#071426}
+.mgrClose{position:absolute;right:12px;top:12px;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:#10233f;color:#cfe0f5;cursor:pointer}
+.mgrModalHead{display:flex;gap:12px;align-items:center;margin-bottom:12px;padding-right:40px}.mgrModalHead strong{display:block;font-size:20px}.mgrModalHead small{display:block;color:#7890b1;font-size:12px;margin-top:2px}
+.mgrModal .mgrDetail{padding:14px 0 0;border-top:1px solid #20395f;background:transparent}
+@media(max-width:900px){.lineupVs{grid-template-columns:1fr}.leagueNav{top:0}}

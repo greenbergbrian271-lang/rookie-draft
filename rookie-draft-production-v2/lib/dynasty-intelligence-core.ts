@@ -1,3 +1,4 @@
+import {loadInSeasonState} from "@/lib/in-season-state";
 import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations";
 import {createKtcMatcher,getKtcPickValue,getKtcPickYears,loadKtcDataset,type KtcDataset} from "@/lib/ktc";
 import {buildLeagueStrengths,type LeagueStrengths,type StrengthPosition} from "@/lib/league-strengths";
@@ -148,13 +149,16 @@ export function deadlineOpportunities(profiles:any[]){
 }
 
 export async function leagueIntelMode(league:SleeperLeagueIntegration){
-  const base=await loadIntelBase(league),profiles=buildTeamIntel(base,league),season=Number(base.leagueData?.season)||new Date().getFullYear();
-  await upsertYearlyPower(profiles.map(p=>({leagueKey:league.key,season,rosterId:p.rosterId,teamName:p.name,rank:p.powerRank,score:p.powerScore,classification:p.classification,starterValue:p.starterValue,benchValue:p.benchValue,pickValue:p.pickValue,avgAge:p.avgAge}))).catch(()=>{});
+  const base=await loadIntelBase(league),computedProfiles=buildTeamIntel(base,league),season=Number(base.leagueData?.season)||new Date().getFullYear();
+  // Stored yearly history keeps the computed window; the screen (and trade fits) use the intent Brian declared for his own team.
+  const declared=(await loadInSeasonState().catch(()=>null))?.intents?.[String((league as any).leagueId||"")];
+  const profiles=computedProfiles.map((p:any)=>p.isMine&&declared?{...p,computedClassification:p.classification,classification:declared==="Contend"?"Contender":"Rebuilder",declared:true}:p);
+  await upsertYearlyPower(computedProfiles.map(p=>({leagueKey:league.key,season,rosterId:p.rosterId,teamName:p.name,rank:p.powerRank,score:p.powerScore,classification:p.classification,starterValue:p.starterValue,benchValue:p.benchValue,pickValue:p.pickValue,avgAge:p.avgAge}))).catch(()=>{});
   const yearly=await readYearlyPower(league.key).catch(()=>[]);
   return {
     league:{key:league.key,name:String(base.leagueData?.name||league.name),season},
     strengths:base.strengths,demand:demandMap(base.strengths),
-    teams:profiles.map(p=>({rosterId:p.rosterId,name:p.name,isMine:p.isMine,starterValue:p.starterValue,benchValue:p.benchValue,totalPlayerValue:p.totalPlayerValue,pickValue:p.pickValue,starterRank:p.starterRank,benchRank:p.benchRank,playerRank:p.playerRank,pickRank:p.pickRank,powerRank:p.powerRank,powerScore:p.powerScore,avgAge:p.avgAge,ageByPosition:p.ageByPosition,windowScore:p.windowScore,classification:p.classification,construction:p.construction,concentration:p.concentration,starterShare:p.starterShare,pickByYear:Object.entries(p.picks.reduce((acc:any,pick:any)=>{acc[pick.season]=(acc[pick.season]||0)+pick.value;return acc},{})).map(([y,v])=>({season:Number(y),value:Number(v)}))})),
+    teams:profiles.map(p=>({rosterId:p.rosterId,name:p.name,isMine:p.isMine,starterValue:p.starterValue,benchValue:p.benchValue,totalPlayerValue:p.totalPlayerValue,pickValue:p.pickValue,starterRank:p.starterRank,benchRank:p.benchRank,playerRank:p.playerRank,pickRank:p.pickRank,powerRank:p.powerRank,powerScore:p.powerScore,avgAge:p.avgAge,ageByPosition:p.ageByPosition,windowScore:p.windowScore,classification:p.classification,declared:Boolean((p as any).declared),computedClassification:(p as any).computedClassification||p.classification,construction:p.construction,concentration:p.concentration,starterShare:p.starterShare,pickByYear:Object.entries(p.picks.reduce((acc:any,pick:any)=>{acc[pick.season]=(acc[pick.season]||0)+pick.value;return acc},{})).map(([y,v])=>({season:Number(y),value:Number(v)}))})),
     deadline:deadlineOpportunities(profiles),yearlyPower:yearly,
   };
 }

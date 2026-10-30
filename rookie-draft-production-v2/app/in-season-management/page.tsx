@@ -9,6 +9,9 @@ import { useInSeasonState } from "./use-in-season-state";
 import LeagueOverviewView from "./league-overview-view";
 import LineupView from "./lineup-view";
 import ManagersView from "./managers-view";
+import ManagerModal from "./manager-modal";
+import OverviewSnapshot from "./overview-snapshot";
+import { buildManagerCards } from "@/lib/in-season-managers";
 import type { LeagueTransactions } from "@/lib/in-season-managers";
 import styles from "./in-season-management.module.css";
 
@@ -49,6 +52,7 @@ export default function InSeasonManagementPage() {
   const [transactions, setTransactions] = useState<LeagueTransactions[]>([]);
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState("");
+  const [managerId, setManagerId] = useState<string | null>(null);
   const { intents, dismissed, saveError, setIntent, dismiss, restore } = useInSeasonState();
 
   const refresh = useCallback(async (manual = false) => {
@@ -95,14 +99,17 @@ export default function InSeasonManagementPage() {
 
   // Trade and waiver history is only needed for Manager Cards, so it loads when that page opens.
   useEffect(() => {
-    if (section !== "managers" || transactions.length) return;
+    if ((section !== "managers" && !managerId) || transactions.length || txLoading) return;
     setTxLoading(true);
     fetch("/api/in-season/managers", { cache: "no-store" })
       .then((response) => { if (!response.ok) throw new Error(`Trade history returned HTTP ${response.status}`); return response.json(); })
       .then((payload) => setTransactions((payload.leagues || []).filter((item: any) => !item.error)))
       .catch((cause) => setTxError(cause instanceof Error ? cause.message : "Trade history is unavailable right now."))
       .finally(() => setTxLoading(false));
-  }, [section, transactions.length]);
+  }, [section, managerId, transactions.length, txLoading]);
+
+  const managerCards = useMemo(() => buildManagerCards(leagueData, transactions, intents), [leagueData, transactions, intents]);
+  const openManager = useCallback((ownerId: string) => setManagerId(ownerId), []);
 
   const alerts = useMemo(() => buildAlerts(leagueData, intents), [leagueData, intents]);
 
@@ -135,61 +142,16 @@ export default function InSeasonManagementPage() {
 
       {section === "overview" && <ActionQueue alerts={alerts} dismissed={dismissed} loaded={leagueData.length > 0} onDismiss={dismiss} onRestore={restore} onIntent={setIntent} saveError={saveError} />}
 
-      {section === "overview" && (
-        <section className={styles.overviewMatchups} aria-label="This week in your leagues">
-          <div className={styles.sectionHeading}>
-            <div><div className={styles.sectionKicker}>Weekly snapshot</div><h2>This week in your leagues</h2><p>Your head-to-head matchup and your weekly guillotine placement, based on Sleeper scores.</p></div>
-          </div>
-          {leagueData.length === 0 ? (
-            <div className={styles.emptyState}><RefreshCw size={20} className={styles.spinning}/><strong>Loading weekly matchups…</strong><span>Fetching your team names and current scores from Sleeper.</span></div>
-          ) : (
-            <div className={styles.matchupGrid}>
-              {leagueData.filter((league) => league.id === "1389753161815707648" || league.type.toLowerCase().includes("guillotine") || league.type.toLowerCase().includes("dynasty")).map((league) => {
-                // The integration status endpoint may be configured for other leagues. Resolve the user's Sleeper account globally, then find that owner in each of the three requested leagues.
-                const knownOwnerIds = checks.map((item) => item.rosterMatch?.ownerId).filter((id): id is string => Boolean(id));
-                const myTeam = league.teams?.find((team) => knownOwnerIds.includes(team.ownerId || "")) || league.teams?.find((team) => team.owner.toLowerCase() === "cds1204");
-                const ownRoster = myTeam?.rosterId;
-                const myScore = league.matchups?.find((match) => match.rosterId === ownRoster);
-                const guillotine = league.type.toLowerCase().includes("guillotine");
-                const eliminated = league.eliminated || Boolean(myTeam?.eliminated);
-                const activeTeams = (league.teams || []).filter((team) => team.players.length > 0 && !team.eliminated);
-                const hasWeeklyScores = (league.matchups || []).some((match) => match.points > 0);
-                const ranked = hasWeeklyScores ? activeTeams.map((team) => ({ team, score: league.matchups?.find((match) => match.rosterId === team.rosterId)?.points })).filter((item) => item.score !== undefined).sort((a, b) => (b.score || 0) - (a.score || 0)) : [];
-                const rank = ranked.findIndex((item) => item.team.rosterId === ownRoster) + 1;
-                const last = ranked.length ? ranked[ranked.length - 1] : undefined;
-                const opponentScore = !guillotine && myScore ? league.matchups?.find((match) => match.matchupId === myScore.matchupId && match.rosterId !== ownRoster) : undefined;
-                const opponent = opponentScore ? league.teams?.find((team) => team.rosterId === opponentScore.rosterId) : undefined;
-                const teamLabel = myTeam ? (myTeam.teamName && myTeam.teamName.toLowerCase() !== myTeam.owner.toLowerCase() ? myTeam.teamName : `Roster ${myTeam.rosterId}`) : "Your team";
-                return (
-                  <article className={styles.matchupCard} key={league.id}>
-                    <div className={styles.matchupCardHead}><div><span className={styles.sectionKicker}>{guillotine ? "Guillotine" : "Head-to-head"} · Week {league.week || "—"}</span><h3>{league.name || league.type}</h3></div><span className={`${styles.matchupState} ${eliminated ? styles.eliminatedState : league.ok ? styles.liveState : styles.errorState}`}>{eliminated ? "Eliminated" : league.ok ? "Live scores" : "Unavailable"}</span></div>
-                    {!league.ok ? <p className={styles.leagueWarning}>{league.error || "Sleeper could not return this league’s scores."}</p> : !myTeam ? <div className={styles.matchupEmpty}><strong>Your team wasn’t matched in this league.</strong><span>Confirm your Sleeper team identity in Integrations.</span></div> : eliminated ? <div className={styles.eliminatedSnapshot}><strong>{teamLabel}</strong><span>Your team has already been eliminated from this guillotine league, so there is no active weekly survival placement.</span></div> : guillotine ? (
-                      <>
-                        <div className={styles.guillotineRank}><div className={styles.rankNumber}><strong>{rank > 0 ? rank : "—"}</strong><span>{rank > 0 ? `of ${ranked.length} active teams` : "Rank unavailable"}</span></div><div className={styles.rankScore}><span>Your weekly score</span><strong>{myScore ? myScore.points.toFixed(2) : "—"} <small>pts</small></strong><span>{last && myScore ? `${Math.max(0, myScore.points - (last.score || 0)).toFixed(2)} pts above the current low score` : "Weekly scores are not available yet"}</span></div></div>
-                        <div className={styles.survivalTrack}><div><span>Weekly high</span><strong>{ranked[0]?.score?.toFixed(1) || "—"}</strong></div><div className={styles.survivalBar}><span style={{ width: `${ranked.length && rank ? ((ranked.length - rank + 1) / ranked.length) * 100 : 0}%` }} /></div><div><span>Current low</span><strong>{last?.score?.toFixed(1) || "—"}</strong></div></div>
-                        <div className={styles.matchupFoot}><span>Team · {teamLabel}</span><span>{myTeam.players.length} rostered players</span></div>
-                      </>
-                    ) : (
-                      <>
-                        <div className={styles.headToHeadScore}><div className={styles.scoreSide}><span>Your team</span><strong>{teamLabel}</strong><b>{myScore ? myScore.points.toFixed(2) : "—"}</b></div><div className={styles.scoreDivider}>VS</div><div className={styles.scoreSide}><span>Opponent</span><strong>{opponent ? (opponent.teamName || opponent.owner || `Roster ${opponent.rosterId}`) : "Opponent unavailable"}</strong><b>{opponentScore ? opponentScore.points.toFixed(2) : "—"}</b></div></div>
-                        <div className={styles.matchupFoot}><span>{myScore && opponentScore ? myScore.points > opponentScore.points ? `Leading by ${(myScore.points - opponentScore.points).toFixed(2)}` : myScore.points < opponentScore.points ? `Trailing by ${(opponentScore.points - myScore.points).toFixed(2)}` : "Matchup tied" : "No matchup score returned"}</span><span>Season record · {myTeam.wins}-{myTeam.losses}{myTeam.ties ? `-${myTeam.ties}` : ""}</span></div>
-                      </>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
+      {section === "overview" && <OverviewSnapshot leagues={leagueData} intents={intents} onOpenManager={openManager} />}
       {section === "overview" && leagueData.length > 0 && <DataHealth leagues={leagueData} />}
-      {section === "managers" && <ManagersView leagues={leagueData} transactions={transactions} txLoading={txLoading} txError={txError} intents={intents} />}
-      {section === "lineups" && <LineupView leagues={leagueData} intents={intents} />}
-      {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} />}
+      {section === "managers" && <ManagersView cards={managerCards} loaded={leagueData.length > 0} txLoading={txLoading} txError={txError} onOpenManager={openManager} />}
+      {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} />}
+      {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} onOpenManager={openManager} />}
 
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
 
       {section === "players" && <LiveLeagueView kind="players" leagues={leagueData} checks={checks} />}
+      {managerId && <ManagerModal card={managerCards.find((card) => card.ownerId === managerId) || null} loading={txLoading} onClose={() => setManagerId(null)} />}
 
       <footer className={styles.pageFooter}>
         <span><ShieldCheck size={14} /> Advice only · all transactions remain in Sleeper</span>

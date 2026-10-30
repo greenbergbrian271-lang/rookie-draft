@@ -15,6 +15,8 @@ import {
   type LeagueData,
   type StandingRow,
 } from "@/lib/in-season";
+import { LeagueHeader, LeagueNav, ManagerLink } from "./league-nav";
+import { useCollapsible } from "./use-collapsible";
 import styles from "./in-season-management.module.css";
 
 const pts = (value: number) => value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,7 +27,7 @@ function WindowTag({ value }: { value?: string }) {
   return <span className={`${styles.windowTag} ${key}`}>{value === "Stuck in the Middle" ? "Middle" : value}</span>;
 }
 
-function StandingsTable({ league, rows, weekRank }: { league: LeagueData; rows: StandingRow[]; weekRank: Map<string, number> }) {
+function StandingsTable({ league, rows, weekRank, onOpenManager }: { league: LeagueData; rows: StandingRow[]; weekRank: Map<string, number>; onOpenManager?: (id: string) => void }) {
   const guillotine = isGuillotine(league);
   const dynasty = isDynasty(league);
   const showPa = rows.some((row) => row.pa > 0);
@@ -55,7 +57,7 @@ function StandingsTable({ league, rows, weekRank }: { league: LeagueData; rows: 
             {rows.map((row) => (
               <tr key={row.team.rosterId} className={`${row.isMine ? styles.mineRow : ""} ${row.eliminated ? styles.outRow : ""}`}>
                 <td>{row.rank}</td>
-                <td><strong>{teamLabel(row.team)}</strong>{row.isMine && <span className={styles.youTag}>You</span>}</td>
+                <td><strong>{row.isMine ? teamLabel(row.team) : <ManagerLink ownerId={row.team.ownerId} onOpen={onOpenManager}>{teamLabel(row.team)}</ManagerLink>}</strong>{row.isMine && <span className={styles.youTag}>You</span>}</td>
                 {guillotine && <td className={styles.center}>{row.eliminated ? "—" : weekRank.get(row.team.rosterId) ?? "—"}</td>}
                 {dynasty && <td><WindowTag value={row.window?.classification} /></td>}
                 {guillotine ? <td>{row.eliminated ? "Eliminated" : "Alive"}</td> : <td className={styles.center}>{row.wins}-{row.losses}{row.ties ? `-${row.ties}` : ""}</td>}
@@ -73,7 +75,7 @@ function StandingsTable({ league, rows, weekRank }: { league: LeagueData; rows: 
   );
 }
 
-function LeagueBlock({ league, intents, onIntent }: { league: LeagueData; intents: Intents; onIntent: (leagueId: string, intent: Intent | null) => void }) {
+function LeagueBlock({ league, intents, onIntent, onOpenManager, folded, onToggle }: { league: LeagueData; intents: Intents; onIntent: (leagueId: string, intent: Intent | null) => void; onOpenManager?: (id: string) => void; folded: boolean; onToggle: () => void }) {
   const guillotine = isGuillotine(league);
   const mine = findMine(league);
   const standings = buildStandings(league, mine?.rosterId, intents);
@@ -93,12 +95,10 @@ function LeagueBlock({ league, intents, onIntent }: { league: LeagueData; intent
   [...active].sort((a, b) => (anyScored ? (scoreOf(b.team.rosterId) || 0) - (scoreOf(a.team.rosterId) || 0) : projOf(b.team.rosterId) - projOf(a.team.rosterId)))
     .forEach((row, index) => weekRank.set(row.team.rosterId, index + 1));
   return (
-    <article className={styles.leagueCard}>
-      <div className={styles.leagueTop}>
-        <span className={styles.typeBadge}>{league.type}</span>
-        <span className={styles.leagueSeason}>Week {league.week || "—"}</span>
-      </div>
-      <h3>{league.name}</h3>
+    <article className={styles.leagueCard} id={`lg-${league.id}`}>
+      <LeagueHeader type={league.type} name={league.name} meta={`Week ${league.week || "—"}`} collapsed={folded} onToggle={onToggle}
+        summary={mine ? `${isGuillotine(league) ? "" : `${mine.wins}-${mine.losses} · `}#${standings.find((r) => r.isMine)?.rank ?? "—"} of ${standings.length}${guide.headline ? ` · ${guide.headline}` : ""}` : undefined} />
+      {!folded && <>
 
       {isDynasty(league) && mine && (
         <div className={styles.intentBox}>
@@ -134,7 +134,7 @@ function LeagueBlock({ league, intents, onIntent }: { league: LeagueData; intent
         </ul>
       )}
 
-      <StandingsTable league={league} rows={standings} weekRank={weekRank} />
+      <StandingsTable league={league} rows={standings} weekRank={weekRank} onOpenManager={onOpenManager} />
 
       <h4 className={styles.subsectionTitle}>This week&rsquo;s {guillotine ? "scores" : "matchups"}</h4>
       {guillotine ? (
@@ -153,20 +153,22 @@ function LeagueBlock({ league, intents, onIntent }: { league: LeagueData; intent
             const mineGame = ta?.isMine || tb?.isMine;
             return (
               <div className={`${styles.matchupRow} ${mineGame ? styles.mineRow : ""}`} key={`${a}-${b}`}>
-                <div><strong>{teamLabel(ta)}</strong><span>{ta ? `${ta.wins}-${ta.losses}` : ""}</span></div>
+                <div><strong>{ta?.isMine ? teamLabel(ta) : <ManagerLink ownerId={ta?.ownerId} onOpen={onOpenManager}>{teamLabel(ta)}</ManagerLink>}</strong><span>{ta ? `${ta.wins}-${ta.losses}` : ""}</span></div>
                 <b>{pts(scoreOf(a) || 0)}<small>proj {projOf(a).toFixed(1)}</small></b><span className={styles.matchupVersus}>vs</span><b>{pts(scoreOf(b) || 0)}<small>proj {projOf(b).toFixed(1)}</small></b>
-                <div><strong>{teamLabel(tb)}</strong><span>{tb ? `${tb.wins}-${tb.losses}` : ""}</span></div>
+                <div><strong>{tb?.isMine ? teamLabel(tb) : <ManagerLink ownerId={tb?.ownerId} onOpen={onOpenManager}>{teamLabel(tb)}</ManagerLink>}</strong><span>{tb ? `${tb.wins}-${tb.losses}` : ""}</span></div>
               </div>
             );
           })}
         </div>
       )}
+      </>}
     </article>
   );
 }
 
-export default function LeagueOverviewView({ leagues, intents, onIntent, saveError }: { leagues: LeagueData[]; intents: Intents; onIntent: (leagueId: string, intent: Intent | null) => void; saveError?: string }) {
+export default function LeagueOverviewView({ leagues, intents, onIntent, saveError, onOpenManager }: { leagues: LeagueData[]; intents: Intents; onIntent: (leagueId: string, intent: Intent | null) => void; saveError?: string; onOpenManager?: (id: string) => void }) {
   const ordered = sortLeagues(leagues).filter((league) => league.ok && !league.eliminated);
+  const { collapsed, toggle, jump, collapseAll, expandAll } = useCollapsible(ordered.map((league) => league.id), "ism-league-overview-collapsed");
   return (
     <section className={styles.modulePage}>
       <div className={styles.moduleHero}>
@@ -177,9 +179,10 @@ export default function LeagueOverviewView({ leagues, intents, onIntent, saveErr
         </div>
       </div>
       {saveError && <p className={styles.leagueWarning}>{saveError}</p>}
+      <LeagueNav leagues={ordered} onJump={jump} onCollapseAll={collapseAll} onExpandAll={expandAll} />
       {leagues.length === 0 ? (
         <div className={styles.emptyState}><RefreshCw size={20} className={styles.spinning} /><strong>Loading league standings…</strong><span>Fetching standings from Sleeper.</span></div>
-      ) : ordered.map((league) => <LeagueBlock key={league.id} league={league} intents={intents} onIntent={onIntent} />)}
+      ) : ordered.map((league) => <LeagueBlock key={league.id} league={league} intents={intents} onIntent={onIntent} onOpenManager={onOpenManager} folded={Boolean(collapsed[league.id])} onToggle={() => toggle(league.id)} />)}
     </section>
   );
 }
