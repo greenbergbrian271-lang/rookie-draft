@@ -186,7 +186,22 @@ export async function GET(){
     const cached=await readSnapshot();
     if(cached?.rosters?.length){
       const byKey=new Map((cached.rosters as RosterView[]).map(r=>[r.key,r]));
-      const rosters=enabled.map(l=>byKey.get(l.key)||parseFallback(l)).filter(Boolean);
+      // Existing Turso snapshots predate jersey-number support. Enrich the read
+      // response from the same Sleeper player DB used by the NFL player card,
+      // rather than waiting for a manual POST refresh to rewrite the snapshot.
+      const playerDb=await loadPlayerDb();
+      const rosters=enabled.map(l=>{
+        const roster=byKey.get(l.key)||parseFallback(l);
+        if(!roster)return null;
+        return {
+          ...roster,
+          players:roster.players.map(player=>{
+            if(player.jersey||!player.playerId)return player;
+            const number=playerDb?.[String(player.playerId)]?.number;
+            return number==null?player:{...player,jersey:String(number)};
+          }),
+        };
+      }).filter(Boolean);
       return Response.json({...cached,rosters});
     }
     return Response.json({rosters:enabled.map(parseFallback).filter(Boolean),errors:[],source:"Google Sheet snapshot"});
