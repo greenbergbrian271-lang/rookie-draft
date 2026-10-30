@@ -47,7 +47,7 @@ function pffUrl(x:any){
  if(!gameResult(x))return "";
  const id=String(x.espn_event_id||""),meta=KNOWN_GAME_META[id],event=eventFor(x),awayName=titleParts(x)[0],away=teamBits(x,awayName,0);
  const week=Number(event?.week?.number||meta?.pffWeek||pffWeekFromKickoff(x.kickoff)),slug=away.slug||meta?.awaySlug||PFF_TEAM_SLUGS[teamKey(awayName)]||"";
- return week&&slug?"https://premium.pff.com/ncaa/games/2026/"+week+"/"+slug+"/offense":"";
+ const season=new Date(x.kickoff).getUTCFullYear();return week&&slug&&Number.isFinite(season)?"https://premium.pff.com/ncaa/games/"+season+"/"+week+"/"+slug+"/offense":"";
 }
 function gameResources(x:any){
  const result=gameResult(x);if(!result)return null;
