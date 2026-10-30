@@ -30,3 +30,4 @@
 .homeSectionTitle{margin:0 0 10px;font-size:15px;font-weight:900;letter-spacing:.04em}
 .homeLeagueSection .schedule{min-width:0;grid-template-columns:1fr}
 @media(max-width:700px){.homeSplit{grid-template-columns:1fr}.homeSplit .homeLeagueSection:first-child{order:0}.homeSplit .homeLeagueSection:last-child{order:1}.homeLeagueToggle span{width:100%;margin-left:0}}
+\n.pastGameMeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:7px;color:#c5d5ea;font-size:11px}.pastGameMeta a{color:#76d9e4;text-decoration:underline;text-underline-offset:2px}.fantasyPoints{color:#7ee3c3;font-weight:900;font-variant-numeric:tabular-nums}\n

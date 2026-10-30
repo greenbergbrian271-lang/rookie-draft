@@ -3,7 +3,7 @@ import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations"
 import {workbookSecondary as w} from "@/lib/workbook-secondary";
 import {createKtcMatcher,loadKtcDataset,type KtcDataset,type KtcMatch} from "@/lib/ktc";
 
-type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
+type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string;playerId?:string};
 type Item={slot:string;name:string;team:string};
 type RosterView={
   key:string;label:string;league:string;leagueId:string;updated:string;source:string;
@@ -144,7 +144,7 @@ async function refreshLeague(
   const benchTeams=[...new Set(bench.map(p=>p.team).filter(Boolean))];
   const bonus=parseFallback(league)?.bonus||[];
   const players:Player[]=rawPlayers.map(p=>({
-    name:p.name,position:p.position,team:p.team,age:p.age,
+    name:p.name,position:p.position,team:p.team,age:p.age,playerId:p.playerId,
     ktc:p.ktcValue==null?"N/A":String(p.ktcValue),ktcStatus:p.ktcStatus,
   }));
   const totalKtc=rawPlayers.reduce((sum,p)=>sum+(Number(p.ktcValue)||0),0);
