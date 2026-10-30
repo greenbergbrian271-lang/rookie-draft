@@ -196,8 +196,21 @@ export async function GET(){
         return {
           ...roster,
           players:roster.players.map(player=>{
-            if(player.jersey||!player.playerId)return player;
-            const number=playerDb?.[String(player.playerId)]?.number;
+            if(player.jersey)return player;
+            // Legacy snapshots may not have playerId. Resolve by exact player
+            // name + position + team against the same Sleeper DB used by nfl-card.
+            const direct=player.playerId?playerDb?.[String(player.playerId)]:null;
+            const normalize=(value:string)=>String(value||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+            const target=normalize(player.name);
+            const match=direct||Object.values(playerDb||{}).find((candidate:any)=>{
+              const candidateName=candidate?.full_name||[candidate?.first_name,candidate?.last_name].filter(Boolean).join(" ");
+              const candidateTeam=String(candidate?.team||"");
+              const expectedTeam=Object.entries(TEAM_NAMES).find(([,name])=>name.toLowerCase()===String(player.team||"").toLowerCase())?.[0]||String(player.team||"");
+              return normalize(candidateName)===target
+                &&String(candidate?.position||"").toUpperCase()===String(player.position||"").toUpperCase()
+                &&candidateTeam.toUpperCase()===expectedTeam.toUpperCase();
+            }) as any;
+            const number=match?.number;
             return number==null?player:{...player,jersey:String(number)};
           }),
         };
