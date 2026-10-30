@@ -2,8 +2,9 @@ import {ensureTursoSchema} from "@/lib/turso";
 import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations";
 import {workbookSecondary as w} from "@/lib/workbook-secondary";
 import {createKtcMatcher,loadKtcDataset,type KtcDataset,type KtcMatch} from "@/lib/ktc";
+import {loadPlayerDb} from "@/lib/nfl-card";
 
-type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string};
+type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string;playerId?:string;jersey?:string};
 type Item={slot:string;name:string;team:string};
 type RosterView={
   key:string;label:string;league:string;leagueId:string;updated:string;source:string;
@@ -126,7 +127,7 @@ async function refreshLeague(
     const value=ktcValue(match,league);
     return {
       playerId:id,name,position,team:TEAM_NAMES[String(p.team||"")]||String(p.team||"FA"),
-      age:p.age==null?"":String(p.age),ktcValue:value,
+      age:p.age==null?"":String(p.age),jersey:p.number==null?"":String(p.number),ktcValue:value,
       ktcStatus:match?.method||"unmatched",
       rosterType:reserve.has(id)?"Reserve/IR":taxi.has(id)?"Taxi Squad":"Active Roster",
     };
@@ -144,7 +145,7 @@ async function refreshLeague(
   const benchTeams=[...new Set(bench.map(p=>p.team).filter(Boolean))];
   const bonus=parseFallback(league)?.bonus||[];
   const players:Player[]=rawPlayers.map(p=>({
-    name:p.name,position:p.position,team:p.team,age:p.age,
+    name:p.name,position:p.position,team:p.team,age:p.age,playerId:p.playerId,jersey:p.jersey,
     ktc:p.ktcValue==null?"N/A":String(p.ktcValue),ktcStatus:p.ktcStatus,
   }));
   const totalKtc=rawPlayers.reduce((sum,p)=>sum+(Number(p.ktcValue)||0),0);
@@ -185,7 +186,37 @@ export async function GET(){
     const cached=await readSnapshot();
     if(cached?.rosters?.length){
       const byKey=new Map((cached.rosters as RosterView[]).map(r=>[r.key,r]));
-      const rosters=enabled.map(l=>byKey.get(l.key)||parseFallback(l)).filter(Boolean);
+      // Existing Turso snapshots predate jersey-number support. Enrich the read
+      // response from the same Sleeper player DB used by the NFL player card,
+      // rather than waiting for a manual POST refresh to rewrite the snapshot.
+      const playerDb=await loadPlayerDb();
+      const rosters=enabled.map(l=>{
+        const roster=byKey.get(l.key)||parseFallback(l);
+        if(!roster)return null;
+        return {
+          ...roster,
+          players:roster.players.map(player=>{
+            if(player.jersey)return player;
+            // Old cached roster snapshots may have neither playerId nor jersey.
+            // Match against the exact Sleeper database used by the NFL player card.
+            const direct=player.playerId?playerDb?.[String(player.playerId)]:null;
+            const normalize=(value:string)=>String(value||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+            const target=normalize(player.name);
+            const candidates=Object.values(playerDb||{}).filter((candidate:any)=>{
+              const candidateName=candidate?.full_name||[candidate?.first_name,candidate?.last_name].filter(Boolean).join(" ");
+              return normalize(candidateName)===target
+                &&String(candidate?.position||"").toUpperCase()===String(player.position||"").toUpperCase()
+                &&candidate?.number!=null;
+            }) as any[];
+            const expectedTeam=Object.entries(TEAM_NAMES).find(([abbr,name])=>
+              [abbr,name].some(value=>normalize(value)===normalize(player.team))
+            )?.[0]||String(player.team||"").toUpperCase();
+            const match=direct||candidates.find((candidate:any)=>String(candidate?.team||"").toUpperCase()===expectedTeam)||candidates[0];
+            const number=match?.number;
+            return number==null?player:{...player,jersey:String(number)};
+          }),
+        };
+      }).filter(Boolean);
       return Response.json({...cached,rosters});
     }
     return Response.json({rosters:enabled.map(parseFallback).filter(Boolean),errors:[],source:"Google Sheet snapshot"});
@@ -201,7 +232,7 @@ export async function POST(){
     const previous=await readSnapshot();
     const previousByKey=new Map(((previous?.rosters||[]) as RosterView[]).map(r=>[r.key,r]));
     const [playerDb,dataset]=await Promise.all([
-      sleeperJson("https://api.sleeper.app/v1/players/nfl"),
+      loadPlayerDb(),
       loadKtcDataset(false).catch(()=>null),
     ]);
 
