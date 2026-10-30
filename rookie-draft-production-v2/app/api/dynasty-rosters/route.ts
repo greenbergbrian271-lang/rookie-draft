@@ -2,6 +2,7 @@ import {ensureTursoSchema} from "@/lib/turso";
 import {getIntegrations,type SleeperLeagueIntegration} from "@/lib/integrations";
 import {workbookSecondary as w} from "@/lib/workbook-secondary";
 import {createKtcMatcher,loadKtcDataset,type KtcDataset,type KtcMatch} from "@/lib/ktc";
+import {loadPlayerDb} from "@/lib/nfl-card";
 
 type Player={name:string;position:string;team:string;age:string;ktc:string;ktcStatus?:string;playerId?:string;jersey?:string};
 type Item={slot:string;name:string;team:string};
@@ -201,7 +202,7 @@ export async function POST(){
     const previous=await readSnapshot();
     const previousByKey=new Map(((previous?.rosters||[]) as RosterView[]).map(r=>[r.key,r]));
     const [playerDb,dataset]=await Promise.all([
-      sleeperJson("https://api.sleeper.app/v1/players/nfl"),
+      loadPlayerDb(),
       loadKtcDataset(false).catch(()=>null),
     ]);
 
