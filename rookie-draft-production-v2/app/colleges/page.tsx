@@ -86,7 +86,7 @@ export default function Page(){
   const [overrides,setOverrides]=useState<OverrideRow[]>([]);
   const [logos,setLogos]=useState<Record<string,string>>({});
   const [cloudLoading,setCloudLoading]=useState(true);
-  const [query,setQuery]=useState("");
+  const [query,setQuery]=useState("");useEffect(()=>{const value=new URLSearchParams(window.location.search).get("search");if(value)setQuery(value)},[]);
   const [sortKey,setSortKey]=useState<SortKey>("prospects");
   const [view,setView]=useState<ViewMode>("overview");
   const [prospectsOnly,setProspectsOnly]=useState(true);
