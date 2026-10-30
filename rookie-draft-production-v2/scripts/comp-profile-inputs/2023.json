@@ -1,0 +1,536 @@
+{
+ "draftClass": 2023,
+ "season": 2022,
+ "note": "Analytics-only comp profiles: players with no scouting profile. ALL drafted QB/RB/WR/TE without a scouting profile are included regardless of NFL production; UDFAs only if they have scored NFL fantasy points (Sleeper, Oct 2026). Picks from the 259-pick 2023 list (rounds: 1-31, 32-63, 64-102, 103-135, 136-177, 178-217, 218-259).",
+ "players": [
+  {
+   "name": "Anthony Richardson",
+   "pos": "QB",
+   "college": "Florida",
+   "overall": 4,
+   "round": 1,
+   "team": "Colts"
+  },
+  {
+   "name": "Sam LaPorta",
+   "pos": "TE",
+   "college": "Iowa",
+   "overall": 34,
+   "round": 2,
+   "team": "Lions"
+  },
+  {
+   "name": "Michael Mayer",
+   "pos": "TE",
+   "college": "Notre Dame",
+   "overall": 35,
+   "round": 2,
+   "team": "Raiders"
+  },
+  {
+   "name": "Jonathan Mingo",
+   "pos": "WR",
+   "college": "Ole Miss",
+   "overall": 39,
+   "round": 2,
+   "team": "Panthers"
+  },
+  {
+   "name": "Luke Musgrave",
+   "pos": "TE",
+   "college": "Oregon State",
+   "overall": 42,
+   "round": 2,
+   "team": "Packers"
+  },
+  {
+   "name": "Jayden Reed",
+   "pos": "WR",
+   "college": "Michigan State",
+   "overall": 50,
+   "round": 2,
+   "team": "Packers"
+  },
+  {
+   "name": "Zach Charbonnet",
+   "pos": "RB",
+   "college": "UCLA",
+   "overall": 52,
+   "round": 2,
+   "team": "Seahawks"
+  },
+  {
+   "name": "Rashee Rice",
+   "pos": "WR",
+   "college": "SMU",
+   "overall": 55,
+   "round": 2,
+   "team": "Chiefs"
+  },
+  {
+   "name": "Luke Schoonmaker",
+   "pos": "TE",
+   "college": "Michigan",
+   "overall": 58,
+   "round": 2,
+   "team": "Cowboys"
+  },
+  {
+   "name": "Brenton Strange",
+   "pos": "TE",
+   "college": "Penn State",
+   "overall": 61,
+   "round": 2,
+   "team": "Jaguars"
+  },
+  {
+   "name": "Marvin Mims Jr.",
+   "pos": "WR",
+   "college": "Oklahoma",
+   "overall": 63,
+   "round": 2,
+   "team": "Broncos"
+  },
+  {
+   "name": "Jalin Hyatt",
+   "pos": "WR",
+   "college": "Tennessee",
+   "overall": 73,
+   "round": 3,
+   "team": "Giants"
+  },
+  {
+   "name": "Cedric Tillman",
+   "pos": "WR",
+   "college": "Tennessee",
+   "overall": 74,
+   "round": 3,
+   "team": "Browns"
+  },
+  {
+   "name": "Josh Downs",
+   "pos": "WR",
+   "college": "North Carolina",
+   "overall": 79,
+   "round": 3,
+   "team": "Colts"
+  },
+  {
+   "name": "Tyjae Spears",
+   "pos": "RB",
+   "college": "Tulane",
+   "overall": 81,
+   "round": 3,
+   "team": "Titans"
+  },
+  {
+   "name": "Tank Bigsby",
+   "pos": "RB",
+   "college": "Auburn",
+   "overall": 88,
+   "round": 3,
+   "team": "Jaguars"
+  },
+  {
+   "name": "Michael Wilson",
+   "pos": "WR",
+   "college": "Stanford",
+   "overall": 94,
+   "round": 3,
+   "team": "Cardinals"
+  },
+  {
+   "name": "Tre Tucker",
+   "pos": "WR",
+   "college": "Cincinnati",
+   "overall": 100,
+   "round": 3,
+   "team": "Raiders"
+  },
+  {
+   "name": "Jake Haener",
+   "pos": "QB",
+   "college": "Fresno State",
+   "overall": 127,
+   "round": 4,
+   "team": "Saints"
+  },
+  {
+   "name": "Tyler Scott",
+   "pos": "WR",
+   "college": "Cincinnati",
+   "overall": 133,
+   "round": 4,
+   "team": "Bears"
+  },
+  {
+   "name": "Clayton Tune",
+   "pos": "QB",
+   "college": "Houston",
+   "overall": 139,
+   "round": 5,
+   "team": "Cardinals"
+  },
+  {
+   "name": "Dorian Thompson-Robinson",
+   "pos": "QB",
+   "college": "UCLA",
+   "overall": 140,
+   "round": 5,
+   "team": "Browns"
+  },
+  {
+   "name": "Israel Abanikanda",
+   "pos": "RB",
+   "college": "Pittsburgh",
+   "overall": 143,
+   "round": 5,
+   "team": "Jets"
+  },
+  {
+   "name": "Josh Whyle",
+   "pos": "TE",
+   "college": "Cincinnati",
+   "overall": 147,
+   "round": 5,
+   "team": "Titans"
+  },
+  {
+   "name": "Sean Clifford",
+   "pos": "QB",
+   "college": "Penn State",
+   "overall": 149,
+   "round": 5,
+   "team": "Packers"
+  },
+  {
+   "name": "Justin Shorter",
+   "pos": "WR",
+   "college": "Florida",
+   "overall": 150,
+   "round": 5,
+   "team": "Bills"
+  },
+  {
+   "name": "Dontayvion Wicks",
+   "pos": "WR",
+   "college": "Virginia",
+   "overall": 159,
+   "round": 5,
+   "team": "Packers"
+  },
+  {
+   "name": "Will Mallory",
+   "pos": "TE",
+   "college": "Miami (FL)",
+   "overall": 162,
+   "round": 5,
+   "team": "Colts"
+  },
+  {
+   "name": "Payne Durham",
+   "pos": "TE",
+   "college": "Purdue",
+   "overall": 171,
+   "round": 5,
+   "team": "Buccaneers"
+  },
+  {
+   "name": "Eric Gray",
+   "pos": "RB",
+   "college": "Oklahoma",
+   "overall": 172,
+   "round": 5,
+   "team": "Giants"
+  },
+  {
+   "name": "Davis Allen",
+   "pos": "TE",
+   "college": "Clemson",
+   "overall": 175,
+   "round": 5,
+   "team": "Rams"
+  },
+  {
+   "name": "Evan Hull",
+   "pos": "RB",
+   "college": "Northwestern",
+   "overall": 176,
+   "round": 5,
+   "team": "Colts"
+  },
+  {
+   "name": "Parker Washington",
+   "pos": "WR",
+   "college": "Penn State",
+   "overall": 185,
+   "round": 6,
+   "team": "Jaguars"
+  },
+  {
+   "name": "Kayshon Boutte",
+   "pos": "WR",
+   "college": "LSU",
+   "overall": 187,
+   "round": 6,
+   "team": "Patriots"
+  },
+  {
+   "name": "Trey Palmer",
+   "pos": "WR",
+   "college": "Nebraska",
+   "overall": 191,
+   "round": 6,
+   "team": "Buccaneers"
+  },
+  {
+   "name": "Chris Rodriguez Jr.",
+   "pos": "RB",
+   "college": "Kentucky",
+   "overall": 193,
+   "round": 6,
+   "team": "Commanders"
+  },
+  {
+   "name": "Xavier Hutchinson",
+   "pos": "WR",
+   "college": "Iowa State",
+   "overall": 205,
+   "round": 6,
+   "team": "Texans"
+  },
+  {
+   "name": "Antoine Green",
+   "pos": "WR",
+   "college": "North Carolina",
+   "overall": 219,
+   "round": 7,
+   "team": "Lions"
+  },
+  {
+   "name": "Zack Kuntz",
+   "pos": "TE",
+   "college": "Old Dominion",
+   "overall": 220,
+   "round": 7,
+   "team": "Jets"
+  },
+  {
+   "name": "DeWayne McBride",
+   "pos": "RB",
+   "college": "UAB",
+   "overall": 222,
+   "round": 7,
+   "team": "Vikings"
+  },
+  {
+   "name": "Lew Nichols III",
+   "pos": "RB",
+   "college": "Central Michigan",
+   "overall": 235,
+   "round": 7,
+   "team": "Packers"
+  },
+  {
+   "name": "Jalen Brooks",
+   "pos": "WR",
+   "college": "South Carolina",
+   "overall": 244,
+   "round": 7,
+   "team": "Cowboys"
+  },
+  {
+   "name": "Brayden Willis",
+   "pos": "TE",
+   "college": "Oklahoma",
+   "overall": 247,
+   "round": 7,
+   "team": "49ers"
+  },
+  {
+   "name": "Grant DuBose",
+   "pos": "WR",
+   "college": "Charlotte",
+   "overall": 256,
+   "round": 7,
+   "team": "Packers"
+  },
+  {
+   "name": "Emari Demercado",
+   "pos": "RB",
+   "college": "TCU"
+  },
+  {
+   "name": "Keaton Mitchell",
+   "pos": "RB",
+   "college": "East Carolina"
+  },
+  {
+   "name": "Tommy DeVito",
+   "pos": "QB",
+   "college": "Illinois"
+  },
+  {
+   "name": "Jake Bobo",
+   "pos": "WR",
+   "college": "UCLA"
+  },
+  {
+   "name": "Nate Adkins",
+   "pos": "TE",
+   "college": "South Carolina"
+  },
+  {
+   "name": "Malik Heath",
+   "pos": "WR",
+   "college": "Ole Miss"
+  },
+  {
+   "name": "Tyrell Shavers",
+   "pos": "WR",
+   "college": "San Diego State"
+  },
+  {
+   "name": "Brycen Tremayne",
+   "pos": "WR",
+   "college": "Stanford"
+  },
+  {
+   "name": "Blake Whiteheart",
+   "pos": "TE",
+   "college": "Wake Forest"
+  },
+  {
+   "name": "Ben Sims",
+   "pos": "TE",
+   "college": "Baylor"
+  },
+  {
+   "name": "Jordan Mims",
+   "pos": "RB",
+   "college": "Fresno State"
+  },
+  {
+   "name": "Jason Brownlee",
+   "pos": "WR",
+   "college": "Southern Miss"
+  },
+  {
+   "name": "Shedrick Jackson",
+   "pos": "WR",
+   "college": "Auburn"
+  },
+  {
+   "name": "Jared Wayne",
+   "pos": "WR",
+   "college": "Pittsburgh"
+  },
+  {
+   "name": "Dylan Drummond",
+   "pos": "WR",
+   "college": "Eastern Michigan"
+  },
+  {
+   "name": "Nikko Remigio",
+   "pos": "WR",
+   "college": "Fresno State"
+  },
+  {
+   "name": "Elijah Cooks",
+   "pos": "WR",
+   "college": "San Jose State"
+  },
+  {
+   "name": "Bryce Ford-Wheaton",
+   "pos": "WR",
+   "college": "West Virginia"
+  }
+ ],
+ "not_buildable": [
+  {
+   "name": "Tucker Kraft",
+   "pos": "TE",
+   "reason": "drafted (South Dakota State, FCS) - not in PFF FBS export"
+  },
+  {
+   "name": "Andrei Iosivas",
+   "pos": "WR",
+   "reason": "drafted (Princeton, FCS) - not in PFF FBS export"
+  },
+  {
+   "name": "Colton Dowell",
+   "pos": "WR",
+   "reason": "drafted (UT Martin, FCS) - not in PFF FBS export"
+  },
+  {
+   "name": "Demario Douglas",
+   "pos": "WR",
+   "reason": "drafted (Liberty) - not in the 2022 PFF files"
+  },
+  {
+   "name": "Puka Nacua",
+   "pos": "WR",
+   "reason": "drafted (BYU) - not in the 2022 PFF files (no BYU rows found)"
+  },
+  {
+   "name": "Jaren Hall",
+   "pos": "QB",
+   "reason": "drafted (BYU) - not in the 2022 PFF files (no BYU rows found)"
+  },
+  {
+   "name": "Chris Brooks",
+   "pos": "RB",
+   "reason": "UDFA scorer (BYU) - not in the 2022 PFF files (no BYU rows found)"
+  },
+  {
+   "name": "Elijah Higgins",
+   "pos": "WR",
+   "reason": "drafted as WR (Stanford) but now plays TE in the NFL - excluded so outcomes line up"
+  },
+  {
+   "name": "Emanuel Wilson",
+   "pos": "RB",
+   "reason": "UDFA scorer (Fort Valley State) - not in PFF FBS export"
+  },
+  {
+   "name": "Jaleel McLaughlin",
+   "pos": "RB",
+   "reason": "UDFA scorer (Youngstown State) - not in PFF FBS export"
+  },
+  {
+   "name": "Xavier Gipson",
+   "pos": "WR",
+   "reason": "UDFA scorer (Stephen F. Austin) - not in PFF FBS export"
+  },
+  {
+   "name": "Ryan Miller",
+   "pos": "WR",
+   "reason": "UDFA scorer (Furman) - not in PFF FBS export"
+  },
+  {
+   "name": "Julian Hill",
+   "pos": "TE",
+   "reason": "UDFA scorer (Campbell) - not in PFF FBS export"
+  },
+  {
+   "name": "Xavier Smith",
+   "pos": "WR",
+   "reason": "UDFA scorer (Florida A&M) - not in PFF FBS export"
+  },
+  {
+   "name": "Zavier Scott",
+   "pos": "RB",
+   "reason": "UDFA scorer (Maine) - not in PFF FBS export"
+  },
+  {
+   "name": "David Bell",
+   "pos": "WR",
+   "reason": "UDFA scorer (Purdue) - no 2022 PFF row"
+  },
+  {
+   "name": "Mitch Tinsley",
+   "pos": "WR",
+   "reason": "UDFA scorer (Penn State) - no 2022 PFF row"
+  }
+ ]
+}

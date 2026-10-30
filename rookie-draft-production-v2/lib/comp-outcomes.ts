@@ -1,11 +1,35 @@
 import {ensureTursoSchema,rows} from "@/lib/turso";
-import {loadPlayerDb,loadState,loadSeasonStats,resolvePlayer,scoreStats,type Scoring} from "@/lib/nfl-card";
+import {FANTASY_POSITIONS,loadPlayerDb,loadState,loadSeasonStats,normName,scoreStats,type Scoring} from "@/lib/nfl-card";
 
 /**
  * NFL outcomes for Player Comps. Source: the same Sleeper weekly stats the NFL card already uses.
  * Scored in standard PPR. Season summaries are cached in the settings table; finished seasons are permanent.
  * Nothing is invented: a player Sleeper can't match is reported as "no NFL stats found".
  */
+// Name index so bulk lookups (the Comps Database) don't rescan the whole Sleeper player list per player. Same scoring rules as resolvePlayer.
+let nameIndex:{db:unknown;map:Map<string,[string,any][]>}|null=null;
+function indexFor(db:Record<string,any>){
+  if(nameIndex&&nameIndex.db===db)return nameIndex.map;
+  const map=new Map<string,[string,any][]>();
+  for(const [id,p] of Object.entries(db)){
+    if(!p||!(FANTASY_POSITIONS as readonly string[]).includes(String(p.position)))continue;
+    const k=normName(p.full_name||((p.first_name||"")+" "+(p.last_name||"")));
+    if(!k)continue;
+    (map.get(k)||map.set(k,[]).get(k)!).push([id,p]);
+  }
+  nameIndex={db,map};return map;
+}
+// spellings that differ between the scouting data and Sleeper
+const NAME_ALIASES=new Map<string,string>([[normName("Ty Davis-Price"),normName("Tyrion Davis-Price")],[normName("Kyle Phillips"),normName("Kyle Philips")]]);
+async function resolveIndexed(c:{name:string;position:string}){
+  const db=await loadPlayerDb(),idx=indexFor(db),k=normName(c.name),matches=idx.get(k)||idx.get(NAME_ALIASES.get(k)||"");
+  if(!matches?.length)return null;
+  const pos=String(c.position||"").toUpperCase();
+  const score=(p:any)=>(pos&&p.position===pos?-1000:0)+(p.status==="Active"?-200:0)+(p.team?-100:0)+(Number(p.search_rank)||9999999)/100000;
+  const best=[...matches].sort((a,b)=>score(a[1])-score(b[1]))[0];
+  return {id:best[0],team:best[1].team||null,db:best[1]};
+}
+
 export const PPR:Scoring={pass_yd:.04,pass_td:4,pass_int:-2,rush_yd:.1,rush_td:6,rec:1,rec_yd:.1,rec_td:6,fum_lost:-2,pass_2pt:2,rush_2pt:2,rec_2pt:2};
 
 type SeasonRec=[id:string,pos:string,gp:number,pts:number,rank:number];
@@ -60,7 +84,7 @@ export async function loadOutcome(c:{name:string;position:string;draftClass:numb
   try{
     const [state,db]=await Promise.all([loadState(),loadPlayerDb()]);
     if(!db||!Object.keys(db).length)return empty("unavailable");
-    const rp=await resolvePlayer({name:c.name,position:c.position});
+    const rp=await resolveIndexed({name:c.name,position:c.position});
     if(!rp)return empty("unresolved");
     const current=Number(state?.season)||new Date().getFullYear();
     const seasons=[];
@@ -90,5 +114,5 @@ export async function loadOutcome(c:{name:string;position:string;draftClass:numb
 
 /** Sleeper id + team for a comp, used for the headshot. Null when Sleeper can't match the player. */
 export async function resolveHeadshot(c:{name:string;position:string}):Promise<{sleeperId:string;teamAbbr:string|null}|null>{
-  try{const rp=await resolvePlayer({name:c.name,position:c.position});return rp?{sleeperId:String(rp.id),teamAbbr:rp.team?String(rp.team):null}:null}catch{return null}
+  try{const rp=await resolveIndexed({name:c.name,position:c.position});return rp?{sleeperId:String(rp.id),teamAbbr:rp.team?String(rp.team):null}:null}catch{return null}
 }

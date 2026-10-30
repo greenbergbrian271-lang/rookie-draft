@@ -9,7 +9,7 @@ type Data={target:{name:string;position:string;draftClass:number};confidence:str
 const pick=(r:string|null)=>r?r.replace(/^(\d+)\.(\d+),\s*/,"Rd $1, pick $2 · "):"Draft result unavailable";
 
 const initials=(n:string)=>n.split(/\s+/).filter(Boolean).map(x=>x[0]).slice(0,2).join("").toUpperCase();
-function Headshot({id,name,team,size}:{id?:string|null;name:string;team?:string|null;size:number}){
+export function Headshot({id,name,team,size}:{id?:string|null;name:string;team?:string|null;size:number}){
   const [failed,setFailed]=useState(false);
   useEffect(()=>setFailed(false),[id]);
   return <span className="comp-photo" style={{width:size,height:size}}>
