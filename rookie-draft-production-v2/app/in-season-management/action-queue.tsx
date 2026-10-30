@@ -89,12 +89,11 @@ export default function ActionQueue({ alerts, dismissed, loaded, onDismiss, onRe
               {expanded && <Alternatives items={alternatives} focus={filter} />}
             </>
           )}
-          <div className={styles.queueFooter}>
-            {isDismissed
-              ? <button type="button" className={styles.queueGhost} onClick={() => onRestore(alert.id)}><RotateCcw size={12} /> Restore</button>
-              : <button type="button" className={styles.queueGhost} onClick={() => onDismiss(alert.id)} title="Hide this alert until the Tuesday reset"><X size={12} /> Dismiss until Tuesday</button>}
-          </div>
+
         </div>
+        {isDismissed
+          ? <button type="button" className={styles.queueGhost} onClick={() => onRestore(alert.id)}><RotateCcw size={12} /> Restore</button>
+          : <button type="button" className={styles.queueGhost} onClick={() => onDismiss(alert.id)} title="Hide this alert until the Tuesday reset"><X size={12} /> Dismiss until Tuesday</button>}
       </li>
     );
   };

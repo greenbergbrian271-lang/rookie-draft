@@ -213,6 +213,47 @@ export function byeSlots(playoffTeams: number): number {
   return bracket - playoffTeams;
 }
 
+/* ---------- live projections ---------- */
+
+const todayET = (now: Date) => {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
+/**
+ * Projection that updates as games finish, the way Sleeper's "proj." does: a player whose game date has passed counts
+ * his actual points, a player playing today counts the higher of actual and projection, and everyone else counts the projection.
+ */
+export function livePlayerProjection(league: LeagueData, playerId: string, points: number | null | undefined, now: Date = new Date()): number {
+  const actual = points ?? 0;
+  const projection = league.projections?.[playerId];
+  if (!projection) return actual;
+  if (projection.date && projection.date < todayET(now)) return actual;
+  if (projection.date && projection.date === todayET(now)) return Math.max(actual, projection.pts);
+  return projection.pts;
+}
+
+export function matchupProjected(league: LeagueData, matchup: MatchupData | undefined, now: Date = new Date()): number | null {
+  if (!matchup) return null;
+  const ids = (matchup.starters || []).filter((id) => id && id !== "0");
+  if (!ids.length) return matchup.projected ?? null;
+  return Math.round(ids.reduce((sum, id) => sum + livePlayerProjection(league, id, matchup.startersPoints?.[id], now), 0) * 100) / 100;
+}
+
+export type Verdict = "win" | "lose" | "toss-up" | "none";
+/** Toss-up when the projected margin is under this many points. */
+export const TOSS_UP_MARGIN = 2;
+
+export function projectedOutcome(league: LeagueData, rosterId: string, now: Date = new Date()) {
+  const mine = league.matchups?.find((m) => m.rosterId === rosterId);
+  const theirs = mine && league.matchups?.find((m) => m.matchupId === mine.matchupId && m.rosterId !== rosterId);
+  const myProj = matchupProjected(league, mine, now), theirProj = matchupProjected(league, theirs, now);
+  const spread = myProj != null && theirProj != null ? Math.round((myProj - theirProj) * 100) / 100 : null;
+  const verdict: Verdict = spread == null ? "none" : Math.abs(spread) < TOSS_UP_MARGIN ? "toss-up" : spread > 0 ? "win" : "lose";
+  return { myProj, theirProj, spread, verdict };
+}
+
 /* ---------- lineup ---------- */
 
 export const SLOT_ELIGIBILITY: Record<string, string[]> = {
@@ -254,7 +295,7 @@ const byPosition = (a: PlayerDetail, b: PlayerDetail) =>
   (POSITION_ORDER[a.position] || 9) - (POSITION_ORDER[b.position] || 9) || a.name.localeCompare(b.name);
 
 /** Sleeper lists starters in the same order as the non-bench entries of roster_positions. */
-export function buildLineup(league: LeagueData, team: TeamData, matchup?: MatchupData): LineupView {
+export function buildLineup(league: LeagueData, team: TeamData, matchup?: MatchupData, now: Date = new Date()): LineupView {
   const slots = (league.rosterPositions || []).filter((slot) => slot !== "BN");
   const ids = matchup?.starters?.length ? matchup.starters : team.starters;
   const details = new Map((team.playerDetails || []).map((player) => [player.id, player]));
@@ -267,7 +308,7 @@ export function buildLineup(league: LeagueData, team: TeamData, matchup?: Matchu
       id,
       player: id ? details.get(id) || null : null,
       points: id && matchup?.startersPoints && matchup.startersPoints[id] != null ? matchup.startersPoints[id] : null,
-      proj: id ? projectionFor(league, id)?.pts ?? null : null,
+      proj: id && projectionFor(league, id) ? Math.round(livePlayerProjection(league, id, matchup?.startersPoints?.[id], now) * 100) / 100 : null,
       game: id && projectionFor(league, id) ? { opp: projectionFor(league, id)!.opp, date: projectionFor(league, id)!.date } : null,
     };
   });
@@ -583,33 +624,44 @@ export function buildRootingGuide(league: LeagueData, intents: Intents = {}): Ro
 
 /* ---------- guillotine ---------- */
 
+export type GuillotineZone = "chop" | "danger" | "safe";
+export type GuillotineRow = { team: TeamData; rosterId: string; rank: number; projected: number; points: number; zone: GuillotineZone; isMine: boolean };
+
+/** Teams still alive, ranked by live projection (1 = best). Lowest is the chop zone, the next 3 lowest are in danger, everyone above is safe. */
+export function guillotineBoard(league: LeagueData, now: Date = new Date()): GuillotineRow[] {
+  const alive = new Map((league.teams || []).filter((t) => !t.eliminated && t.players.length > 0).map((t) => [t.rosterId, t]));
+  const rows = (league.matchups || [])
+    .filter((m) => alive.has(m.rosterId))
+    .map((m) => ({ team: alive.get(m.rosterId)!, rosterId: m.rosterId, projected: matchupProjected(league, m, now) ?? 0, points: m.points }))
+    .sort((a, b) => b.projected - a.projected || b.points - a.points);
+  const count = rows.length;
+  return rows.map((row, index) => ({
+    ...row,
+    rank: index + 1,
+    zone: ((count > 1 && count - 1 - index === 0) ? "chop" : (count > 1 && count - 1 - index <= 3) ? "danger" : "safe") as GuillotineZone,
+    isMine: Boolean(row.team.isMine),
+  }));
+}
+
 export type GuillotineStatus = {
   rank: number;
   of: number;
-  basis: "points" | "projection";
+  zone: GuillotineZone;
   points: number;
-  projected: number | null;
+  projected: number;
   low: { label: string; value: number } | null;
-  /** Your score (or projection) minus the lowest active team's. Negative = you are the one being cut. */
-  marginToLow: number | null;
+  /** Your projection minus the lowest projection. 0 means you are the lowest. */
+  marginToLow: number;
 };
 
-/** Weekly rank among the teams still alive. Uses live points once anyone has scored, otherwise projections. */
-export function guillotineStatus(league: LeagueData, rosterId: string): GuillotineStatus | null {
-  const alive = new Set((league.teams || []).filter((t) => !t.eliminated && t.players.length > 0).map((t) => t.rosterId));
-  const rows = (league.matchups || []).filter((m) => alive.has(m.rosterId));
-  if (!rows.length || !alive.has(rosterId)) return null;
-  const started = rows.some((m) => m.points > 0);
-  const basis: GuillotineStatus["basis"] = started ? "points" : "projection";
-  const value = (m: MatchupData) => (started ? m.points : m.projected ?? 0);
-  const ranked = [...rows].sort((a, b) => value(b) - value(a));
-  const index = ranked.findIndex((m) => m.rosterId === rosterId);
-  const mine = ranked[index];
-  const lowest = ranked[ranked.length - 1];
-  const lowTeam = (league.teams || []).find((t) => t.rosterId === lowest.rosterId);
+export function guillotineStatus(league: LeagueData, rosterId: string, now: Date = new Date()): GuillotineStatus | null {
+  const board = guillotineBoard(league, now);
+  const mine = board.find((row) => row.rosterId === rosterId);
+  if (!mine) return null;
+  const lowest = board[board.length - 1];
   return {
-    rank: index + 1, of: ranked.length, basis, points: mine.points, projected: mine.projected ?? null,
-    low: lowTeam ? { label: teamLabel(lowTeam), value: value(lowest) } : null,
-    marginToLow: lowest.rosterId === rosterId ? 0 : value(mine) - value(lowest),
+    rank: mine.rank, of: board.length, zone: mine.zone, points: mine.points, projected: mine.projected,
+    low: { label: teamLabel(lowest.team), value: lowest.projected },
+    marginToLow: lowest.rosterId === rosterId ? 0 : Math.round((mine.projected - lowest.projected) * 100) / 100,
   };
 }

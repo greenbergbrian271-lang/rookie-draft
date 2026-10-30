@@ -5,7 +5,9 @@ import {
   buildRootingGuide,
   buildStandings,
   findMine,
+  guillotineBoard,
   isDynasty,
+  matchupProjected,
   isGuillotine,
   matchupPairs,
   sortLeagues,
@@ -86,14 +88,10 @@ function LeagueBlock({ league, intents, onIntent, onOpenManager, folded, onToggl
   const byRoster = new Map(teams.map((team) => [team.rosterId, team]));
   const scoreOf = (rosterId: string) => league.matchups?.find((m) => m.rosterId === rosterId)?.points;
   const pairs = matchupPairs(league);
-  const active = standings.filter((row) => !row.eliminated && scoreOf(row.team.rosterId) !== undefined)
-    .sort((a, b) => (scoreOf(b.team.rosterId) || 0) - (scoreOf(a.team.rosterId) || 0));
-  const low = active[active.length - 1];
-  const weekRank = new Map<string, number>();
-  const anyScored = active.some((row) => (scoreOf(row.team.rosterId) || 0) > 0);
-  const projOf = (rosterId: string) => league.matchups?.find((m) => m.rosterId === rosterId)?.projected ?? 0;
-  [...active].sort((a, b) => (anyScored ? (scoreOf(b.team.rosterId) || 0) - (scoreOf(a.team.rosterId) || 0) : projOf(b.team.rosterId) - projOf(a.team.rosterId)))
-    .forEach((row, index) => weekRank.set(row.team.rosterId, index + 1));
+  const board = guillotine ? guillotineBoard(league) : [];
+  const weekRank = new Map<string, number>(board.map((row) => [row.rosterId, row.rank]));
+  const projOf = (rosterId: string) => matchupProjected(league, league.matchups?.find((m) => m.rosterId === rosterId)) ?? 0;
+  const low = board[board.length - 1];
   return (
     <article className={styles.leagueCard} id={`lg-${league.id}`}>
       <LeagueHeader type={league.type} name={league.name} meta={`Week ${league.week || "—"}`} collapsed={folded} onToggle={onToggle}
@@ -116,7 +114,7 @@ function LeagueBlock({ league, intents, onIntent, onOpenManager, folded, onToggl
       <div className={styles.guideBox} data-mode={guide.mode}>
         <strong>{guide.headline}</strong>
         <p>{guide.detail}</p>
-        {guillotine && low && <p>Lowest active score right now: {teamLabel(low.team)} at {pts(scoreOf(low.team.rosterId) || 0)}.</p>}
+        {guillotine && low && <p>Lowest projection this week: {teamLabel(low.team)} at {low.projected.toFixed(1)}. That team is on the chopping block.</p>}
         {guide.note && <small>{guide.note}</small>}
       </div>
 
@@ -136,15 +134,25 @@ function LeagueBlock({ league, intents, onIntent, onOpenManager, folded, onToggl
 
       <StandingsTable league={league} rows={standings} weekRank={weekRank} onOpenManager={onOpenManager} />
 
-      <h4 className={styles.subsectionTitle}>This week&rsquo;s {guillotine ? "scores" : "matchups"}</h4>
+      <h4 className={styles.subsectionTitle}>This week&rsquo;s {guillotine ? "projections" : "matchups"}</h4>
       {guillotine ? (
-        <div className={styles.scoreTable}>
-          {active.map((row, index) => (
-            <div className={`${styles.scoreTableRow} ${row.isMine ? styles.mineRow : ""}`} key={row.team.rosterId}>
-              <span>{index + 1}</span><strong>{teamLabel(row.team)}</strong><span>{pts(scoreOf(row.team.rosterId) || 0)} pts <small>proj {projOf(row.team.rosterId).toFixed(1)}</small></span>
-              {index === active.length - 1 && <b className={styles.injuryFlag}>Current low</b>}
-            </div>
-          ))}
+        <div className={styles.zoneBoard}>
+          {(["chop", "danger", "safe"] as const).map((zone) => {
+            const rows = [...board].filter((row) => row.zone === zone).reverse();
+            if (!rows.length) return null;
+            return (
+              <div key={zone} className={`${styles.zoneGroup} ${styles[`zone_${zone}`]}`}>
+                <div className={styles.zoneHead}><b>{zone === "chop" ? "Chop zone" : zone === "danger" ? "Danger zone" : "Safe"}</b><span>{zone === "chop" ? "Lowest projection" : zone === "danger" ? "Next 3 lowest" : "Everyone above"}</span></div>
+                {rows.map((row) => (
+                  <div className={`${styles.zoneRow} ${row.isMine ? styles.mineRow : ""}`} key={row.rosterId}>
+                    <span className={styles.zoneRank}>{row.rank}</span>
+                    <strong>{row.isMine ? teamLabel(row.team) : <ManagerLink ownerId={row.team.ownerId} onOpen={onOpenManager}>{teamLabel(row.team)}</ManagerLink>}{row.isMine && <span className={styles.youTag}>You</span>}</strong>
+                    <span className={styles.zonePts}><b>{row.points > 0 ? pts(row.points) : "—"}</b><small>proj {row.projected.toFixed(1)}</small></span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className={styles.matchupList}>

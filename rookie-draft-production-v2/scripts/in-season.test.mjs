@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {buildManagerCards} from "../lib/in-season-managers.ts";
-import {buildAlerts,buildLineup,buildRootingGuide,buildStandings,byeSlots,findMine,sortLeagues,weekKey,effectiveWindow,guillotineStatus,irEligible} from "../lib/in-season.ts";
+import {buildAlerts,buildLineup,buildRootingGuide,buildStandings,byeSlots,findMine,sortLeagues,weekKey,effectiveWindow,guillotineStatus,guillotineBoard,irEligible,livePlayerProjection,matchupProjected,projectedOutcome} from "../lib/in-season.ts";
 
 const player=(id,position,over={})=>({id,name:"P"+id,position,team:"BUF",status:"Active",injuryStatus:"",...over});
 const team=(rosterId,wins,losses,pf,over={})=>({rosterId,owner:"owner"+rosterId,players:["1"],starters:[],points:pf,pointsAgainst:pf-10,maxPoints:pf+100,wins,losses,ties:0,waiverBudget:null,...over});
@@ -85,7 +85,7 @@ const withWeeks={...league,weeklyScores:{"1":[100,100,100,100,100,100,100],"2":[
 assert.equal(buildStandings(withWeeks).find(r=>r.team.rosterId==="1").avg,100);
 const g={...league,type:"Guillotine",teams:[team("1",0,0,0,{isMine:true}),team("2",0,0,0),team("3",0,0,0)],matchups:[{rosterId:"1",matchupId:1,points:0,projected:100},{rosterId:"2",matchupId:2,points:0,projected:90},{rosterId:"3",matchupId:3,points:0,projected:110}]};
 const gs=guillotineStatus(g,"1");
-assert.equal(gs.rank,2);assert.equal(gs.of,3);assert.equal(gs.basis,"projection");assert.equal(Math.round(gs.marginToLow),10);
+assert.equal(gs.rank,2);assert.equal(gs.of,3);assert.equal(gs.zone,"danger");assert.equal(Math.round(gs.marginToLow),10);
 assert.equal(findMine({...league,teams:[mine]}).rosterId,"1");
 
 // manager cards: shared leagues, trade tendencies, exposure
@@ -104,4 +104,29 @@ const labels=cards[0].tags.map(t=>t.label);
 assert.ok(labels.includes("Active trader"));assert.ok(labels.includes("Sells picks"));assert.ok(labels.includes("Buys veterans"));
 assert.ok(cards[0].facingMeThisWeek===undefined&&cards[0].leagues[0].facingMeThisWeek===true);
 assert.equal(cards[0].exposure.length,2);assert.deepEqual(cards[0].sharedPlayers.map(p=>p.id),["8"]);
+
+// live projection: finished games count actual points, today's games the higher of actual/projection, future games the projection
+const proj={projections:{a:{pts:10,opp:"X",date:"2026-10-29"},b:{pts:10,opp:"X",date:"2026-10-30"},c:{pts:10,opp:"X",date:"2026-11-01"}}};
+const noon=new Date("2026-10-30T16:00:00Z");
+assert.equal(livePlayerProjection(proj,"a",3,noon),3);
+assert.equal(livePlayerProjection(proj,"b",3,noon),10);
+assert.equal(livePlayerProjection(proj,"b",14,noon),14);
+assert.equal(livePlayerProjection(proj,"c",0,noon),10);
+assert.equal(livePlayerProjection(proj,"zz",4,noon),4);
+assert.equal(matchupProjected(proj,{starters:["a","c"],startersPoints:{a:25,c:0}},noon),35);
+
+// guillotine zones (Sleeper style): lowest projection = chop, next 3 = danger, everyone above = safe; ranked by projection not points
+const mkG=(projs,pts={})=>({...league,type:"Guillotine",teams:projs.map((_,i)=>team(String(i+1),0,0,0,{isMine:i===0})),
+  matchups:projs.map((p,i)=>({rosterId:String(i+1),matchupId:i+1,points:pts[i]||0,projected:p}))});
+const board=guillotineBoard(mkG([130,100,140,90,120,110,150,80],{3:99}));
+assert.deepEqual(board.map(r=>r.rosterId),["7","3","1","5","6","2","4","8"]);
+assert.deepEqual(board.map(r=>r.zone),["safe","safe","safe","safe","danger","danger","danger","chop"]);
+assert.equal(guillotineStatus(mkG([130,100,140,90,120,110,150,80]),"1").rank,3);
+
+// projected outcome verdicts
+const vs=(a,b)=>({...league,matchups:[{rosterId:"1",matchupId:1,points:0,projected:a},{rosterId:"3",matchupId:1,points:0,projected:b}]});
+assert.equal(projectedOutcome(vs(120,110),"1").verdict,"win");
+assert.equal(projectedOutcome(vs(100,110),"1").verdict,"lose");
+assert.equal(projectedOutcome(vs(110.5,110),"1").verdict,"toss-up");
+assert.equal(projectedOutcome({...league,matchups:[]},"1").verdict,"none");
 console.log("in-season unit checks passed");

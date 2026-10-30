@@ -9,7 +9,9 @@ import {
   guillotineStatus,
   isDynasty,
   isGuillotine,
+  matchupProjected,
   playerFlag,
+  projectedOutcome,
   projectionFor,
   seasonAverage,
   sortLeagues,
@@ -26,6 +28,8 @@ import styles from "./in-season-management.module.css";
 
 const fmt = (value: number | null | undefined, digits = 1) => (value == null ? "—" : value.toFixed(digits));
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const VERDICT_LABEL = { win: "Projected to win", lose: "Projected to lose", "toss-up": "Toss-up", none: "No projection yet" } as const;
+const ZONE_LABEL = { safe: "Safe", danger: "Danger zone", chop: "Chop zone" } as const;
 const gameLabel = (game: { opp: string | null; date: string | null } | null) => {
   if (!game?.opp) return "";
   const day = game.date ? DAYS[new Date(`${game.date}T12:00:00Z`).getUTCDay()] : "";
@@ -111,32 +115,31 @@ function Scoreboard({ league, team, intents, onOpenManager }: { league: LeagueDa
 
   if (isGuillotine(league)) {
     const g = guillotineStatus(league, team.rosterId);
-    const live = g?.basis === "points";
+    const zone = g?.zone || "safe";
     return (
-      <div className={styles.scoreboard}>
+      <div className={`${styles.scoreboard} ${styles[`zoneBox_${zone}`]}`}>
+        <div className={styles.zoneBanner}><b>{ZONE_LABEL[zone]}</b><span>{g ? `Ranked ${g.rank} of ${g.of} by projection` : "No active matchup"}</span></div>
         <div className={styles.sbGuillotine}>
-          <div><span>Weekly rank</span><strong>{g ? `${g.rank} of ${g.of}` : "—"}</strong><small>{g ? (live ? "by live points" : "by projection (games not started)") : "No active matchup"}</small></div>
-          <div><span>Your score</span><strong>{fmt(matchup?.points, 2)}</strong><small>Proj {fmt(matchup?.projected)}</small></div>
-          <div><span>Cut line</span><strong>{g?.low ? fmt(g.low.value, live ? 2 : 1) : "—"}</strong><small>{g?.low ? g.low.label : ""}</small></div>
-          <div className={g && g.marginToLow != null && g.marginToLow > 0 ? styles.leadUp : g && g.marginToLow === 0 ? styles.leadDown : ""}><span>Margin to cut</span><strong>{g?.marginToLow == null ? "—" : g.marginToLow === 0 ? "You're lowest" : `${g.marginToLow > 0 ? "+" : ""}${g.marginToLow.toFixed(1)}`}</strong><small>Points to spare</small></div>
+          <div><span>Projected</span><strong>{g ? fmt(g.projected) : "—"}</strong><small>Live pts {fmt(matchup?.points, 2)}</small></div>
+          <div><span>Cut line</span><strong>{g?.low ? fmt(g.low.value) : "—"}</strong><small>{g?.low ? `Lowest projection: ${g.low.label}` : ""}</small></div>
+          <div><span>Margin to cut</span><strong>{!g ? "—" : g.marginToLow === 0 ? "You're lowest" : `+${g.marginToLow.toFixed(1)}`}</strong><small>Projected points to spare</small></div>
         </div>
       </div>
     );
   }
 
   const mine = matchup?.points ?? 0, theirs = opponentMatch?.points ?? 0;
-  const myProj = matchup?.projected ?? null, theirProj = opponentMatch?.projected ?? null;
+  const { myProj, theirProj, spread, verdict } = projectedOutcome(league, team.rosterId);
   const started = mine > 0 || theirs > 0;
-  const spread = myProj != null && theirProj != null ? myProj - theirProj : null;
   const share = myProj != null && theirProj != null && myProj + theirProj > 0 ? (myProj / (myProj + theirProj)) * 100 : 50;
   const lead = mine - theirs;
   return (
-    <div className={styles.scoreboard}>
+    <div className={`${styles.scoreboard} ${styles[`verdictBox_${verdict}`]}`}>
+      <div className={styles.verdictBanner}><b>{VERDICT_LABEL[verdict]}</b>{spread != null && <span>{verdict === "toss-up" ? `${spread >= 0 ? "+" : ""}${spread.toFixed(1)} projected margin` : `by ${Math.abs(spread).toFixed(1)} projected points`}</span>}</div>
       <div className={styles.sbSides}>
         <div className={styles.sbSide}><span>{teamLabel(team)}</span><strong>{matchup ? mine.toFixed(2) : "—"}</strong><small>Proj {fmt(myProj)}</small></div>
         <div className={styles.sbMiddle}>
           <b className={started ? (lead > 0 ? styles.leadUp : lead < 0 ? styles.leadDown : "") : ""}>{!matchup ? "No matchup" : started ? (lead > 0 ? `Up ${lead.toFixed(2)}` : lead < 0 ? `Down ${Math.abs(lead).toFixed(2)}` : "Tied") : "Not started"}</b>
-          {spread != null && <small>{spread >= 0 ? `Projected +${spread.toFixed(1)}` : `Projected ${spread.toFixed(1)}`}</small>}
         </div>
         <div className={`${styles.sbSide} ${styles.sbRight}`}>
           <span>{opponent ? <ManagerLink ownerId={opponent.ownerId} onOpen={onOpenManager}>{teamLabel(opponent)}</ManagerLink> : "Opponent"}</span>
@@ -191,13 +194,14 @@ function summaryFor(league: LeagueData, mine: TeamData | undefined): string {
   if (!mine) return "Team not matched";
   if (isGuillotine(league)) {
     const g = guillotineStatus(league, mine.rosterId);
-    return g ? `Weekly rank ${g.rank} of ${g.of} · ${g.marginToLow != null && g.marginToLow > 0 ? "+" : ""}${g.marginToLow?.toFixed(1) ?? "—"} vs cut line` : "No active matchup";
+    return g ? `${ZONE_LABEL[g.zone]} · ${g.rank} of ${g.of} by projection · ${g.marginToLow === 0 ? "lowest" : `+${g.marginToLow.toFixed(1)}`} vs cut line` : "No active matchup";
   }
   const { matchup, opponentMatch, opponent } = matchupOf(league, mine);
   if (!matchup) return "No matchup";
+  const out = projectedOutcome(league, mine.rosterId);
   const started = matchup.points > 0 || (opponentMatch?.points ?? 0) > 0;
-  const score = started ? `${matchup.points.toFixed(1)}–${(opponentMatch?.points ?? 0).toFixed(1)}` : "Not started";
-  return `${score} vs ${opponent ? teamLabel(opponent) : "opponent"} · proj ${fmt(matchup.projected)}–${fmt(opponentMatch?.projected)}`;
+  const score = started ? `${matchup.points.toFixed(1)}–${(opponentMatch?.points ?? 0).toFixed(1)} · ` : "";
+  return `${VERDICT_LABEL[out.verdict]} · ${score}proj ${fmt(out.myProj)}–${fmt(out.theirProj)} vs ${opponent ? teamLabel(opponent) : "opponent"}`;
 }
 
 export default function LineupView({ leagues, intents, onOpenManager }: { leagues: LeagueData[]; intents: Intents; onOpenManager?: (id: string) => void }) {
