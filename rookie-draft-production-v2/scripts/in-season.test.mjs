@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {buildManagerCards} from "../lib/in-season-managers.ts";
-import {buildAlerts,buildLineup,buildRootingGuide,buildStandings,byeSlots,findMine,sortLeagues,weekKey,effectiveWindow,guillotineStatus,guillotineBoard,irEligible,livePlayerProjection,matchupProjected,projectedOutcome} from "../lib/in-season.ts";
+import {buildAlerts,buildLineup,buildRootingGuide,buildStandings,byeSlots,findMine,sortLeagues,playoffFormat,buildPlayoffPicture,NISKAYUNA_LEAGUE_ID,weekKey,effectiveWindow,guillotineStatus,guillotineBoard,irEligible,livePlayerProjection,matchupProjected,projectedOutcome} from "../lib/in-season.ts";
 
 const player=(id,position,over={})=>({id,name:"P"+id,position,team:"BUF",status:"Active",injuryStatus:"",...over});
 const team=(rosterId,wins,losses,pf,over={})=>({rosterId,owner:"owner"+rosterId,players:["1"],starters:[],points:pf,pointsAgainst:pf-10,maxPoints:pf+100,wins,losses,ties:0,waiverBudget:null,...over});
@@ -129,4 +129,27 @@ assert.equal(projectedOutcome(vs(120,110),"1").verdict,"win");
 assert.equal(projectedOutcome(vs(100,110),"1").verdict,"lose");
 assert.equal(projectedOutcome(vs(110.5,110),"1").verdict,"toss-up");
 assert.equal(projectedOutcome({...league,matchups:[]},"1").verdict,"none");
+
+// ---- Niskayuna playoff format: 8 of 10 make it; 1-4 double elimination, 5-8 single elimination ----
+const recs=[[6,1,1019],[5,2,980],[4,3,1071],[4,3,913],[4,3,882],[3,4,891],[3,4,850],[3,4,834],[2,5,790],[1,6,685]];
+const nisk={...league,id:NISKAYUNA_LEAGUE_ID,type:"Redraft",playoffTeams:4,settings:{playoff_teams:4},windows:undefined,
+  teams:recs.map(([w,l,pf],i)=>team(String(i+1),w,l,pf,{ownerId:"o"+(i+1),isMine:i===7})),
+  matchups:recs.map((_,i)=>({rosterId:String(i+1),matchupId:Math.floor(i/2)+1,points:0}))};
+const nf=playoffFormat(nisk);
+assert.deepEqual([nf.teams,nf.topTier,nf.kind,nf.custom],[8,4,"niskayuna",true],"Sleeper says 4 teams, the league's own rules say 8");
+assert.equal(playoffFormat({...nisk,id:"other"}).teams,4);
+const stand=buildStandings(nisk);
+const pic=buildPlayoffPicture(stand,nf);
+const seeds=(p)=>[p.high.rank,p.low.rank];
+assert.deepEqual(pic.upper.map(seeds),[[1,4],[2,3]]);
+assert.deepEqual(pic.lower.map(seeds),[[5,8],[6,7]]);
+assert.equal(pic.mine.rank,8);assert.equal(pic.mine.tier,"lower");
+assert.equal(pic.mine.opponent.rank,5);
+assert.equal(pic.mine.winsVsFirstOut,1);   // 3 wins vs 2 wins for the first team out
+assert.equal(pic.mine.winsVsTopTier,-1);   // 3 wins vs 4 wins for the last upper-bracket seed
+assert.deepEqual([1,4,5,8,9,10].map(pic.tierOf),["upper","upper","lower","lower","out","out"]);
+assert.equal(buildPlayoffPicture(stand,playoffFormat({...nisk,id:"x"})),null);
+// rooting guide uses the 8-team / top-4 format: a bubble team (seed 8) pays attention to seeds 3-4 above and 9-10 below
+const nGuide=buildRootingGuide(nisk);
+assert.match(nGuide.detail,/8 teams make the playoffs/);assert.match(nGuide.detail,/double-elimination/);
 console.log("in-season unit checks passed");

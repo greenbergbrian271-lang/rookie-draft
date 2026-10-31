@@ -8,8 +8,10 @@ import {
   guillotineBoard,
   isDynasty,
   matchupProjected,
+  buildPlayoffPicture,
   isGuillotine,
   matchupPairs,
+  playoffFormat,
   sortLeagues,
   teamLabel,
   type Intent,
@@ -19,6 +21,8 @@ import {
 } from "@/lib/in-season";
 import { LeagueHeader, LeagueNav, ManagerLink } from "./league-nav";
 import { useCollapsible } from "./use-collapsible";
+import PlayoffPicture from "./playoff-picture";
+import pcss from "./playoff-picture.module.css";
 import styles from "./in-season-management.module.css";
 
 const pts = (value: number) => value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,6 +36,8 @@ function WindowTag({ value }: { value?: string }) {
 function StandingsTable({ league, rows, weekRank, onOpenManager }: { league: LeagueData; rows: StandingRow[]; weekRank: Map<string, number>; onOpenManager?: (id: string) => void }) {
   const guillotine = isGuillotine(league);
   const dynasty = isDynasty(league);
+  const format = playoffFormat(league);
+  const custom = format.custom;
   const showPa = rows.some((row) => row.pa > 0);
   const showMax = rows.some((row) => row.max > 0);
   return (
@@ -46,6 +52,7 @@ function StandingsTable({ league, rows, weekRank, onOpenManager }: { league: Lea
             <tr>
               <th>#</th><th>Team</th>
               {guillotine && <th className={styles.center}>Wk rank</th>}
+              {custom && <th>Playoffs</th>}
               {dynasty && <th>Window</th>}
               {guillotine ? <th>Status</th> : <th className={styles.center}>Record</th>}
               <th className={styles.num}>PF</th>
@@ -57,10 +64,11 @@ function StandingsTable({ league, rows, weekRank, onOpenManager }: { league: Lea
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.team.rosterId} className={`${row.isMine ? styles.mineRow : ""} ${row.eliminated ? styles.outRow : ""}`}>
+              <tr key={row.team.rosterId} className={`${row.isMine ? styles.mineRow : ""} ${row.eliminated ? styles.outRow : ""} ${custom && row.rank === format.topTier ? pcss.divTier : ""} ${custom && row.rank === format.teams ? pcss.divCut : ""}`}>
                 <td>{row.rank}</td>
                 <td><strong>{row.isMine ? teamLabel(row.team) : <ManagerLink ownerId={row.team.ownerId} onOpen={onOpenManager}>{teamLabel(row.team)}</ManagerLink>}</strong>{row.isMine && <span className={styles.youTag}>You</span>}</td>
                 {guillotine && <td className={styles.center}>{row.eliminated ? "—" : weekRank.get(row.team.rosterId) ?? "—"}</td>}
+                {custom && <td><span className={`${pcss.tag} ${row.rank <= format.topTier ? pcss.tagUpper : row.rank <= format.teams ? pcss.tagLower : pcss.tagOut}`}>{row.rank <= format.topTier ? "Upper" : row.rank <= format.teams ? "Lower" : "Out"}</span></td>}
                 {dynasty && <td><WindowTag value={row.window?.classification} /></td>}
                 {guillotine ? <td>{row.eliminated ? "Eliminated" : "Alive"}</td> : <td className={styles.center}>{row.wins}-{row.losses}{row.ties ? `-${row.ties}` : ""}</td>}
                 <td className={styles.num}>{pts(row.pf)}</td>
@@ -73,6 +81,7 @@ function StandingsTable({ league, rows, weekRank, onOpenManager }: { league: Lea
           </tbody>
         </table>
       </div>
+      {custom && <p className={pcss.legend}>Green line: the top {format.topTier} seeds get the double-elimination bracket. Red dashed line: the playoff cut at {format.teams}.</p>}
     </section>
   );
 }
@@ -82,6 +91,7 @@ function LeagueBlock({ league, intents, onIntent, onOpenManager, folded, onToggl
   const mine = findMine(league);
   const standings = buildStandings(league, mine?.rosterId, intents);
   const guide = buildRootingGuide(league, intents);
+  const picture = buildPlayoffPicture(standings, playoffFormat(league));
   const computed = mine ? league.windows?.[mine.rosterId]?.classification : undefined;
   const declared = intents[league.id];
   const teams = league.teams || [];
@@ -131,6 +141,8 @@ function LeagueBlock({ league, intents, onIntent, onOpenManager, folded, onToggl
           ))}
         </ul>
       )}
+
+      {picture && <PlayoffPicture picture={picture} onOpenManager={onOpenManager} />}
 
       <StandingsTable league={league} rows={standings} weekRank={weekRank} onOpenManager={onOpenManager} />
 
