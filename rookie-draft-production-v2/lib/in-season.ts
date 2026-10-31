@@ -213,6 +213,28 @@ export function byeSlots(playoffTeams: number): number {
   return bracket - playoffTeams;
 }
 
+/**
+ * Playoff formats Sleeper cannot describe. Niskayuna runs its own bracket (Sleeper's settings for it say 4 teams and no start week),
+ * so its rules are defined here by league id.
+ */
+export type PlayoffFormat = {
+  kind: "standard" | "niskayuna";
+  /** Teams that make the playoffs. */
+  teams: number;
+  /** Seeds in the protected tier: first-round byes in a standard bracket, the double-elimination bracket in Niskayuna. */
+  topTier: number;
+  custom: boolean;
+};
+
+export const NISKAYUNA_LEAGUE_ID = "1389753161815707648";
+
+export function playoffFormat(league: LeagueData): PlayoffFormat {
+  if (league.id === NISKAYUNA_LEAGUE_ID) return { kind: "niskayuna", teams: 8, topTier: 4, custom: true };
+  const count = league.teams?.length || 0;
+  const teams = league.playoffTeams || Number(league.settings?.playoff_teams || 0) || Math.min(6, count);
+  return { kind: "standard", teams, topTier: byeSlots(teams), custom: false };
+}
+
 /* ---------- live projections ---------- */
 
 const todayET = (now: Date) => {
@@ -528,8 +550,9 @@ export function buildRootingGuide(league: LeagueData, intents: Intents = {}): Ro
     return { mode: "playoff-race", headline: "Rooting guide unavailable", detail: "Your roster was not matched in this league.", items: [] };
   }
   const count = standings.length;
-  const playoffTeams = league.playoffTeams || Number(league.settings?.playoff_teams || 0) || Math.min(6, count);
-  const byes = byeSlots(playoffTeams);
+  const format = playoffFormat(league);
+  const playoffTeams = format.teams;
+  const byes = format.topTier;
   const byRoster = new Map(standings.map((row) => [row.team.rosterId, row]));
   const pairs = matchupPairs(league);
   const window = isDynasty(league) ? mine.window : undefined;
@@ -585,7 +608,7 @@ export function buildRootingGuide(league: LeagueData, intents: Intents = {}): Ro
     else { for (let r = Math.max(1, cut - 1); r <= cut; r++) rivalRanks.add(r); }
     rivalRanks.delete(mine.rank);
     headline = "Playoff race: root against the teams chasing your seed";
-    detail = `You are ranked ${mine.rank} of ${count}. ${playoffTeams} teams make the playoffs${byes ? ` and the top ${byes} get a first-round bye` : ""}.`;
+    detail = `You are ranked ${mine.rank} of ${count}. ${playoffTeams} teams make the playoffs${format.kind === "niskayuna" ? `, and seeds 1-${byes} get the double-elimination bracket while seeds ${byes + 1}-${playoffTeams} play single elimination` : byes ? ` and the top ${byes} get a first-round bye` : ""}.`;
     if (isDynasty(league)) {
       note = league.windowError ? "Team window data was unavailable, so this uses the playoff race." : window ? `Your window is ${window.classification}, so this follows the playoff race.` : "No team window was found for this league, so this uses the playoff race.";
     }
@@ -664,4 +687,60 @@ export function guillotineStatus(league: LeagueData, rosterId: string, now: Date
     low: { label: teamLabel(lowest.team), value: lowest.projected },
     marginToLow: lowest.rosterId === rosterId ? 0 : Math.round((mine.projected - lowest.projected) * 100) / 100,
   };
+}
+
+/* ---------- Niskayuna playoff picture ---------- */
+
+export type PlayoffTier = "upper" | "lower" | "out";
+export type PlayoffPairing = { high: StandingRow; low: StandingRow; mine: boolean };
+export type PlayoffPicture = {
+  format: PlayoffFormat;
+  /** "If the season ended today" first-round matchups. */
+  upper: PlayoffPairing[];
+  lower: PlayoffPairing[];
+  /** Teams that would be in position for the Round 2 scoring round, described by seed. */
+  tierOf: (rank: number) => PlayoffTier;
+  mine?: {
+    rank: number;
+    tier: PlayoffTier;
+    opponent?: StandingRow;
+    /** Wins ahead of (+) or behind (-) the first team out. */
+    winsVsFirstOut: number | null;
+    /** Wins ahead of (+) or behind (-) the last protected (double-elimination) seed. Positive means you are inside it. */
+    winsVsTopTier: number | null;
+  };
+};
+
+/**
+ * Niskayuna bracket: 8 teams. Seeds 1-4 are the double-elimination bracket (1 v 4, 2 v 3); winners go straight to the final and losers drop to Round 2.
+ * Seeds 5-8 are single elimination (5 v 8, 6 v 7); winners move to Round 2 and losers are out. Round 2 is a four-team scoring round
+ * (the two upper-bracket losers and the two lower-bracket winners): the top two scorers reach the final and the bottom two are out.
+ * The final is a four-team round robin.
+ */
+export function buildPlayoffPicture(standings: StandingRow[], format: PlayoffFormat): PlayoffPicture | null {
+  if (format.kind !== "niskayuna") return null;
+  const seed = (n: number) => standings[n - 1];
+  const pair = (high: number, low: number): PlayoffPairing | null => {
+    const a = seed(high), b = seed(low);
+    return a && b ? { high: a, low: b, mine: a.isMine || b.isMine } : null;
+  };
+  const upper = [pair(1, 4), pair(2, 3)].filter(Boolean) as PlayoffPairing[];
+  const lower = [pair(5, 8), pair(6, 7)].filter(Boolean) as PlayoffPairing[];
+  const tierOf = (rank: number): PlayoffTier => (rank <= format.topTier ? "upper" : rank <= format.teams ? "lower" : "out");
+  const mine = standings.find((row) => row.isMine);
+  let summary: PlayoffPicture["mine"];
+  if (mine) {
+    const all = [...upper, ...lower];
+    const game = all.find((item) => item.mine);
+    const opponent = game ? (game.high.isMine ? game.low : game.high) : undefined;
+    const firstOut = seed(format.teams + 1), lastTop = seed(format.topTier), firstLower = seed(format.topTier + 1);
+    const wins = (row: StandingRow | undefined) => (row ? row.wins + row.ties / 2 : null);
+    summary = {
+      rank: mine.rank, tier: tierOf(mine.rank), opponent,
+      winsVsFirstOut: firstOut ? (wins(mine) as number) - (wins(firstOut) as number) : null,
+      // Inside the protected tier: compare with the first team outside it. Outside: compare with the last protected seed.
+      winsVsTopTier: mine.rank <= format.topTier ? (firstLower ? (wins(mine) as number) - (wins(firstLower) as number) : null) : (lastTop ? (wins(mine) as number) - (wins(lastTop) as number) : null),
+    };
+  }
+  return { format, upper, lower, tierOf, mine: summary };
 }
