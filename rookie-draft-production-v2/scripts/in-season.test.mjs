@@ -138,6 +138,7 @@ const nisk={...league,id:NISKAYUNA_LEAGUE_ID,type:"Redraft",playoffTeams:4,setti
 const nf=playoffFormat(nisk);
 assert.deepEqual([nf.teams,nf.topTier,nf.kind,nf.custom],[8,4,"niskayuna",true],"Sleeper says 4 teams, the league's own rules say 8");
 assert.equal(playoffFormat({...nisk,id:"other"}).teams,4);
+assert.deepEqual(nf.weeks,{round1:15,round2:16,final:17});assert.equal(nf.regularSeasonEnd,14);
 const stand=buildStandings(nisk);
 const pic=buildPlayoffPicture(stand,nf);
 const seeds=(p)=>[p.high.rank,p.low.rank];

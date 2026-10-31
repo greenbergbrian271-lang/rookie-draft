@@ -142,7 +142,7 @@ function LeagueBlock({ league, intents, onIntent, onOpenManager, folded, onToggl
         </ul>
       )}
 
-      {picture && <PlayoffPicture picture={picture} onOpenManager={onOpenManager} />}
+      {picture && <PlayoffPicture picture={picture} week={league.week} onOpenManager={onOpenManager} />}
 
       <StandingsTable league={league} rows={standings} weekRank={weekRank} onOpenManager={onOpenManager} />
 

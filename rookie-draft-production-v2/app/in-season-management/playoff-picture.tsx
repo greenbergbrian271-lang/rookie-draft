@@ -29,8 +29,11 @@ function Pairings({ items, onOpenManager }: { items: PlayoffPairing[]; onOpenMan
   );
 }
 
-export default function PlayoffPicture({ picture, onOpenManager }: { picture: Picture; onOpenManager?: (id: string) => void }) {
+export default function PlayoffPicture({ picture, week, onOpenManager }: { picture: Picture; week?: number; onOpenManager?: (id: string) => void }) {
   const { format, mine } = picture;
+  const weeks = format.weeks;
+  const lastRegular = format.regularSeasonEnd;
+  const gamesLeft = lastRegular && week && week <= lastRegular ? lastRegular - week + 1 : null;
   return (
     <section className={css.picture} aria-label="Playoff picture">
       <div className={css.kicker}>Playoff picture</div>
@@ -39,6 +42,7 @@ export default function PlayoffPicture({ picture, onOpenManager }: { picture: Pi
 
       {mine && (
         <div className={css.status}>
+          {lastRegular && week ? <span>{week <= lastRegular ? `Week ${week} of ${lastRegular} · ${gamesLeft} regular-season game${gamesLeft === 1 ? "" : "s"} left including this week` : "Regular season is over"}</span> : null}
           <span className={css[mine.tier]}>You are seed {mine.rank}: {TIER_TEXT[mine.tier]}</span>
           {mine.winsVsFirstOut != null && mine.rank <= format.teams && <span>{mine.winsVsFirstOut === 0 ? "Level on wins with" : `${signed(mine.winsVsFirstOut)} wins vs`} the first team out</span>}
           {mine.winsVsFirstOut != null && mine.rank > format.teams && <span>{mine.winsVsFirstOut === 0 ? "Level on wins with" : `${signed(mine.winsVsFirstOut)} wins vs`} the first team out</span>}
@@ -48,8 +52,8 @@ export default function PlayoffPicture({ picture, onOpenManager }: { picture: Pi
 
       <div className={css.rounds}>
         <div className={css.round}>
-          <h5>Round 1</h5>
-          <p>Playoff week 1.</p>
+          <h5>Round 1{weeks ? ` · Week ${weeks.round1}` : ""}</h5>
+          <p>First playoff week.</p>
           <div className={css.bracket}>
             <div className={`${css.bracketTitle} ${css.upperTitle}`}>Upper bracket <span>1 v 4 · 2 v 3</span></div>
             <Pairings items={picture.upper} onOpenManager={onOpenManager} />
@@ -62,19 +66,19 @@ export default function PlayoffPicture({ picture, onOpenManager }: { picture: Pi
           </div>
         </div>
         <div className={css.round}>
-          <h5>Round 2</h5>
+          <h5>Round 2{weeks ? ` · Week ${weeks.round2}` : ""}</h5>
           <p>Four-team scoring round.</p>
           <ul className={css.slots}><li>The 2 upper-bracket losers</li><li>The 2 lower-bracket winners</li></ul>
           <div className={`${css.rule} ${css.advance}`}>Top 2 scorers advance to the Final.</div>
           <div className={`${css.rule} ${css.cut}`}>Bottom 2 scorers are eliminated.</div>
         </div>
         <div className={css.round}>
-          <h5>Final</h5>
+          <h5>Final{weeks ? ` · Week ${weeks.final}` : ""}</h5>
           <p>Four-team round robin.</p>
           <ul className={css.slots}><li>The 2 upper-bracket winners</li><li>The 2 teams that advanced from Round 2</li></ul>
         </div>
       </div>
-      <p className={css.note}>Seeds follow the standings below (wins, then points for). Sleeper doesn&rsquo;t track this bracket, so it is based on the rules you described.</p>
+      <p className={css.note}>Seeds follow the standings below (wins, then points for). Sleeper doesn&rsquo;t track this bracket, so it is based on the league rules: playoffs run Weeks 15–17.</p>
     </section>
   );
 }

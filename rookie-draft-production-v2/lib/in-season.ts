@@ -224,12 +224,16 @@ export type PlayoffFormat = {
   /** Seeds in the protected tier: first-round byes in a standard bracket, the double-elimination bracket in Niskayuna. */
   topTier: number;
   custom: boolean;
+  /** Fantasy weeks the playoff rounds are played, when the league defines them. */
+  weeks?: { round1: number; round2: number; final: number };
+  /** Last regular-season week. */
+  regularSeasonEnd?: number;
 };
 
 export const NISKAYUNA_LEAGUE_ID = "1389753161815707648";
 
 export function playoffFormat(league: LeagueData): PlayoffFormat {
-  if (league.id === NISKAYUNA_LEAGUE_ID) return { kind: "niskayuna", teams: 8, topTier: 4, custom: true };
+  if (league.id === NISKAYUNA_LEAGUE_ID) return { kind: "niskayuna", teams: 8, topTier: 4, custom: true, weeks: { round1: 15, round2: 16, final: 17 }, regularSeasonEnd: 14 };
   const count = league.teams?.length || 0;
   const teams = league.playoffTeams || Number(league.settings?.playoff_teams || 0) || Math.min(6, count);
   return { kind: "standard", teams, topTier: byeSlots(teams), custom: false };
