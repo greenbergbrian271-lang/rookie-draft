@@ -10,7 +10,7 @@ import type { NflSchedule } from "@/lib/espn-nfl-schedule";
 import ActionQueue from "./action-queue";
 import { useInSeasonState } from "./use-in-season-state";
 import LeagueOverviewView from "./league-overview-view";
-import LineupView from "./lineup-view";
+import LineupView, { type LineupOutlook } from "./lineup-view";
 import ManagersView from "./managers-view";
 import ManagerModal from "./manager-modal";
 import OverviewSnapshot from "./overview-snapshot";
@@ -34,7 +34,7 @@ type SleeperCheck = {
 };
 type CheckResponse = { checks?: SleeperCheck[] };
 type LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
-type OutlookPayload = { week: number; season: string; horizon: number[]; schedule: NflSchedule | null; leagues: Record<string, unknown>; fetchedAt: string };
+type OutlookPayload = { week: number; season: string; horizon: number[]; schedule: NflSchedule | null; leagues: LineupOutlook["leagues"]; fetchedAt: string };
 
 function displayDate(value: string | null) {
   if (!value) return "Not checked yet";
@@ -165,7 +165,7 @@ export default function InSeasonManagementPage() {
       {section === "overview" && <OverviewSnapshot leagues={leagueData} intents={intents} onOpenManager={openManager} />}
       {section === "overview" && leagueData.length > 0 && <DataHealth leagues={leagueData} />}
       {section === "managers" && <ManagersView cards={managerCards} loaded={leagueData.length > 0} txLoading={txLoading} txError={txError} onOpenManager={openManager} />}
-      {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} />}
+      {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} outlook={outlook} />}
       {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} onOpenManager={openManager} />}
 
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
