@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw, ShieldCheck, Sparkles, TrendingUp, WalletCards } from "lucide-react";
-import { buildAlerts, sortLeagues, type LeagueData } from "@/lib/in-season";
+import { buildAlerts, sortLeagues, type LeagueData, type InSeasonAlert } from "@/lib/in-season";
+import { buildLineupAlerts } from "@/lib/in-season-optimizer";
+import { buildWeatherAlerts } from "@/lib/in-season-schedule";
+import type { NflSchedule } from "@/lib/espn-nfl-schedule";
 import ActionQueue from "./action-queue";
 import { useInSeasonState } from "./use-in-season-state";
 import LeagueOverviewView from "./league-overview-view";
@@ -31,6 +34,7 @@ type SleeperCheck = {
 };
 type CheckResponse = { checks?: SleeperCheck[] };
 type LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
+type OutlookPayload = { week: number; season: string; horizon: number[]; schedule: NflSchedule | null; leagues: Record<string, unknown>; fetchedAt: string };
 
 function displayDate(value: string | null) {
   if (!value) return "Not checked yet";
@@ -53,6 +57,7 @@ export default function InSeasonManagementPage() {
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState("");
   const [managerId, setManagerId] = useState<string | null>(null);
+  const [outlook, setOutlook] = useState<OutlookPayload | null>(null);
   const { intents, dismissed, saveError, setIntent, dismiss, restore } = useInSeasonState();
 
   const refresh = useCallback(async (manual = false) => {
@@ -97,6 +102,16 @@ export default function InSeasonManagementPage() {
     void refresh();
   }, [refresh]);
 
+  // The outlook (schedule, weather, projections) is heavy, so it loads after the league data and never blocks first paint.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/in-season/outlook")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => { if (!cancelled && payload && !payload.error) setOutlook(payload as OutlookPayload); })
+      .catch(() => { /* alerts that need the outlook are simply left out */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // Trade and waiver history is only needed for Manager Cards, so it loads when that page opens.
   useEffect(() => {
     if ((section !== "managers" && !managerId) || transactions.length || txLoading) return;
@@ -111,7 +126,12 @@ export default function InSeasonManagementPage() {
   const managerCards = useMemo(() => buildManagerCards(leagueData, transactions, intents), [leagueData, transactions, intents]);
   const openManager = useCallback((ownerId: string) => setManagerId(ownerId), []);
 
-  const alerts = useMemo(() => buildAlerts(leagueData, intents), [leagueData, intents]);
+  const alerts = useMemo(() => {
+    const base = buildAlerts(leagueData, intents);
+    const lineup = buildLineupAlerts(leagueData);
+    const weather: InSeasonAlert[] = outlook?.schedule ? buildWeatherAlerts(leagueData, outlook.schedule, outlook.week) : [];
+    return [...base, ...lineup, ...weather].sort((a, b) => b.quality - a.quality || a.title.localeCompare(b.title));
+  }, [leagueData, intents, outlook]);
 
 
 
