@@ -46,7 +46,8 @@ export async function getNflSchedule(season: string, weeks: number[]): Promise<N
           home: side.homeAway === "home",
           indoor: Boolean(comp?.venue?.indoor),
           state: (event.status?.type?.state as NflGame["state"]) || "pre",
-          weather: weatherRaw?.displayValue ? { text: String(weatherRaw.displayValue), temp: typeof weatherRaw.temperature === "number" ? weatherRaw.temperature : null } : null,
+          // ESPN occasionally returns a bare condition code (e.g. "3") instead of text; treat that as no forecast.
+          weather: weatherRaw?.displayValue && !/^\d+$/.test(String(weatherRaw.displayValue)) ? { text: String(weatherRaw.displayValue), temp: typeof weatherRaw.temperature === "number" ? weatherRaw.temperature : null } : null,
           city: comp?.venue?.address?.city || null,
         };
       }

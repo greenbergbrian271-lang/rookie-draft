@@ -85,7 +85,8 @@ export type WaiverPlan = {
 };
 
 export const MIN_NET_GAIN = 1;
-export const DYNASTY_PROTECT_KTC = 1500;
+/** Dynasty players at or above this KeepTradeCut value are never suggested as drops. Tunable: most of a dynasty bench sits between 1000 and 3500. */
+export const DYNASTY_PROTECT_KTC = 2500;
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
