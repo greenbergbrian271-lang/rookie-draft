@@ -370,7 +370,7 @@ export type AlertAlternative = {
 
 export type InSeasonAlert = {
   id: string;
-  kind: "player" | "ir" | "empty" | "intent" | "lineup";
+  kind: "player" | "ir" | "empty" | "intent" | "lineup" | "weather";
   severity: Severity;
   title: string;
   detail: string;

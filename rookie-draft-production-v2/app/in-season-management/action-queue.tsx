@@ -81,6 +81,14 @@ export default function ActionQueue({ alerts, dismissed, loaded, onDismiss, onRe
               <button type="button" onClick={() => onIntent(alert.intentLeagueId!, "Rebuild")}>Focus on next year (Rebuild)</button>
             </div>
           )}
+          {alert.details && alert.details.length > 0 && !isDismissed && (
+            <>
+              <button type="button" className={styles.queueToggle} onClick={() => setOpen((current) => ({ ...current, [alert.id]: !expanded }))}>
+                {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />} {expanded ? "Hide" : "See"} the changes
+              </button>
+              {expanded && <ul className={styles.queueDetails}>{alert.details.map((line, index) => <li key={index}>{line}</li>)}</ul>}
+            </>
+          )}
           {alternatives.length > 0 && !isDismissed && (
             <>
               <button type="button" className={styles.queueToggle} onClick={() => setOpen((current) => ({ ...current, [alert.id]: !expanded }))}>
