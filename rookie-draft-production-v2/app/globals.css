@@ -831,3 +831,30 @@
 .game-note-row.is-search-match{background:rgba(105,183,255,.10);box-shadow:inset 3px 0 #69b7ff}
 .game-note-row.is-search-match .game-note-matchup{color:#eaf4ff}
 .game-note-row.is-search-dimmed{opacity:.38}
+/* Nav bar: shortcuts (home / refresh) on the left, tool menus on the right */
+.tool-menubar{justify-content:space-between}
+.tool-menubar-actions{display:flex;align-items:center;gap:var(--space-2)}
+.tool-menubar-menus{display:flex;align-items:center;gap:var(--space-2);margin-left:auto}
+.tool-menubar-menus .tool-dropdown{left:auto;right:0}
+.tool-icon-button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel2);color:var(--text)}
+.tool-icon-button:hover,.tool-icon-button.active{background:var(--surface-hover);border-color:var(--line-strong);color:var(--cyan)}
+.tool-icon-button:disabled{opacity:.8;cursor:progress}
+.tool-icon-button.spinning svg{animation:tool-spin 1s linear infinite}
+@keyframes tool-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.tool-icon-button.spinning svg{animation-duration:2.4s}}
+.tool-refresh-wrap{position:relative}
+.tool-refresh-panel{left:0!important;right:auto!important;min-width:300px;max-width:min(380px,calc(100vw - 16px))}
+.tool-status-row{display:flex;align-items:flex-start;gap:var(--space-3);padding:7px 9px;border-radius:7px}
+.tool-status-row.primary{background:var(--panel2)}
+.tool-status-row small{display:block;font-size:11px;line-height:1.35;margin-top:2px}
+.tool-status-icon{display:inline-flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;border-radius:999px;margin-top:1px}
+.tool-status-icon.ok{background:rgba(98,232,137,.16);color:var(--green)}
+.tool-status-icon.bad{background:rgba(255,113,132,.16);color:var(--red)}
+@media(max-width:800px){
+  .tool-menubar{display:flex;flex-wrap:wrap;gap:6px!important}
+  .tool-menubar-actions{order:1}
+  .tool-menubar-menus{order:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex:1 1 220px;gap:4px}
+  .tool-menubar-menus .tool-menu:nth-child(2) .tool-dropdown{left:50%;right:auto;transform:translateX(-50%)}
+  .tool-menubar-menus .tool-menu:first-child .tool-dropdown{left:0;right:auto}
+  .tool-menubar-menus .tool-menu:last-child .tool-dropdown{left:auto;right:0}
+}

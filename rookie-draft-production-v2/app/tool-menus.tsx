@@ -1,6 +1,8 @@
 "use client";
 import {useEffect,useState} from "react";
-import {Briefcase,Search,Table2} from "lucide-react";
+import Link from "next/link";
+import {usePathname,useRouter} from "next/navigation";
+import {Briefcase,Check,Home,RefreshCw,Search,Table2,TriangleAlert} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";
@@ -26,8 +28,9 @@ const HISTORICAL_SHEET_URLS:Record<number,string>={
   2026:"https://docs.google.com/spreadsheets/d/1uAgs4mZD4XtFj5Lk_7FAG7sGEQ4ZWzlNt5v1qh6Fjm8/edit",
   2027:"https://docs.google.com/spreadsheets/d/1286W2j0GMTBBeRtww_dK7lsssnrEUIwSmdDveuivMYQ/edit"
 };
-export default function ToolMenus(){const {draftClass,activeDraftClass,isLocked}=useDraftClassState();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[bestUnwatchedOpen,setBestUnwatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[compareOpen,setCompareOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);const [transitioning,setTransitioning]=useState(false);
+export default function ToolMenus(){const {draftClass,activeDraftClass,isLocked}=useDraftClassState();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[bestUnwatchedOpen,setBestUnwatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[compareOpen,setCompareOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);const [transitioning,setTransitioning]=useState(false);const pathname=usePathname(),router=useRouter();const [refreshing,setRefreshing]=useState(false),[report,setReport]=useState<any>(null),[reportOpen,setReportOpen]=useState(false);
 useEffect(()=>{if(tool){fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{});if(tool.id==="combine-refresh")fetch("/api/combine-refresh",{cache:"no-store"}).then(r=>r.json()).then(setCombineStatus).catch(()=>{})}},[tool,draftClass]);
+async function refreshAll(){if(refreshing)return;setRefreshing(true);setOpen(null);try{const r=await fetch("/api/platform-status",{method:"POST",cache:"no-store"}),j=await r.json();if(!r.ok)throw new Error(j?.error||"HTTP "+r.status);setReport(j);router.refresh();window.dispatchEvent(new CustomEvent("platform-refresh",{detail:j}))}catch(e:any){setReport({checkedAt:new Date().toISOString(),error:e?.message||"Refresh failed",checks:[]})}finally{setRefreshing(false);setReportOpen(true)}}
 function close(){setTool(null);setMsg("");setPlayerId("");setChoice("");setPlayerId2("")}
 function menuId(label:string){return "tool-menu-"+label.toLowerCase().replace(/[^a-z0-9]+/g,"-")}
 function openMenuFromKeyboard(e:any,label:string){if(!["ArrowDown","Enter"," "].includes(e.key))return;e.preventDefault();setOpen(label);setTimeout(()=>document.querySelector<HTMLButtonElement>(`[data-tool-menu="${label}"] [role="menuitem"]`)?.focus(),0)}
@@ -42,6 +45,19 @@ async function moveRun(direction:"up"|"down"){if(!playerId)return setMsg("Select
 async function simpleRun(endpoint:string,label:string){setMsg(label+"…");const r=await fetch(endpoint,{method:"POST"}),j=await r.json();setMsg(r.ok?`${label}: ${j.updated??j.count??"complete"}.`:(j.error||`${label} failed.`))}
 if(isLocked){const sourceUrl=HISTORICAL_SHEET_URLS[draftClass];return <div className="tool-menubar historical-source-bar"><div className="historical-source-control" role="group" aria-label={`Historical ${draftClass} source`}><span className="historical-source-label">Historical {draftClass} · read-only archive</span>{sourceUrl&&<a className="historical-source-link" href={sourceUrl} target="_blank" rel="noreferrer">Link to original Google Sheet ↗</a>}</div></div>;}
 return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>
+<div className="tool-menubar-actions" role="group" aria-label="Site shortcuts">
+  <Link href="/" className={`tool-icon-button${pathname==="/"?" active":""}`} aria-label="Home" title="Home" aria-current={pathname==="/"?"page":undefined}><Home size={17} strokeWidth={2.2}/></Link>
+  <div className="tool-refresh-wrap">
+    <button type="button" className={`tool-icon-button${refreshing?" spinning":""}`} aria-label="Refresh platform status" title="Refresh status of Sleeper, ESPN, NFL Draft Source and other connected platforms" aria-busy={refreshing} disabled={refreshing} onClick={refreshAll}><RefreshCw size={17} strokeWidth={2.2}/></button>
+    {reportOpen&&report&&<div className="tool-dropdown tool-dropdown-panel tool-refresh-panel" role="status" onKeyDown={e=>{if(e.key==="Escape")setReportOpen(false)}}>
+      <div className="tool-dropdown-heading"><div className="ey">Platform status</div><span className="muted tool-dropdown-subtitle">{report.error?"Refresh failed":`${report.draftSeason?"Draft season · ":""}Checked ${new Date(report.checkedAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})}`}</span></div>
+      {report.error&&<div className="notice">{report.error}</div>}
+      <div className="tool-dropdown-list">{(report.checks||[]).map((c:any)=><div key={c.id} className={`tool-status-row${c.primary?" primary":""}`}><span className={`tool-status-icon ${c.ok?"ok":"bad"}`} aria-hidden="true">{c.ok?<Check size={14} strokeWidth={3}/>:<TriangleAlert size={14} strokeWidth={2.5}/>}</span><span><strong>{c.label}</strong><small className="muted">{c.ok?"OK":"Problem"} · {c.detail}</small></span></div>)}</div>
+      <button type="button" className="small ghost tool-spaced-top" onClick={()=>setReportOpen(false)}>Close</button>
+    </div>}
+  </div>
+</div>
+<div className="tool-menubar-menus">
 {groups.map((g,groupIndex)=><div className="tool-menu" key={g.label}>
   <button
     id={menuId(g.label)+"-trigger"}
@@ -80,6 +96,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>
     }}><span>{i.label}</span><span aria-hidden="true" className="tool-dropdown-arrow">›</span></button>)}</div>
   </div>}
 </div>)}
+</div>
 </div>
 <AddPlayersModal open={addOpen} onClose={()=>setAddOpen(false)} onDone={()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setPlayers(x)}).catch(()=>{})}}/>
 <NewPlayerWatchedModal open={watchedOpen} draftClass={draftClass} onClose={()=>setWatchedOpen(false)} onDone={()=>{fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>{if(Array.isArray(x))setPlayers(x)}).catch(()=>{})}}/>
