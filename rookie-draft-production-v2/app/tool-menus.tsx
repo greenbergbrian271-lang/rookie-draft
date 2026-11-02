@@ -63,6 +63,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>
     id={menuId(g.label)+"-trigger"}
     aria-expanded={open===g.label}
     aria-haspopup="menu"
+    aria-label={g.label}
     aria-controls={menuId(g.label)}
     className={`tool-menu-button${open===g.label?" open":""}${groupIndex===1?" scouting-tools":""}`}
     onClick={()=>setOpen(open===g.label?null:g.label)}
@@ -71,7 +72,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>
   >
     <span className="tool-menu-label-wrap">
       <span aria-hidden="true" className="tool-menu-icon">{groupIndex===0?<Briefcase size={17} strokeWidth={2.2}/>:groupIndex===1?<Search size={17} strokeWidth={2.2}/>:<Table2 size={17} strokeWidth={2.2}/>}</span>
-      <strong className="tool-menu-label">{g.label}</strong>
+      <strong className="tool-menu-label">{g.label.replace(/ Tools$/,"")}<span className="tool-menu-label-suffix"> Tools</span></strong>
     </span>
     <span className="tool-menu-caret">▾</span>
   </button>

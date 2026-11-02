@@ -858,3 +858,7 @@
   .tool-menubar-menus .tool-menu:first-child .tool-dropdown{left:0;right:auto}
   .tool-menubar-menus .tool-menu:last-child .tool-dropdown{left:auto;right:0}
 }
+
+/* Mobile: drop the word "Tools" from the three menu buttons so labels fit */
+.tool-menubar .tool-menu-button .tool-menu-label-suffix{font-size:inherit;color:inherit}
+@media(max-width:800px){.tool-menubar .tool-menu-button .tool-menu-label-suffix{display:none}}
