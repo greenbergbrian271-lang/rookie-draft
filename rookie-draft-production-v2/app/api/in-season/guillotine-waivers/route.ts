@@ -193,6 +193,11 @@ export async function GET(request: Request) {
     return { owner: x.owner, pointsSoFar: x.points, projectedRemaining: x.remaining, chance: round1(x.lowest * 100), best: top.map(({ p, w }) => ({ name: p.name, position: p.position, team: p.team, gainForMe: round1(w) })) };
   });
 
+  if (url.searchParams.get("brief") === "1") {
+    return Response.json({ week: chopWeek, horizon, bidders, medianBudget, chopPending, simulated: simulated?.owner || null, chop: { teams: chopTeams.map((t) => `${t.owner} ${t.chance}% pts ${t.pointsSoFar} left ${t.projectedRemaining}`), result: chopPending ? null : lastChop?.roster_ids },
+      targets: targets.slice(0, 12).map((t) => `${t.name} ${t.position} gain ${t.weightedGain} bid ${t.bid.p50}/${t.bid.p75}/${t.bid.p90} win@79 ${Math.round(t.bid.winAtMax * 100)}% new=${t.newlyReleased}`),
+      trades: tradeIdeas.slice(0, 8).map((t) => `${t.name} loss ${t.lineupLoss} ${t.offers.slice(0, 3).map((o) => `${o.owner}$${o.faab}`).join(",")}`) });
+  }
   return Response.json({
     week: chopWeek, season, horizon, weights: HORIZON_WEIGHTS, fetchedAt: new Date().toISOString(),
     league: { id: LEAGUE, name: league.name, slots, capacity, bidders },
