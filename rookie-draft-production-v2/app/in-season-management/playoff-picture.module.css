@@ -1,0 +1,42 @@
+.picture{margin:14px 0;padding:14px;border:1px solid #20395f;border-radius:12px;background:#0b1930}
+.kicker{color:#20e2dd;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.picture h4{margin:4px 0 4px;font-size:16px;color:#fff}
+.lede{margin:0 0 12px;color:#9fb5d3;font-size:12px;line-height:1.55}
+.status{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.status span{padding:6px 11px;border:1px solid #20395f;border-radius:999px;background:#10213a;color:#cfe0f5;font-size:11px;font-weight:800}
+.status .upper{border-color:rgba(66,224,134,.5);background:rgba(66,224,134,.12);color:#8df5b4}
+.status .lower{border-color:rgba(255,196,77,.5);background:rgba(255,196,77,.12);color:#ffd98a}
+.status .out{border-color:rgba(255,113,132,.55);background:rgba(255,113,132,.14);color:#ffb3bf}
+.rounds{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:stretch}
+.round{padding:12px;border:1px solid #20395f;border-radius:10px;background:#0a1629;min-width:0}
+.round h5{margin:0 0 2px;font-size:13px;color:#fff}
+.round>p{margin:0 0 10px;color:#7890b1;font-size:11px;line-height:1.5}
+.bracket{margin-bottom:10px;padding:9px;border-radius:9px;background:#10213a}
+.bracket:last-child{margin-bottom:0}
+.bracketTitle{display:flex;justify-content:space-between;gap:8px;margin:0 0 7px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+.bracketTitle span{opacity:.75;font-weight:700;letter-spacing:0;text-transform:none}
+.upperTitle{color:#8df5b4}.lowerTitle{color:#ffd98a}
+.pairing{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;padding:7px 8px;border-radius:7px;background:#0a1629;margin-bottom:6px;font-size:12px}
+.pairing:last-child{margin-bottom:0}
+.mine{box-shadow:inset 0 0 0 1px rgba(32,226,221,.65);background:rgba(32,226,221,.08)}
+.team{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.team b{margin-right:5px;color:#9fb5d3;font-size:10px}
+.team small{display:block;color:#7890b1;font-size:10px}
+.right{text-align:right}
+.vs{color:#7890b1;font-size:10px;font-weight:900;text-transform:uppercase}
+.slots{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:5px}
+.slots li{padding:6px 9px;border-radius:7px;background:#10213a;color:#cfe0f5;font-size:11px}
+.rule{margin:8px 0 0;padding:7px 9px;border-radius:7px;font-size:11px;font-weight:800}
+.advance{background:rgba(66,224,134,.12);color:#8df5b4}
+.cut{background:rgba(255,113,132,.12);color:#ffb3bf}
+.note{margin:12px 0 0;color:#7890b1;font-size:10px;line-height:1.5}
+@media(max-width:900px){.rounds{grid-template-columns:1fr}}
+
+/* ---- standings markers ---- */
+.tag{padding:3px 8px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.tagUpper{background:rgba(66,224,134,.16);color:#8df5b4}
+.tagLower{background:rgba(255,196,77,.16);color:#ffd98a}
+.tagOut{background:#1b2f4d;color:#9fb5d3}
+.divTier td{border-bottom:2px solid rgba(66,224,134,.55)!important}
+.divCut td{border-bottom:2px dashed rgba(255,113,132,.7)!important}
+.legend{margin:8px 12px 10px;color:#7890b1;font-size:10px;line-height:1.5}
