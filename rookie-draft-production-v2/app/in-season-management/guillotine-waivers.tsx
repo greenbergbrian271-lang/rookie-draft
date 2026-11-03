@@ -50,7 +50,10 @@ export default function GuillotineWaivers() {
   useEffect(() => { if (leagueId) load(leagueId, chop); }, [leagueId, chop, load]);
 
   const targets = useMemo(() => (data?.targets || []).slice(0, 12), [data]);
-  const selected = useMemo(() => targets.filter((t) => (picked ? picked[t.id] : targets.indexOf(t) < 4)), [targets, picked]);
+  const selected = useMemo(() => {
+    if (picked) return targets.filter((t) => picked[t.id]);
+    return targets.filter((t) => t.bid.winAtMax >= 0.5).slice(0, 4);
+  }, [targets, picked]);
   const plan = useMemo(() => {
     if (!data || data.eliminated) return [];
     const info: Record<string, PlayerInfo> = {};

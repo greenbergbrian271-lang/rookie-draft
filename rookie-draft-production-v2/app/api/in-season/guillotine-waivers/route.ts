@@ -4,7 +4,7 @@ import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
-  HORIZON_WEIGHTS, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
+  HORIZON_WEIGHTS, dropPlan, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
   type GRoster, type PlayerInfo, type Rival, type Tx,
 } from "@/lib/in-season-guillotine";
 
@@ -183,7 +183,7 @@ export async function GET(request: Request) {
       const game = sched[String(players[id]?.team || "")]?.[chopWeek];
       if (game && game.state !== "post") remaining += proj;
     }
-    const sd = Math.max(4, teamSd(scoresBy[r.rosterId], 22) * Math.sqrt(Math.max(0.02, total ? remaining / total : 0)));
+    const sd = remaining <= 0 ? 0.5 : Math.max(4, teamSd(scoresBy[r.rosterId], 22) * Math.sqrt(Math.max(0.02, total ? remaining / total : 0)));
     return { id: r.rosterId, owner: r.owner, points: round1(points), remaining: round1(remaining), mean: points + remaining, sd };
   });
   const odds = simulateChop(chopRows.map((x) => ({ id: x.id, mean: x.mean, sd: x.sd })), 4000);
@@ -196,6 +196,7 @@ export async function GET(request: Request) {
   if (url.searchParams.get("brief") === "1") {
     return Response.json({ week: chopWeek, horizon, bidders, medianBudget, chopPending, simulated: simulated?.owner || null, chop: { teams: chopTeams.map((t) => `${t.owner} ${t.chance}% pts ${t.pointsSoFar} left ${t.projectedRemaining}`), result: chopPending ? null : lastChop?.roster_ids },
       targets: targets.slice(0, 12).map((t) => `${t.name} ${t.position} gain ${t.weightedGain} bid ${t.bid.p50}/${t.bid.p75}/${t.bid.p90} win@79 ${Math.round(t.bid.winAtMax * 100)}% new=${t.newlyReleased}`),
+      drops: (() => { const pick = targets.filter((t) => t.bid.winAtMax >= 0.5).slice(0, 5); const inf: Record<string, PlayerInfo> = { ...info }; return dropPlan(slots, me.players, inf, pick.map((t) => t.id)).map((d) => `${info[d.add]?.name} -> drop ${d.drop ? info[d.drop]?.name + " (" + info[d.drop]?.position + (info[d.drop]?.injury ? " " + info[d.drop]?.injury : "") + ")" : "none"} change ${Math.round(d.change * 10) / 10}`); })(),
       trades: tradeIdeas.slice(0, 8).map((t) => `${t.name} loss ${t.lineupLoss} ${t.offers.slice(0, 3).map((o) => `${o.owner}$${o.faab}`).join(",")}`) });
   }
   return Response.json({
