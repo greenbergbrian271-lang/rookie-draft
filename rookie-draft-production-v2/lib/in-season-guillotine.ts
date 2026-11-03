@@ -97,78 +97,133 @@ export function aggression(claims: { roster: number; gain: number; fraction: num
   return out;
 }
 
-/* ---------- competing-bid simulation ---------- */
-
-function mulberry32(seed: number) {
-  return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-}
+/* ---------- market: who wants a player, and what that rank cost in earlier weeks ---------- */
 
 export type Rival = { rosterId: string; owner: string; gain: number; budget: number; mult: number };
 
 /** Chance a rival with this much to gain actually puts in a claim. Assumed (claims not placed are invisible in Sleeper's data). */
 export const participation = (gain: number) => (gain < 1.5 ? 0.03 : Math.min(0.92, 0.12 + 0.05 * gain));
-/** A rival's typical bid before randomness. */
+/** What a rival would typically bid, before the market-wide price check below. Used to rank players by demand, not to set prices. */
 export const typicalBid = (rival: Rival, bins: ShareBins) => Math.min(rival.budget, Math.max(1, bins.median[binOf(rival.gain)] * rival.budget * rival.mult));
+/** How much rival money is chasing a player. Only its order matters. */
+export const demand = (rivals: Rival[], bins: ShareBins) => sum(rivals.map((r) => participation(r.gain) * typicalBid(r, bins)));
+export const rankOf = (value: number, list: number[]) => 1 + list.filter((v) => v > value).length;
 
-/** Simulated highest rival bid, one sample per simulation. */
-export function simulateRivalMax(rivals: Rival[], bins: ShareBins, sims = 3000, seed = 11): number[] {
-  const random = mulberry32(seed);
-  const normal = () => Math.sqrt(-2 * Math.log(random() || 1e-12)) * Math.cos(2 * Math.PI * random());
-  const out: number[] = [];
-  for (let i = 0; i < sims; i++) {
-    let top = 0;
-    for (const r of rivals) {
-      if (random() > participation(r.gain)) continue;
-      const bid = Math.min(r.budget, Math.max(1, Math.round(typicalBid(r, bins) * Math.exp(bins.sd * normal()))));
-      if (bid > top) top = bid;
+/** One winning bid from a past weekly batch: how many managers could bid, whether the player came off the chopped team, his rank by price, and the price as a share of the median FAAB left. */
+export type PriceSample = { year: string; leg: number; bidders: number; released: boolean; rank: number; ratio: number; bid: number };
+const median = (list: number[]) => { const s = [...list].sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0; };
+export const LADDER_DEPTH = 12;
+
+/** Build the price ladder from a finished or in-progress guillotine league's own transactions. */
+export function buildPriceBook(tx: Tx[], year: string, budget: number, teams: number, bidMin = 1): PriceSample[] {
+  const chops = new Map<number, Tx>();
+  tx.filter((t) => t.type === "chopped").forEach((t) => chops.set(t.leg, t));
+  const lastLeg = Math.max(0, ...chops.keys());
+  const out: PriceSample[] = [];
+  for (let leg = 1; leg <= lastLeg; leg++) {
+    const chopped = new Set<number>();
+    chops.forEach((t, l) => { if (l <= leg) chopped.add(t.roster_ids?.[0] as number); });
+    const alive = Array.from({ length: teams }, (_, i) => i + 1).filter((r) => !chopped.has(r));
+    const mid = median(alive.map((r) => budgetBefore(tx, budget, r, leg)));
+    const released = new Set(Object.keys(chops.get(leg)?.drops || {}));
+    const wins = tx.filter((t) => t.type === "waiver" && t.status === "complete" && t.leg === leg);
+    for (const isReleased of [true, false]) {
+      const bids = wins.filter((t) => released.has(Object.keys(t.adds || {})[0]) === isReleased).map((t) => Number(t.settings?.waiver_bid || 0)).sort((a, b) => b - a);
+      for (let k = 0; k < LADDER_DEPTH; k++) { const bid = bids[k] ?? bidMin; out.push({ year, leg, bidders: teams - leg, released: isReleased, rank: k + 1, ratio: bid / Math.max(1, mid), bid }); }
     }
-    out.push(top);
   }
-  return out.sort((a, b) => a - b);
+  return out;
 }
 
+/** Weighted price points for the player at this demand rank: nearby ranks and similar field sizes count most. */
+export function priceSamples(book: PriceSample[], opts: { bidders: number; released: boolean; rank: number; medianBudget: number; ceiling: number }): { value: number; w: number }[] {
+  const rankW: Record<number, number> = { [-1]: 0.25, 0: 0.5, 1: 0.25 };
+  const out: { value: number; w: number }[] = [];
+  for (const s of book) {
+    if (s.released !== opts.released) continue;
+    const d = s.rank - opts.rank;
+    if (!(d in rankW)) continue;
+    const w = rankW[d] * Math.exp(-0.5 * ((s.bidders - opts.bidders) / 2.5) ** 2);
+    if (w < 0.01) continue;
+    out.push({ value: Math.min(opts.ceiling, Math.max(1, Math.round(s.ratio * opts.medianBudget))), w });
+  }
+  return out.sort((a, b) => a.value - b.value);
+}
+const wq = (points: { value: number; w: number }[], p: number) => {
+  const total = sum(points.map((x) => x.w)); let run = 0;
+  for (const x of points) { run += x.w; if (run >= p * total) return x.value; }
+  return points.length ? points[points.length - 1].value : 1;
+};
+
 export type BidProjection = {
-  /** Bid needed to win with about 50%, 75% and 90% confidence. Ties go to the better waiver priority, so the bid is one above the rival total. */
+  /** Bid needed to win with about 50%, 75% and 90% confidence. A tie goes to the better waiver priority, so each is one above the winning price. */
   p50: number; p75: number; p90: number;
   /** Chance a bid of exactly `mine` FAAB wins. */
   winAtMax: number;
-  /** True when even a 50% bid is out of reach. */
   tooExpensive: boolean;
-  /** Rivals most likely to push the price up. */
   mainRivals: { owner: string; gain: number; budget: number; typical: number }[];
   confidence: "Low" | "Medium";
-  /** Chance a bid of each size wins, so a different FAAB total (after a trade, say) can be read off without re-running anything. */
+  /** Win chance at fixed bids, so a different FAAB total (after a trade, say) can be read off. */
   curve: { bid: number; win: number }[];
 };
-export const CURVE_BIDS = [5, 15, 30, 50, 79, 100, 130, 160, 200, 260, 330, 420, 550];
-/** Win chance at an arbitrary bid, interpolated from the curve. */
+export const CURVE_BIDS = [3, 6, 10, 15, 20, 30, 40, 50, 65, 79, 100, 130, 160, 200, 260, 330, 420, 550];
 export function winAt(curve: { bid: number; win: number }[], bid: number): number {
   if (!curve.length || bid <= 0) return 0;
   if (bid <= curve[0].bid) return curve[0].win * (bid / curve[0].bid);
   for (let i = 1; i < curve.length; i++) if (bid <= curve[i].bid) { const a = curve[i - 1], b = curve[i]; return a.win + ((b.win - a.win) * (bid - a.bid)) / (b.bid - a.bid); }
   return curve[curve.length - 1].win;
 }
-export function projectBid(rivals: Rival[], bins: ShareBins, mine: number, bidMin = 1): BidProjection {
-  const samples = simulateRivalMax(rivals, bins);
-  const need = (p: number) => Math.max(bidMin, pct(samples, p) + 1);
-  const winAtMax = samples.length ? samples.filter((s) => s < mine).length / samples.length : 0;
+
+/** Players no rival needs go for next to nothing: this is the spread of uncontested winning bids in both seasons. */
+const UNCONTESTED = [1, 1, 1, 1, 2, 2, 3, 5, 10].map((value) => ({ value, w: 1 }));
+
+export function projectBid(points: { value: number; w: number }[] | null, rivals: Rival[], bins: ShareBins, mine: number, bidMin = 1): BidProjection {
+  const pts = points && points.length ? points : UNCONTESTED;
+  const total = sum(pts.map((x) => x.w));
+  const below = (b: number) => sum(pts.filter((x) => x.value < b).map((x) => x.w)) / (total || 1);
+  const need = (p: number) => Math.max(bidMin, wq(pts, p) + 1);
   const mainRivals = rivals.filter((r) => r.gain >= 1.5).sort((a, b) => typicalBid(b, bins) - typicalBid(a, bins)).slice(0, 3).map((r) => ({ owner: r.owner, gain: round1(r.gain), budget: r.budget, typical: Math.round(typicalBid(r, bins)) }));
   const p50 = need(0.5), p75 = need(0.75), p90 = need(0.9);
-  const curve = CURVE_BIDS.map((bid) => ({ bid, win: samples.length ? Math.round((samples.filter((s) => s < bid).length / samples.length) * 1000) / 1000 : 0 }));
-  return { p50, p75, p90, winAtMax, tooExpensive: p50 > mine, mainRivals, confidence: bins.samples >= 80 ? "Medium" : "Low", curve };
+  return { p50, p75, p90, winAtMax: below(mine), tooExpensive: p50 > mine, mainRivals, confidence: points && total >= 6 ? "Medium" : "Low", curve: CURVE_BIDS.map((bid) => ({ bid, win: Math.round(below(bid) * 1000) / 1000 })) };
 }
 
 /* ---------- trading players for FAAB ---------- */
 
 export type TradeOffer = { rosterId: string; owner: string; theirGain: number; faab: number; theirBudget: number };
+/** Highest FAAB-for-player price seen in this league across two seasons (excluding the trade that included a draft pick). */
+export const TRADE_CEILING = 70;
 /**
- * FAAB a rival might pay for a player. Anchored on what they would bid for him on waivers, discounted because a trade needs
- * two parties to agree, and capped by the 30 to 70 FAAB prices the league's own FAAB-for-player trades have cleared at.
+ * What a rival might pay. A trade clears well below waiver price (30 to 70 FAAB for useful players in both seasons, 3 to 11 late),
+ * so the offer is 30% of the waiver price for a player of that rank, split by how much each team needs him, and capped.
  */
-export function tradeOffers(rivals: Rival[], bins: ShareBins, ceiling = 120): TradeOffer[] {
-  return rivals
-    .filter((r) => r.gain >= 1.5)
-    .map((r) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.round(Math.min(ceiling, r.budget * 0.35, Math.max(5, 0.5 * typicalBid(r, bins)))) }))
-    .filter((o) => o.faab >= 5)
+export function tradeOffers(rivals: Rival[], bins: ShareBins, waiverP50: number): TradeOffer[] {
+  const scored = rivals.filter((r) => r.gain >= 0.5).map((r) => ({ r, d: participation(r.gain) * typicalBid(r, bins) }));
+  const top = Math.max(1, ...scored.map((x) => x.d));
+  return scored
+    .map(({ r, d }) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.max(1, Math.round(Math.min(TRADE_CEILING, 0.2 * r.budget, 0.3 * waiverP50 * (d / top)))) }))
     .sort((a, b) => b.faab - a.faab);
+}
+
+/* ---------- drops when several claims land ---------- */
+
+/** For claims added in order, the cheapest player to cut for each one (never one just added). */
+export function dropPlan(slots: string[], roster: string[], info: Record<string, PlayerInfo>, adds: string[]) {
+  let current = [...roster];
+  const added = new Set<string>();
+  const plan: { add: string; drop: string | null; change: number }[] = [];
+  for (const add of adds) {
+    if (!info[add]) continue;
+    const before = weighted(lineupTotals(slots, current, info));
+    let best: { id: string; score: number; after: number } | null = null;
+    for (const id of current) {
+      if (added.has(id) || !info[id]) continue;
+      const after = weighted(lineupTotals(slots, [...current.filter((x) => x !== id), add], info));
+      const score = after - 0.01 * sum(info[id].proj);
+      if (!best || score > best.score) best = { id, score, after };
+    }
+    plan.push({ add, drop: best?.id || null, change: best ? best.after - before : 0 });
+    current = best ? [...current.filter((x) => x !== best!.id), add] : [...current, add];
+    added.add(add);
+  }
+  return plan;
 }

@@ -16,3 +16,7 @@
 .detail td{background:#0a1626;font-size:11px;color:var(--ism-muted);line-height:1.6}
 .foot{font-size:10px;color:var(--ism-muted)}
 .big{font-size:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{background:#0b1a2e;color:inherit;border:1px solid var(--ism-border);border-radius:99px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer}
+.tabOn{background:#1c4f86;border-color:#31527f}
+.out{padding:40px 20px;text-align:center}.out h2{margin:0 0 6px;font-size:22px}
