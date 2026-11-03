@@ -44,18 +44,11 @@ export async function GET(request: Request) {
 
   const LEAGUE = url.searchParams.get("league") || LEAGUES[0];
   if (!LEAGUES.includes(LEAGUE)) return Response.json({ error: "Unknown guillotine league." }, { status: 400 });
-  const horizon = [week + 1, week + 2, week + 3].filter((w) => w <= 18);
-
   const { league, rosters, budget } = await loadRosters(LEAGUE);
   const me = rosters.find((r) => r.isMine);
   if (!me) return Response.json({ error: "Your roster was not found in this league." }, { status: 404 });
   if (me.eliminated) return Response.json({ eliminated: true, league: { id: LEAGUE, name: league.name }, week });
 
-  const [players, schedule, projections, weekProj] = await Promise.all([
-    nflPlayersCached(), getNflSchedule(season, [week, ...horizon]).catch(() => null),
-    Promise.all(horizon.map((w) => getWeekProjections(season, w).catch(() => null))),
-    getWeekProjections(season, week).catch(() => null),
-  ]);
   const scoring = league.scoring_settings as Record<string, number>;
   const settings = league.settings || {};
   const slots: string[] = (league.roster_positions || []).filter((s: string) => s !== "BN");
@@ -66,6 +59,19 @@ export async function GET(request: Request) {
 
   const fetchTx = async (id: string, cache: boolean): Promise<Tx[]> => (await Promise.all(Array.from({ length: 19 }, (_, i) => i + 1).map(async (w) => (await sleeper<any[]>(`/league/${id}/transactions/${w}`, !cache ? false : true).catch(() => [] as any[])).map((t) => ({ ...t, leg: t.leg ?? w }))))).flat();
   const [txs, lastYearTx] = await Promise.all([fetchTx(LEAGUE, false), fetchTx(LAST_YEAR, true)]);
+
+  // Which chop feeds this Wednesday's claims. Sleeper rolls its week over right after Monday night, so the chop week is read from the
+  // league's own history: once a chop's claims have processed, the next chop is the one that matters.
+  const chops = txs.filter((t) => t.type === "chopped").sort((a, b) => b.leg - a.leg);
+  const lastChop = chops[0];
+  const batchDone = !!lastChop && txs.some((t) => t.type === "waiver" && t.status === "complete" && t.leg === lastChop.leg && Number(t.status_updated || 0) > lastChop.created);
+  const chopWeek = lastChop ? (batchDone ? lastChop.leg + 1 : lastChop.leg) : 1;
+  const horizon = [chopWeek + 1, chopWeek + 2, chopWeek + 3].filter((w) => w <= 18);
+  const [players, schedule, projections, weekProj] = await Promise.all([
+    nflPlayersCached(), getNflSchedule(season, [chopWeek, ...horizon]).catch(() => null),
+    Promise.all(horizon.map((w) => getWeekProjections(season, w).catch(() => null))),
+    getWeekProjections(season, chopWeek).catch(() => null),
+  ]);
   const book = [...buildPriceBook(lastYearTx, "last year", budget, teams, bidMin), ...buildPriceBook(txs, "this year", budget, teams, bidMin)];
 
   // Test mode: ?chop=<owner> treats that team as this week's chop.
@@ -103,9 +109,7 @@ export async function GET(request: Request) {
   pool.sort((a, b) => sum(b.proj) - sum(a.proj));
   const candidates = pool.slice(0, 160);
 
-  const chops = txs.filter((t) => t.type === "chopped").sort((a, b) => b.leg - a.leg);
-  const lastChop = chops[0];
-  const chopPending = !simulated && (lastChop ? lastChop.leg < week : true);
+  const chopPending = !simulated && (lastChop ? batchDone : true);
   const newlyReleased = simulated ? simReleased : chopPending ? new Set<string>() : new Set(Object.keys(lastChop?.drops || {}));
 
   // Gain-to-share calibration from every claim (won or lost); used only to rank who rivals want most.
@@ -163,11 +167,11 @@ export async function GET(request: Request) {
   }).sort((a, b) => b.topOffer - a.topOffer);
 
   // Chop watch for the week being scored right now.
-  const weeks = Array.from({ length: week }, (_, i) => i + 1);
+  const weeks = Array.from({ length: chopWeek }, (_, i) => i + 1);
   const matchups = await Promise.all(weeks.map(async (w) => ({ w, rows: await sleeper<any[]>(`/league/${LEAGUE}/matchups/${w}`, false).catch(() => [] as any[]) })));
   const scoresBy: Record<string, number[]> = {};
-  matchups.filter((m) => m.w < week).forEach((m) => m.rows.forEach((row: any) => { (scoresBy[String(row.roster_id)] ||= []).push(Number(row.points || 0)); }));
-  const live = matchups.find((m) => m.w === week)?.rows || [];
+  matchups.filter((m) => m.w < chopWeek).forEach((m) => m.rows.forEach((row: any) => { (scoresBy[String(row.roster_id)] ||= []).push(Number(row.points || 0)); }));
+  const live = matchups.find((m) => m.w === chopWeek)?.rows || [];
   const sched = schedule || {};
   const chopRows = alive.map((r) => {
     const row = live.find((x: any) => String(x.roster_id) === r.rosterId) || {};
@@ -176,7 +180,7 @@ export async function GET(request: Request) {
     for (const id of (row.starters || []) as string[]) {
       const proj = weekProj?.get(id) ? projectPoints(weekProj.get(id)!.stats, scoring) : 0;
       total += proj;
-      const game = sched[String(players[id]?.team || "")]?.[week];
+      const game = sched[String(players[id]?.team || "")]?.[chopWeek];
       if (game && game.state !== "post") remaining += proj;
     }
     const sd = Math.max(4, teamSd(scoresBy[r.rosterId], 22) * Math.sqrt(Math.max(0.02, total ? remaining / total : 0)));
@@ -190,14 +194,14 @@ export async function GET(request: Request) {
   });
 
   return Response.json({
-    week, season, horizon, weights: HORIZON_WEIGHTS, fetchedAt: new Date().toISOString(),
+    week: chopWeek, season, horizon, weights: HORIZON_WEIGHTS, fetchedAt: new Date().toISOString(),
     league: { id: LEAGUE, name: league.name, slots, capacity, bidders },
     me: { faab: me.faab, waiverPosition: me.waiverPosition, roster: myInfo.map((p) => ({ ...p, proj: p.proj.map(round1) })) },
     simulatedChop: simulated ? { owner: simulated.owner, released: simReleased.size } : null,
     owners: rosters.filter((r) => !r.isMine && (!r.eliminated || r === simulated)).map((r) => r.owner),
     price: { samples: book.length, medianBudget },
     targets, tradeIdeas,
-    chop: { week, teams: chopTeams, scoringPosted: chopRows.some((x) => x.points > 25) },
+    chop: { week: chopWeek, result: chopPending || simulated ? null : { owner: rosters.find((r) => r.rosterId === String(lastChop?.roster_ids?.[0]))?.owner || "" }, teams: chopPending || simulated ? chopTeams : [], scoringPosted: chopRows.some((x) => x.points > 25) },
   }, { headers: { "Cache-Control": "no-store" } });
 }
 

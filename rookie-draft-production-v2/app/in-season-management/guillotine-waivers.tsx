@@ -12,7 +12,7 @@ type Idea = { id: string; name: string; position: string; team: string; injury: 
 type Data = {
   eliminated?: boolean; week: number; horizon: number[]; league: { id: string; name: string; slots: string[] };
   me: { faab: number; waiverPosition: number; roster: PlayerInfo[] };
-  chop: { week: number; scoringPosted: boolean; teams: { owner: string; chance: number; pointsSoFar: number; projectedRemaining: number; best: { name: string; position: string; gainForMe: number }[] }[] };
+  chop: { week: number; scoringPosted: boolean; result: { owner: string } | null; teams: { owner: string; chance: number; pointsSoFar: number; projectedRemaining: number; best: { name: string; position: string; gainForMe: number }[] }[] };
   simulatedChop: { owner: string; released: number } | null; owners: string[]; targets: Target[]; tradeIdeas: Idea[];
 };
 type LeagueTab = { id: string; name: string; eliminated: boolean };
@@ -138,10 +138,11 @@ export default function GuillotineWaivers() {
 
       <section className={shared.panel}>
         <h3 className={styles.h}>Week {data.chop.week} chop watch</h3>
+        {data.chop.result ? <div className={styles.meta}>Week {data.chop.week}: {data.chop.result.owner} was chopped. Their players are on the wire for Wednesday.</div> : <>
         <div className={styles.meta} style={{ marginBottom: 6 }}>Chance each team has the lowest Week {data.chop.week} score and is chopped (~3am ET Tuesday).{data.chop.scoringPosted ? "" : " Scoring isn't posted yet, so treat as rough."}</div>
         <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Team</th><th>Chopped %</th><th>Wk {data.chop.week} pts</th><th>Left to play</th><th>Your best adds if chopped</th><th /></tr></thead><tbody>
           {data.chop.teams.map((t) => <tr key={t.owner}><td>{t.owner}</td><td>{t.chance}%</td><td>{t.pointsSoFar}</td><td>{t.projectedRemaining}</td><td className={styles.meta}>{t.best.filter((b) => b.gainForMe > 0).map((b) => `${b.name} +${b.gainForMe}`).join(", ") || "—"}</td><td><button className={styles.btn} onClick={() => setChop(t.owner)}>Test</button></td></tr>)}
-        </tbody></table></div>
+        </tbody></table></div></>}
       </section>
       <div className={styles.foot}>Estimates only. Gain = weighted lineup points over the next 3 weeks. Bid prices come from this season&apos;s and last season&apos;s Guillotine Mania claims.</div>
     </div>

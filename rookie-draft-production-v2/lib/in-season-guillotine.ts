@@ -7,7 +7,7 @@ export const HORIZON_WEIGHTS = [1, 0.8, 0.6];
 
 export type PlayerInfo = { id: string; name: string; position: string; team: string; injury: string; age: number | null; proj: number[]; byeWeeks: number[] };
 export type GRoster = { rosterId: string; owner: string; isMine: boolean; eliminated: boolean; players: string[]; faab: number; waiverPosition: number };
-export type Tx = { type: string; status: string; leg: number; created: number; roster_ids?: number[]; adds?: Record<string, number> | null; drops?: Record<string, number> | null; settings?: { waiver_bid?: number; seq?: number } | null; waiver_budget?: { amount: number; sender: number; receiver: number }[] };
+export type Tx = { type: string; status: string; leg: number; created: number; status_updated?: number; roster_ids?: number[]; adds?: Record<string, number> | null; drops?: Record<string, number> | null; settings?: { waiver_bid?: number; seq?: number } | null; waiver_budget?: { amount: number; sender: number; receiver: number }[] };
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 export const round1 = (value: number) => Math.round(value * 10) / 10;
