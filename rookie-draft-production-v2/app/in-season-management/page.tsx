@@ -19,7 +19,7 @@ import { buildManagerCards } from "@/lib/in-season-managers";
 import type { LeagueTransactions } from "@/lib/in-season-managers";
 import styles from "./in-season-management.module.css";
 
-type Section = "overview" | "lineups" | "league-overview" | "waivers" | "players" | "managers";
+type Section = "overview" | "lineups" | "league-overview" | "waivers" | "guillotine" | "players" | "managers";
 type SleeperCheck = {
   key: string;
   configuredName: string;
@@ -47,7 +47,7 @@ function displayDate(value: string | null) {
 
 export default function InSeasonManagementPage() {
   const pathname = usePathname();
-  const section: Section = pathname.endsWith("/lineups") ? "lineups" : pathname.endsWith("/league-overview") ? "league-overview" : pathname.endsWith("/waivers") ? "waivers" : pathname.endsWith("/players") ? "players" : pathname.endsWith("/managers") ? "managers" : "overview";
+  const section: Section = pathname.endsWith("/lineups") ? "lineups" : pathname.endsWith("/league-overview") ? "league-overview" : pathname.endsWith("/waivers") ? "waivers" : pathname.endsWith("/guillotine") ? "guillotine" : pathname.endsWith("/players") ? "players" : pathname.endsWith("/managers") ? "managers" : "overview";
   const [checks, setChecks] = useState<SleeperCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,7 +169,7 @@ export default function InSeasonManagementPage() {
       {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} outlook={outlook} />}
       {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} onOpenManager={openManager} />}
 
-      {section === "waivers" && <GuillotineWaivers />}
+      {section === "guillotine" && <GuillotineWaivers />}
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
 
       {section === "players" && <LiveLeagueView kind="players" leagues={leagueData} checks={checks} />}
@@ -185,7 +185,7 @@ export default function InSeasonManagementPage() {
 
 function LiveLeagueView({kind,leagues,checks}:{kind:"lineups"|"waivers"|"players";leagues:LeagueData[];checks:SleeperCheck[]}) {
   const active=leagues.filter(l=>l.ok&&!l.eliminated);
-  const title=kind==="lineups"?"Lineups & Matchups":kind==="waivers"?"Waivers & Guillotine":"Player Intelligence";
+  const title=kind==="lineups"?"Lineups & Matchups":kind==="waivers"?"Waivers":"Player Intelligence";
   return <section className={styles.modulePage}>
     <div className={styles.moduleHero}><div className={styles.moduleIcon}>{kind==="lineups"?<Sparkles size={19}/>:kind==="waivers"?<WalletCards size={19}/>:<TrendingUp size={19}/>}</div><div><div className={styles.sectionKicker}>Sleeper · Live league data</div><h2>{title}</h2><p>{kind==="lineups"?"Current rosters, starter slots, league matchup scores, and roster records from Sleeper.":kind==="waivers"?"League waiver settings, FAAB budgets where available, and recent transaction activity.":"League scoring and roster context for the next layer of player-level signals."}</p></div></div>
     {leagues.length===0?<div className={styles.emptyState}><RefreshCw size={20}/><strong>Loading Sleeper league data</strong><span>League data will appear once the request completes.</span></div>:leagues.map(league=><article className={styles.leagueCard} key={league.id}>
