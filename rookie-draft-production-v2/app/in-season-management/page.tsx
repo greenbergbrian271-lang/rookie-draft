@@ -13,6 +13,7 @@ import LeagueOverviewView from "./league-overview-view";
 import LineupView, { type LineupOutlook } from "./lineup-view";
 import ManagersView from "./managers-view";
 import ManagerModal from "./manager-modal";
+import GuillotineWaivers from "./guillotine-waivers";
 import OverviewSnapshot from "./overview-snapshot";
 import { buildManagerCards } from "@/lib/in-season-managers";
 import type { LeagueTransactions } from "@/lib/in-season-managers";
@@ -168,6 +169,7 @@ export default function InSeasonManagementPage() {
       {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} outlook={outlook} />}
       {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} onOpenManager={openManager} />}
 
+      {section === "waivers" && <GuillotineWaivers />}
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
 
       {section === "players" && <LiveLeagueView kind="players" leagues={leagueData} checks={checks} />}

@@ -45,6 +45,11 @@ export async function GET(request: Request) {
   });
   const me = rosters.find((r) => r.isMine);
   if (!me) return Response.json({ error: "Your roster was not matched in this league." }, { status: 404 });
+  // Test mode: ?chop=<owner> treats that team as this week's chop, so its players hit the wire and it stops bidding.
+  const wanted = (url.searchParams.get("chop") || "").trim().toLowerCase();
+  const simulated = wanted ? rosters.find((r) => !r.isMine && !r.eliminated && r.owner.toLowerCase() === wanted) || null : null;
+  const simReleased = new Set(simulated?.players || []);
+  if (simulated) { simulated.eliminated = true; simulated.players = []; }
   const alive = rosters.filter((r) => !r.eliminated);
   const rivalsAll = alive.filter((r) => !r.isMine);
 
@@ -80,7 +85,7 @@ export async function GET(request: Request) {
   const chops = txs.filter((t) => t.type === "chopped").sort((a, b) => b.leg - a.leg);
   const lastChop = chops[0];
   const chopOwner = (t: Tx) => rosters.find((r) => r.rosterId === String(t.roster_ids?.[0]))?.owner || "";
-  const newlyReleased = new Set(Object.keys(lastChop?.drops || {}));
+  const newlyReleased = simulated ? simReleased : new Set(Object.keys(lastChop?.drops || {}));
   const everChopped = new Set(chops.flatMap((t) => Object.keys(t.drops || {})));
 
   // ---- calibration from every claim (won or lost) in this league ----
@@ -168,6 +173,8 @@ export async function GET(request: Request) {
     calibration: { medianShareByGainBin: bins.median.map((m) => Math.round(m * 1000) / 1000), n: bins.n, samples: bins.samples, sd: round1(bins.sd), edges: bins.edges },
     lastChop: lastChop ? { leg: lastChop.leg, owner: chopOwner(lastChop), released: [...newlyReleased].map((id) => ({ id, name: info[id]?.name || playerName(id, players), onRoster: rostered.has(id) })) } : null,
     chopPreview: { scoringPosted, teams: chopPreview },
+    simulatedChop: simulated ? { owner: simulated.owner, released: simReleased.size } : null,
+    owners: rosters.filter((r) => !r.isMine && (!r.eliminated || r === simulated)).map((r) => r.owner),
     targets, tradeIdeas,
     pool: { size: pool.length },
   };

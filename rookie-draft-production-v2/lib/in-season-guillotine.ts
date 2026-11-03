@@ -137,14 +137,25 @@ export type BidProjection = {
   /** Rivals most likely to push the price up. */
   mainRivals: { owner: string; gain: number; budget: number; typical: number }[];
   confidence: "Low" | "Medium";
+  /** Chance a bid of each size wins, so a different FAAB total (after a trade, say) can be read off without re-running anything. */
+  curve: { bid: number; win: number }[];
 };
+export const CURVE_BIDS = [5, 15, 30, 50, 79, 100, 130, 160, 200, 260, 330, 420, 550];
+/** Win chance at an arbitrary bid, interpolated from the curve. */
+export function winAt(curve: { bid: number; win: number }[], bid: number): number {
+  if (!curve.length || bid <= 0) return 0;
+  if (bid <= curve[0].bid) return curve[0].win * (bid / curve[0].bid);
+  for (let i = 1; i < curve.length; i++) if (bid <= curve[i].bid) { const a = curve[i - 1], b = curve[i]; return a.win + ((b.win - a.win) * (bid - a.bid)) / (b.bid - a.bid); }
+  return curve[curve.length - 1].win;
+}
 export function projectBid(rivals: Rival[], bins: ShareBins, mine: number, bidMin = 1): BidProjection {
   const samples = simulateRivalMax(rivals, bins);
   const need = (p: number) => Math.max(bidMin, pct(samples, p) + 1);
   const winAtMax = samples.length ? samples.filter((s) => s < mine).length / samples.length : 0;
   const mainRivals = rivals.filter((r) => r.gain >= 1.5).sort((a, b) => typicalBid(b, bins) - typicalBid(a, bins)).slice(0, 3).map((r) => ({ owner: r.owner, gain: round1(r.gain), budget: r.budget, typical: Math.round(typicalBid(r, bins)) }));
   const p50 = need(0.5), p75 = need(0.75), p90 = need(0.9);
-  return { p50, p75, p90, winAtMax, tooExpensive: p50 > mine, mainRivals, confidence: bins.samples >= 80 ? "Medium" : "Low" };
+  const curve = CURVE_BIDS.map((bid) => ({ bid, win: samples.length ? Math.round((samples.filter((s) => s < bid).length / samples.length) * 1000) / 1000 : 0 }));
+  return { p50, p75, p90, winAtMax, tooExpensive: p50 > mine, mainRivals, confidence: bins.samples >= 80 ? "Medium" : "Low", curve };
 }
 
 /* ---------- trading players for FAAB ---------- */
