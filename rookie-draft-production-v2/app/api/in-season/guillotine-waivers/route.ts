@@ -4,7 +4,7 @@ import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
-  HORIZON_WEIGHTS, dropPlan, bestDrop, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
+  HORIZON_WEIGHTS, buildClaimSheet, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
   type GRoster, type PlayerInfo, type Rival, type Tx,
 } from "@/lib/in-season-guillotine";
 
@@ -118,7 +118,19 @@ export async function GET(request: Request) {
   pool.sort((a, b) => sum(b.proj) - sum(a.proj));
   const parseList = (key: string) => (url.searchParams.get(key) || "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
   const wantQueries = parseList("want"), dropQueries = parseList("drops");
-  const wantedRows = wantQueries.map((q) => ({ query: q, player: findByName(q, pool) }));
+  const lookupAll = (q: string): PlayerInfo | null => {
+    const words = norm(q).split(" ").filter(Boolean);
+    let best: PlayerInfo | null = null;
+    for (const [id, p] of Object.entries<any>(players)) {
+      if (rostered.has(id) || !positions.has(String(p.position)) || !p.team || p.team === "FA") continue;
+      const nm = norm(playerName(id, players));
+      if (!words.every((w) => nm.includes(w))) continue;
+      const cand = build(id);
+      if (cand && (!best || sum(cand.proj) > sum(best.proj))) best = cand;
+    }
+    return best;
+  };
+  const wantedRows = wantQueries.map((q) => ({ query: q, player: findByName(q, pool) || lookupAll(q) }));
   const candidates = [...pool.slice(0, 160)];
   wantedRows.forEach((w) => { if (w.player && !candidates.includes(w.player)) candidates.push(w.player); });
 
@@ -167,19 +179,17 @@ export async function GET(request: Request) {
   targets.sort((a, b) => { const ia = wantOrder.indexOf(a.id), ib = wantOrder.indexOf(b.id); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || b.weightedGain - a.weightedGain; });
 
   // Whole roster as trade chips. Price a player as if he were on the wire at his demand rank.
-  const allD = market.filter((m) => m.d > 0).map((m) => m.d);
-  const ladderD = newlyReleased.size ? dList(true) : allD;
+  // Late in the season prices collapse: compare the top price now with the top price in a 10-bidder week.
+  const topNow = priceSamples(book, { bidders, released: true, rank: 1, medianBudget, ceiling: 953 });
+  const topRef = priceSamples(book, { bidders: 10, released: true, rank: 1, medianBudget, ceiling: 953 });
+  const timeFactor = topNow.length && topRef.length ? Math.min(1.2, Math.max(0.1, priceQuantile(topNow, 0.5) / Math.max(1, priceQuantile(topRef, 0.5)))) : 1;
   const myInfo = me.players.map((id) => info[id]).filter(Boolean);
   const tradeIdeas = myInfo.map((p) => {
     const without = me.players.filter((id) => id !== p.id);
     const lost = lineupTotals(slots, without, info);
     const loss = weighted(myBase.map((t, i) => t - lost[i]));
     const rivals = rivalsFor(p.id);
-    const d = demand(rivals, bins);
-    const rank = rankOf(d, ladderD);
-    const samples = priceSamples(book, { bidders, released: newlyReleased.size > 0, rank, medianBudget, ceiling: 953 });
-    const p50 = projectBid(samples, rivals, bins, me.faab, bidMin, 953).p50;
-    const offers = tradeOffers(rivals, bins, p50);
+    const offers = tradeOffers(rivals, bins, timeFactor);
     return { id: p.id, name: p.name, position: p.position, team: p.team, injury: p.injury, age: p.age, proj: p.proj.map(round1), byeWeeks: p.byeWeeks, lineupLoss: round1(loss), offers: offers.slice(0, 6), topOffer: offers[0]?.faab || 0 };
   }).sort((a, b) => b.topOffer - a.topOffer);
 
@@ -214,6 +224,7 @@ export async function GET(request: Request) {
     return Response.json({ week: chopWeek, horizon, bidders, medianBudget, chopPending, simulated: simulated?.owner || null, chop: { teams: chopTeams.map((t) => `${t.owner} ${t.chance}% pts ${t.pointsSoFar} left ${t.projectedRemaining}`), result: chopPending ? null : lastChop?.roster_ids },
       targets: targets.slice(0, 12).map((t) => `${t.name} ${t.position} gain ${t.weightedGain} bid ${t.bid.p50}/${t.bid.p75}/${t.bid.p90} win@79 ${Math.round(t.bid.winAtMax * 100)}% new=${t.newlyReleased}`),
       drops: (() => { const pick = targets.filter((t) => t.bid.winAtMax >= 0.5).slice(0, 5); const inf: Record<string, PlayerInfo> = { ...info }; return dropPlan(slots, me.players, inf, pick.map((t) => t.id)).map((d) => `${info[d.add]?.name} -> drop ${d.drop ? info[d.drop]?.name + " (" + info[d.drop]?.position + (info[d.drop]?.injury ? " " + info[d.drop]?.injury : "") + ")" : "none"} change ${Math.round(d.change * 10) / 10}`); })(),
+      sheet: (() => { const ids = wantedRows.map((w) => w.player?.id).filter(Boolean) as string[]; const use = (ids.length ? ids : targets.slice(0, 6).map((t) => t.id)); const tg = use.map((id) => targets.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t!.id, curve: t!.bid.curve, p50: t!.bid.p50, p75: t!.bid.p75, p90: t!.bid.p90 })); const dr = dropQueries.length ? dropQueries.map((q) => findByName(q, me.players.map((id) => info[id]).filter(Boolean))?.id).filter(Boolean) as string[] : []; const r = buildClaimSheet({ slots, roster: me.players, info, targets: tg, drops: dr, budget: me.faab }); return { expected: Math.round(r.expected * 10) / 10, landAny: Math.round(r.landAny * 100), chance: r.chance.map((c) => `${info[c.id]?.name} ${Math.round(c.win * 100)}%`), rows: r.rows.slice(0, 40).map((x, i) => `${i + 1} ${info[x.add]?.name} / drop ${info[x.drop]?.name} / $${x.bid} / hit ${Math.round(x.hit * 100)}%`) }; })(),
       trades: tradeIdeas.slice(0, 8).map((t) => `${t.name} loss ${t.lineupLoss} ${t.offers.slice(0, 3).map((o) => `${o.owner}$${o.faab}`).join(",")}`) });
   }
   return Response.json({

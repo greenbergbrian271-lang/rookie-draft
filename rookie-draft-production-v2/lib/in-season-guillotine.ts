@@ -149,6 +149,7 @@ export function priceSamples(book: PriceSample[], opts: { bidders: number; relea
   }
   return out.sort((a, b) => a.value - b.value);
 }
+export const priceQuantile = (points: { value: number; w: number }[], p: number) => wq(points, p);
 const wq = (points: { value: number; w: number }[], p: number) => {
   const total = sum(points.map((x) => x.w)); let run = 0;
   for (const x of points) { run += x.w; if (run >= p * total) return x.value; }
@@ -194,14 +195,14 @@ export type TradeOffer = { rosterId: string; owner: string; theirGain: number; f
 /** Highest FAAB-for-player price seen in this league across two seasons (excluding the trade that included a draft pick). */
 export const TRADE_CEILING = 70;
 /**
- * What a rival might pay. A trade clears well below waiver price (30 to 70 FAAB for useful players in both seasons, 3 to 11 late),
- * so the offer is 30% of the waiver price for a player of that rank, split by how much each team needs him, and capped.
+ * What a rival might pay in a trade. A trade needs only one buyer, so it clears well below what a waiver fight would: 30 to 70 FAAB for useful players
+ * in both seasons, a few FAAB late. The offer is a quarter of what that team would bid for the player on waivers, shrunk late in the season, capped at
+ * the league's highest observed price and at a fifth of the buyer's FAAB.
  */
-export function tradeOffers(rivals: Rival[], bins: ShareBins, waiverP50: number): TradeOffer[] {
-  const scored = rivals.filter((r) => r.gain >= 0.5).map((r) => ({ r, d: participation(r.gain) * typicalBid(r, bins) }));
-  const top = Math.max(1, ...scored.map((x) => x.d));
-  return scored
-    .map(({ r, d }) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.max(1, Math.round(Math.min(TRADE_CEILING, 0.2 * r.budget, 0.3 * waiverP50 * (d / top)))) }))
+export function tradeOffers(rivals: Rival[], bins: ShareBins, timeFactor: number): TradeOffer[] {
+  return rivals
+    .filter((r) => r.gain >= 0.5)
+    .map((r) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.max(1, Math.round(Math.min(TRADE_CEILING, 0.2 * r.budget, 0.25 * typicalBid(r, bins) * timeFactor))) }))
     .sort((a, b) => b.faab - a.faab);
 }
 
