@@ -29,15 +29,16 @@ const avgPlayed = (p: PlayerInfo) => { const x = p.proj.filter((v) => v > 0); re
 function dropNote(p: PlayerInfo, cost: number, roster: PlayerInfo[]): string {
   const parts: string[] = [];
   if (/^(out|ir|pup|sus)/i.test(p.injury)) parts.push(p.injury);
-  if (p.position === "QB") {
-    const others = roster.filter((q) => q.position === "QB" && q.id !== p.id).sort((a, b) => avgPlayed(b) - avgPlayed(a));
+  if (p.position === "QB" || p.position === "TE") {
+    const others = roster.filter((q) => q.position === p.position && q.id !== p.id).sort((a, b) => avgPlayed(b) - avgPlayed(a));
     const starter = others[0];
-    if (!starter) parts.push("Your only QB");
-    else if (avgPlayed(p) >= avgPlayed(starter)) parts.push("Your starting QB");
+    if (!starter) parts.push(`Your only ${p.position}`);
+    else if (avgPlayed(p) >= avgPlayed(starter)) parts.push(`Your starting ${p.position}`);
     else if (cost < 0.5) {
-      if ((starter.qbRank ?? 99) <= 6 && !starter.nextBye) parts.push(`Backup to elite ${last(starter.name)} (QB${starter.qbRank}), bye already passed`);
-      else if (starter.nextBye) parts.push(`Covers ${last(starter.name)}'s week ${starter.nextBye} bye`);
-      else parts.push(`${last(starter.name)} is QB${starter.qbRank}, not elite: a matchup option`);
+      if (starter.nextBye) parts.push(`Covers ${last(starter.name)}'s week ${starter.nextBye} bye`);
+      else if (p.position === "QB" && (starter.qbRank ?? 99) <= 6) parts.push(`Backup to elite ${last(starter.name)} (QB${starter.qbRank}), bye already passed`);
+      else if (p.position === "QB") parts.push(`${last(starter.name)} is QB${starter.qbRank}, not elite: a matchup option`);
+      else parts.push(`Backup to ${last(starter.name)}, no bye ahead`);
     } else parts.push("Plays for you in the window");
   } else if (cost < 0.5) parts.push("No lineup role in the next 3 weeks");
   else parts.push(`Worth ${r1(cost)} lineup points`);

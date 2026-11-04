@@ -249,11 +249,20 @@ export function dropCosts(slots: string[], roster: string[], info: Record<string
   return out;
 }
 
-export type Matrix = { drops: { id: string; cost: number }[]; rows: { id: string; nets: Record<string, number>; best: { drop: string; net: number } | null }[] };
+export type Matrix = { drops: { id: string; cost: number; keep: number; insurance: number }[]; rows: { id: string; nets: Record<string, number>; best: { drop: string; net: number } | null }[] };
 /** Net gain of every add-for-drop swap. Rows are sorted by their best swap, drops by how little they cost. */
 export function buildMatrix(slots: string[], roster: string[], info: Record<string, PlayerInfo>, targetIds: string[]): Matrix {
   const costs = dropCosts(slots, roster, info);
-  const drops = roster.filter((id) => info[id]).map((id) => ({ id, cost: costs[id] ?? 0 })).sort((a, b) => a.cost - b.cost);
+  const avg = (p: PlayerInfo) => { const x = p.proj.filter((v) => v > 0); return x.length ? sum(x) / x.length : 0; };
+  // A backup QB or TE still has value when the starter's bye is ahead, even if the lineup math shows no gain inside the three-week window.
+  const insurance = (id: string) => {
+    const p = info[id];
+    if (!p || (p.position !== "QB" && p.position !== "TE")) return 0;
+    const starter = roster.map((r) => info[r]).filter((q) => q && q.id !== id && q.position === p.position && avg(q) > avg(p)).sort((a, b) => avg(b) - avg(a))[0];
+    return starter && starter.nextBye ? (p.position === "QB" ? 3 : 1.5) : 0;
+  };
+  // Order drops by what they cost the lineup, then bye insurance, then a small nudge toward keeping the better player when costs tie.
+  const drops = roster.filter((id) => info[id]).map((id) => ({ id, cost: costs[id] ?? 0, insurance: insurance(id), keep: (costs[id] ?? 0) + insurance(id) + 0.05 * avg(info[id]) })).sort((a, b) => a.keep - b.keep);
   const base = lineupTotals(slots, roster, info);
   const rows = targetIds.filter((id) => info[id]).map((id) => {
     const nets: Record<string, number> = {};
@@ -368,5 +377,6 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
   }
   const detail = { hit: rows.map(() => 0), chance: targets.map(() => 0), any: 0 };
   const expected = run(rows, detail);
-  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, net: r.net })), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
+  // Rows that essentially never land are noise on a claims list, so they are left off.
+  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, net: r.net })).filter((r) => r.hit >= 0.005), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
 }
