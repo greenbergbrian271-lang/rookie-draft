@@ -4,7 +4,7 @@ import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
-  HORIZON_WEIGHTS, dropPlan, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
+  HORIZON_WEIGHTS, dropPlan, bestDrop, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
   type GRoster, type PlayerInfo, type Rival, type Tx,
 } from "@/lib/in-season-guillotine";
 
@@ -15,6 +15,15 @@ const LEAGUES = ["1387508275846586368", "1399445627359797248"];
 const LAST_YEAR = "1264809322165059584";
 const sum = (v: number[]) => v.reduce((a, b) => a + b, 0);
 const median = (v: number[]) => { const s = [...v].sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0; };
+
+const norm = (name: string) => name.toLowerCase().replace(/[.'’]/g, "").replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/\s+/g, " ").trim();
+/** Find a player by a typed name ("Nabers", "omar cooper", "breece"): every typed word must appear in his name; best projection wins. */
+function findByName<T extends { name: string; proj: number[] }>(query: string, list: T[]): T | null {
+  const words = norm(query).split(" ").filter(Boolean);
+  if (!words.length) return null;
+  const hits = list.filter((p) => { const n = norm(p.name); return words.every((w) => n.includes(w)); });
+  return hits.sort((a, b) => sum(b.proj) - sum(a.proj))[0] || null;
+}
 
 async function loadRosters(leagueId: string) {
   const [league, rosterRows, users] = await Promise.all([sleeper<any>(`/league/${leagueId}`, false), sleeper<any[]>(`/league/${leagueId}/rosters`, false), sleeper<any[]>(`/league/${leagueId}/users`, false)]);
@@ -107,7 +116,11 @@ export async function GET(request: Request) {
   }
   for (const id of Object.keys(info)) if (!rostered.has(id) && info[id] && sum(info[id].proj) > 0) pool.push(info[id]);
   pool.sort((a, b) => sum(b.proj) - sum(a.proj));
-  const candidates = pool.slice(0, 160);
+  const parseList = (key: string) => (url.searchParams.get(key) || "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+  const wantQueries = parseList("want"), dropQueries = parseList("drops");
+  const wantedRows = wantQueries.map((q) => ({ query: q, player: findByName(q, pool) }));
+  const candidates = [...pool.slice(0, 160)];
+  wantedRows.forEach((w) => { if (w.player && !candidates.includes(w.player)) candidates.push(w.player); });
 
   const chopPending = !simulated && (lastChop ? batchDone : true);
   const newlyReleased = simulated ? simReleased : chopPending ? new Set<string>() : new Set(Object.keys(lastChop?.drops || {}));
@@ -136,18 +149,22 @@ export async function GET(request: Request) {
   const medianBudget = median(alive.map((r) => r.faab));
   const priceFor = (m: { rivals: Rival[]; d: number; released: boolean }) => {
     const interested = m.rivals.filter((r) => r.gain >= 1.5);
-    if (!interested.length) return projectBid(null, m.rivals, bins, me.faab, bidMin);
+    if (!interested.length) return projectBid(null, m.rivals, bins, me.faab, bidMin, 10);
     const rank = rankOf(m.d, dList(m.released));
     const ceiling = Math.max(...interested.map((r) => r.budget));
-    return projectBid(priceSamples(book, { bidders, released: m.released, rank, medianBudget, ceiling }), m.rivals, bins, me.faab, bidMin);
+    return projectBid(priceSamples(book, { bidders, released: m.released, rank, medianBudget, ceiling }), m.rivals, bins, me.faab, bidMin, ceiling);
   };
 
-  const screened = market.map((m) => ({ m, free: gainsFor(slots, me.players, info, m.c.id, null, myBase) })).filter((x) => weighted(x.free) >= 0.75).sort((a, b) => weighted(b.free) - weighted(a.free)).slice(0, 30);
+  const wantedIds = new Set(wantedRows.map((w) => w.player?.id).filter(Boolean) as string[]);
+  const screened = market.map((m) => ({ m, free: gainsFor(slots, me.players, info, m.c.id, null, myBase) })).filter((x) => wantedIds.has(x.m.c.id) || weighted(x.free) >= 0.75).sort((a, b) => weighted(b.free) - weighted(a.free)).slice(0, 40);
   const targets = screened.map(({ m, free }) => {
     const bid = priceFor(m);
     const w = weighted(free);
     return { id: m.c.id, name: m.c.name, position: m.c.position, team: m.c.team, age: m.c.age, injury: m.c.injury, proj: m.c.proj.map(round1), byeWeeks: m.c.byeWeeks, newlyReleased: m.released, gains: free.map(round1), weightedGain: round1(w), bid, rivalsInterested: m.rivals.filter((r) => r.gain >= 1.5).length };
   }).sort((a, b) => b.weightedGain - a.weightedGain);
+  // Your typed priority order comes first, then everything else by gain.
+  const wantOrder = wantedRows.map((w) => w.player?.id).filter(Boolean) as string[];
+  targets.sort((a, b) => { const ia = wantOrder.indexOf(a.id), ib = wantOrder.indexOf(b.id); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || b.weightedGain - a.weightedGain; });
 
   // Whole roster as trade chips. Price a player as if he were on the wire at his demand rank.
   const allD = market.filter((m) => m.d > 0).map((m) => m.d);
@@ -161,7 +178,7 @@ export async function GET(request: Request) {
     const d = demand(rivals, bins);
     const rank = rankOf(d, ladderD);
     const samples = priceSamples(book, { bidders, released: newlyReleased.size > 0, rank, medianBudget, ceiling: 953 });
-    const p50 = projectBid(samples, rivals, bins, me.faab, bidMin).p50;
+    const p50 = projectBid(samples, rivals, bins, me.faab, bidMin, 953).p50;
     const offers = tradeOffers(rivals, bins, p50);
     return { id: p.id, name: p.name, position: p.position, team: p.team, injury: p.injury, age: p.age, proj: p.proj.map(round1), byeWeeks: p.byeWeeks, lineupLoss: round1(loss), offers: offers.slice(0, 6), topOffer: offers[0]?.faab || 0 };
   }).sort((a, b) => b.topOffer - a.topOffer);
@@ -206,7 +223,21 @@ export async function GET(request: Request) {
     simulatedChop: simulated ? { owner: simulated.owner, released: simReleased.size } : null,
     owners: rosters.filter((r) => !r.isMine && (!r.eliminated || r === simulated)).map((r) => r.owner),
     price: { samples: book.length, medianBudget },
+    faab: (() => {
+      const sorted = [...alive].sort((a, b) => b.faab - a.faab);
+      const top = sorted[0], second = sorted[1], low = sorted[sorted.length - 1];
+      const others = sorted.slice(1);
+      const avgOthers = others.length ? sum(others.map((r) => r.faab)) / others.length : 0;
+      return { teams: sorted.length, top: { owner: top.owner, faab: top.faab }, second: second ? { owner: second.owner, faab: second.faab } : null, leadOverSecond: second ? top.faab - second.faab : 0, leadOverAverage: Math.round(top.faab - avgOthers), average: Math.round(sum(sorted.map((r) => r.faab)) / sorted.length), lowest: { owner: low.owner, faab: low.faab }, mine: me.faab, mineRank: sorted.findIndex((r) => r.isMine) + 1 };
+    })(),
     targets, tradeIdeas,
+    wanted: wantedRows.map((w) => ({ query: w.query, id: w.player?.id || null })),
+    dropOrder: (() => {
+      const mine = me.players.map((id) => info[id]).filter(Boolean);
+      const typed = dropQueries.map((q) => findByName(q, mine)?.id || null).filter(Boolean) as string[];
+      if (dropQueries.length) return typed;
+      return dropPlan(slots, me.players, info, targets.slice(0, 6).map((t) => t.id)).map((d) => d.drop).filter(Boolean) as string[];
+    })(),
     chop: { week: chopWeek, result: chopPending || simulated ? null : { owner: rosters.find((r) => r.rosterId === String(lastChop?.roster_ids?.[0]))?.owner || "" }, teams: chopPending || simulated ? chopTeams : [], scoringPosted: chopRows.some((x) => x.points > 25) },
   }, { headers: { "Cache-Control": "no-store" } });
 }

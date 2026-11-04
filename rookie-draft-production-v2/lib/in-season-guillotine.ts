@@ -142,10 +142,10 @@ export function priceSamples(book: PriceSample[], opts: { bidders: number; relea
   for (const s of book) {
     if (s.released !== opts.released) continue;
     const d = s.rank - opts.rank;
-    if (!(d in rankW)) continue;
+    if (!(d in rankW) || Math.abs(s.bidders - opts.bidders) > 4) continue;
     const w = rankW[d] * Math.exp(-0.5 * ((s.bidders - opts.bidders) / 2.5) ** 2);
     if (w < 0.01) continue;
-    out.push({ value: Math.min(opts.ceiling, Math.max(1, Math.round(s.ratio * opts.medianBudget))), w });
+    out.push({ value: Math.min(opts.ceiling, Math.max(1, Math.round(Math.min(1.5, s.ratio) * opts.medianBudget))), w });
   }
   return out.sort((a, b) => a.value - b.value);
 }
@@ -177,11 +177,12 @@ export function winAt(curve: { bid: number; win: number }[], bid: number): numbe
 /** Players no rival needs go for next to nothing: this is the spread of uncontested winning bids in both seasons. */
 const UNCONTESTED = [1, 1, 1, 1, 2, 2, 3, 5, 10].map((value) => ({ value, w: 1 }));
 
-export function projectBid(points: { value: number; w: number }[] | null, rivals: Rival[], bins: ShareBins, mine: number, bidMin = 1): BidProjection {
+export function projectBid(points: { value: number; w: number }[] | null, rivals: Rival[], bins: ShareBins, mine: number, bidMin = 1, cap = Infinity): BidProjection {
   const pts = points && points.length ? points : UNCONTESTED;
   const total = sum(pts.map((x) => x.w));
   const below = (b: number) => sum(pts.filter((x) => x.value < b).map((x) => x.w)) / (total || 1);
-  const need = (p: number) => Math.max(bidMin, wq(pts, p) + 1);
+  // Nobody can bid more than the richest interested rival has, so no recommendation goes above that.
+  const need = (p: number) => Math.min(cap, Math.max(bidMin, wq(pts, p) + 1));
   const mainRivals = rivals.filter((r) => r.gain >= 1.5).sort((a, b) => typicalBid(b, bins) - typicalBid(a, bins)).slice(0, 3).map((r) => ({ owner: r.owner, gain: round1(r.gain), budget: r.budget, typical: Math.round(typicalBid(r, bins)) }));
   const p50 = need(0.5), p75 = need(0.75), p90 = need(0.9);
   return { p50, p75, p90, winAtMax: below(mine), tooExpensive: p50 > mine, mainRivals, confidence: points && total >= 6 ? "Medium" : "Low", curve: CURVE_BIDS.map((bid) => ({ bid, win: Math.round(below(bid) * 1000) / 1000 })) };
@@ -226,4 +227,105 @@ export function dropPlan(slots: string[], roster: string[], info: Record<string,
     added.add(add);
   }
   return plan;
+}
+
+function mulberry32(seed: number) {
+  return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+/* ---------- claim sheet (the Sleeper claims list, in order) ---------- */
+
+export type SheetTarget = { id: string; curve: { bid: number; win: number }[]; p50: number; p75: number; p90: number };
+export type SheetRow = { add: string; drop: string; bid: number; tier: number; hit: number };
+export type ClaimSheet = { rows: SheetRow[]; expected: number; landAny: number; chance: { id: string; win: number }[] };
+
+/** Draw one rival top bid from a win-probability curve (the curve is P(rival top bid < bid)). */
+function drawRivalMax(curve: { bid: number; win: number }[], u: number, v: number): number {
+  if (!curve.length) return 1;
+  for (let i = 0; i < curve.length; i++) {
+    if (curve[i].win >= u) {
+      const lo = i === 0 ? { bid: 0, win: 0 } : curve[i - 1];
+      const span = curve[i].win - lo.win;
+      return lo.bid + (span > 0 ? (curve[i].bid - lo.bid) * ((u - lo.win) / span) : 0);
+    }
+  }
+  return curve[curve.length - 1].bid * (1 + 0.3 * v);
+}
+
+/**
+ * Builds the claims list the way you enter it in Sleeper: tiers by drop, each tier running through your targets in priority order, bids stepping down
+ * from tier to tier, then $1 claims across every remaining drop. A claim wins when its bid beats the rival top bid, the add is not already won, the
+ * drop is still on the roster and enough FAAB is left. Bids are tuned over simulated weeks that share one rival bid per player across rows.
+ */
+export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; drops: string[]; budget: number; worlds?: number; tiers?: number; maxRows?: number; seed?: number }): ClaimSheet {
+  const targets = opts.targets.slice(0, 12), drops = opts.drops.slice(0, 12), budget = Math.max(0, Math.floor(opts.budget));
+  const n = targets.length, m = drops.length;
+  if (!n || !m || budget < 1) return { rows: [], expected: 0, landAny: 0, chance: [] };
+  const W = opts.worlds ?? 500, maxRows = opts.maxRows ?? 50, T = Math.min(opts.tiers ?? 3, m);
+  const random = mulberry32(opts.seed ?? 7);
+  const M = Array.from({ length: W }, () => targets.map((t) => drawRivalMax(t.curve, random(), random())));
+  const baseValue = weighted(lineupTotals(opts.slots, opts.roster, opts.info));
+  const cache = new Map<string, number>();
+  const outcome = (won: number, dropped: number) => {
+    const key = won + ":" + dropped;
+    let v = cache.get(key);
+    if (v === undefined) {
+      const removed = new Set(drops.filter((_, d) => (dropped >> d) & 1));
+      const ids = [...opts.roster.filter((id) => !removed.has(id)), ...targets.filter((_, t) => (won >> t) & 1).map((t) => t.id)];
+      v = weighted(lineupTotals(opts.slots, ids, opts.info)) - baseValue;
+      cache.set(key, v);
+    }
+    return v;
+  };
+  type R = { t: number; d: number; bid: number };
+  const run = (rows: R[], detail?: { hit: number[]; chance: number[]; any: number }) => {
+    let total = 0;
+    for (let w = 0; w < W; w++) {
+      let left = budget, won = 0, dropped = 0;
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r];
+        if (((won >> row.t) & 1) || ((dropped >> row.d) & 1) || row.bid > left || row.bid <= M[w][row.t]) continue;
+        left -= row.bid; won |= 1 << row.t; dropped |= 1 << row.d;
+        if (detail) { detail.hit[r]++; detail.chance[row.t]++; }
+      }
+      if (won) { total += outcome(won, dropped); if (detail) detail.any++; }
+    }
+    return total / W;
+  };
+
+  const grid = targets.map((t) => Array.from(new Set([1, 2, 3, 5, 8, 12, 17, 25, 35, 50, 65, 80, 100, 130, 160, 200, 260, 330, 420, 550, t.p50, t.p75, t.p90, budget].filter((b) => b >= 1 && b <= budget))).sort((a, b) => a - b));
+  const bids = Array.from({ length: T }, (_, j) => targets.map((t) => Math.min(budget, Math.max(1, Math.round(t.p75 * 0.5 ** j)))));
+  const tierRows = (): R[] => bids.flatMap((tier, j) => tier.map((bid, t) => ({ t, d: j, bid })));
+  let value = run(tierRows());
+  for (let sweep = 0; sweep < 3; sweep++) {
+    let changed = false;
+    for (let j = 0; j < T; j++) for (let t = 0; t < n; t++) {
+      let bestBid = bids[j][t], bestValue = value;
+      for (const candidate of grid[t]) {
+        const old = bids[j][t]; bids[j][t] = candidate;
+        const v = run(tierRows());
+        bids[j][t] = old;
+        if (v > bestValue + 1e-9) { bestValue = v; bestBid = candidate; }
+      }
+      if (bestBid !== bids[j][t]) { bids[j][t] = bestBid; value = bestValue; changed = true; }
+    }
+    if (!changed) break;
+  }
+  // Trim: never bid more than needed. Drop each bid to the lowest value that keeps the expected gain the same.
+  for (let j = 0; j < T; j++) for (let t = 0; t < n; t++) {
+    for (const candidate of grid[t]) {
+      if (candidate >= bids[j][t]) break;
+      const old = bids[j][t]; bids[j][t] = candidate;
+      if (run(tierRows()) >= value - 1e-9) break;
+      bids[j][t] = old;
+    }
+  }
+  const rows: R[] = tierRows();
+  for (let d = 0; d < m && rows.length < maxRows; d++) for (let t = 0; t < n && rows.length < maxRows; t++) if (!rows.some((r) => r.t === t && r.d === d)) rows.push({ t, d, bid: 1 });
+  const detail = { hit: rows.map(() => 0), chance: targets.map(() => 0), any: 0 };
+  const expected = run(rows, detail);
+  return {
+    rows: rows.map((r, i) => ({ add: targets[r.t].id, drop: drops[r.d], bid: r.bid, tier: r.d + 1, hit: detail.hit[i] / W })),
+    expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })),
+  };
 }
