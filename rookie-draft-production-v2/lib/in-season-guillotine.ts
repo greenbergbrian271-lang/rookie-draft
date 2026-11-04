@@ -5,7 +5,7 @@ import { assignLineup, type ValuedPlayer } from "./in-season-waivers";
 /** Next three fantasy weeks count less the further out they are: injuries and byes make later weeks less certain. */
 export const HORIZON_WEIGHTS = [1, 0.8, 0.6];
 
-export type PlayerInfo = { id: string; name: string; position: string; team: string; injury: string; age: number | null; proj: number[]; byeWeeks: number[] };
+export type PlayerInfo = { id: string; name: string; position: string; team: string; injury: string; age: number | null; proj: number[]; byeWeeks: number[]; /** Next bye week still ahead this season (null once it has passed). */ nextBye?: number | null; /** QB only: rank by projected points among every QB in the league pool, 1 is best. */ qbRank?: number | null };
 export type GRoster = { rosterId: string; owner: string; isMine: boolean; eliminated: boolean; players: string[]; faab: number; waiverPosition: number };
 export type Tx = { type: string; status: string; leg: number; created: number; status_updated?: number; roster_ids?: number[]; adds?: Record<string, number> | null; drops?: Record<string, number> | null; settings?: { waiver_bid?: number; seq?: number } | null; waiver_budget?: { amount: number; sender: number; receiver: number }[] };
 
@@ -234,10 +234,51 @@ function mulberry32(seed: number) {
   return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
+/* ---------- add / drop matrix ---------- */
+
+/** Net lineup gain (weighted points over the next three weeks) at which an add-for-drop swap is worth doing. */
+export const TIER_CUTS = [10, 5, 2];
+export const tierOf = (net: number) => (net >= TIER_CUTS[0] ? 1 : net >= TIER_CUTS[1] ? 2 : net >= TIER_CUTS[2] ? 3 : 4);
+export const TIER_LABEL = ["", "Do it", "Worth it", "Marginal", "Skip"];
+
+/** What each roster player is worth to your lineup over the window, i.e. the points lost by cutting him with no replacement. */
+export function dropCosts(slots: string[], roster: string[], info: Record<string, PlayerInfo>): Record<string, number> {
+  const base = weighted(lineupTotals(slots, roster, info));
+  const out: Record<string, number> = {};
+  for (const id of roster) if (info[id]) out[id] = Math.max(0, base - weighted(lineupTotals(slots, roster.filter((x) => x !== id), info)));
+  return out;
+}
+
+export type Matrix = { drops: { id: string; cost: number }[]; rows: { id: string; nets: Record<string, number>; best: { drop: string; net: number } | null }[] };
+/** Net gain of every add-for-drop swap. Rows are sorted by their best swap, drops by how little they cost. */
+export function buildMatrix(slots: string[], roster: string[], info: Record<string, PlayerInfo>, targetIds: string[]): Matrix {
+  const costs = dropCosts(slots, roster, info);
+  const drops = roster.filter((id) => info[id]).map((id) => ({ id, cost: costs[id] ?? 0 })).sort((a, b) => a.cost - b.cost);
+  const base = lineupTotals(slots, roster, info);
+  const rows = targetIds.filter((id) => info[id]).map((id) => {
+    const nets: Record<string, number> = {};
+    let best: { drop: string; net: number } | null = null;
+    for (const d of drops) {
+      const net = weighted(gainsFor(slots, roster, info, id, d.id, base));
+      nets[d.id] = net;
+      if (!best || net > best.net) best = { drop: d.id, net };
+    }
+    return { id, nets, best };
+  }).sort((a, b) => (b.best?.net ?? -99) - (a.best?.net ?? -99));
+  return { drops, rows };
+}
+
+/** The claims worth entering, in Sleeper order: cheapest drop first, then the best add for it. Swaps below the Marginal tier are left out. */
+export function claimPairs(matrix: Matrix, minNet = TIER_CUTS[2], maxRows = 36): { add: string; drop: string; net: number }[] {
+  const pairs: { add: string; drop: string; net: number }[] = [];
+  for (const d of matrix.drops) for (const r of matrix.rows) if ((r.nets[d.id] ?? -99) >= minNet && pairs.length < maxRows) pairs.push({ add: r.id, drop: d.id, net: r.nets[d.id] });
+  return pairs;
+}
+
 /* ---------- claim sheet (the Sleeper claims list, in order) ---------- */
 
 export type SheetTarget = { id: string; curve: { bid: number; win: number }[]; p50: number; p75: number; p90: number };
-export type SheetRow = { add: string; drop: string; bid: number; tier: number; hit: number };
+export type SheetRow = { add: string; drop: string; bid: number; hit: number; net: number };
 export type ClaimSheet = { rows: SheetRow[]; expected: number; landAny: number; chance: { id: string; win: number }[] };
 
 /** Draw one rival top bid from a win-probability curve (the curve is P(rival top bid < bid)). */
@@ -254,15 +295,20 @@ function drawRivalMax(curve: { bid: number; win: number }[], u: number, v: numbe
 }
 
 /**
- * Builds the claims list the way you enter it in Sleeper: tiers by drop, each tier running through your targets in priority order, bids stepping down
- * from tier to tier, then $1 claims across every remaining drop. A claim wins when its bid beats the rival top bid, the add is not already won, the
- * drop is still on the roster and enough FAAB is left. Bids are tuned over simulated weeks that share one rival bid per player across rows.
+ * Prices a list of add-for-drop claims. A claim wins when its bid beats the rival top bid, its add is not already won, its drop is still on the
+ * roster and enough FAAB is left. Rival bids are drawn once per player per simulated week, so every row for a player faces the same competition.
+ * Bids are tuned for expected lineup gain over the simulated weeks, then trimmed so no row bids more than it needs to.
  */
-export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; drops: string[]; budget: number; worlds?: number; tiers?: number; maxRows?: number; seed?: number }): ClaimSheet {
-  const targets = opts.targets.slice(0, 12), drops = opts.drops.slice(0, 12), budget = Math.max(0, Math.floor(opts.budget));
-  const n = targets.length, m = drops.length;
-  if (!n || !m || budget < 1) return { rows: [], expected: 0, landAny: 0, chance: [] };
-  const W = opts.worlds ?? 500, maxRows = opts.maxRows ?? 50, T = Math.min(opts.tiers ?? 3, m);
+export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; pairs: { add: string; drop: string; net?: number }[]; budget: number; worlds?: number; seed?: number }): ClaimSheet {
+  const targets = opts.targets.slice(0, 14);
+  const budget = Math.max(0, Math.floor(opts.budget));
+  const tIndex = new Map(targets.map((t, i) => [t.id, i]));
+  const dropIds = Array.from(new Set(opts.pairs.map((p) => p.drop))).slice(0, 14);
+  const dIndex = new Map(dropIds.map((id, i) => [id, i]));
+  type R = { t: number; d: number; bid: number; net: number; add: string; drop: string };
+  const base: R[] = opts.pairs.filter((p) => tIndex.has(p.add) && dIndex.has(p.drop)).slice(0, 40).map((p) => ({ t: tIndex.get(p.add)!, d: dIndex.get(p.drop)!, bid: 1, net: p.net ?? 0, add: p.add, drop: p.drop }));
+  if (!base.length || budget < 1) return { rows: [], expected: 0, landAny: 0, chance: [] };
+  const W = opts.worlds ?? 400;
   const random = mulberry32(opts.seed ?? 7);
   const M = Array.from({ length: W }, () => targets.map((t) => drawRivalMax(t.curve, random(), random())));
   const baseValue = weighted(lineupTotals(opts.slots, opts.roster, opts.info));
@@ -271,14 +317,13 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
     const key = won + ":" + dropped;
     let v = cache.get(key);
     if (v === undefined) {
-      const removed = new Set(drops.filter((_, d) => (dropped >> d) & 1));
+      const removed = new Set(dropIds.filter((_, d) => (dropped >> d) & 1));
       const ids = [...opts.roster.filter((id) => !removed.has(id)), ...targets.filter((_, t) => (won >> t) & 1).map((t) => t.id)];
       v = weighted(lineupTotals(opts.slots, ids, opts.info)) - baseValue;
       cache.set(key, v);
     }
     return v;
   };
-  type R = { t: number; d: number; bid: number };
   const run = (rows: R[], detail?: { hit: number[]; chance: number[]; any: number }) => {
     let total = 0;
     for (let w = 0; w < W; w++) {
@@ -295,38 +340,33 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
   };
 
   const grid = targets.map((t) => Array.from(new Set([1, 2, 3, 5, 8, 12, 17, 25, 35, 50, 65, 80, 100, 130, 160, 200, 260, 330, 420, 550, t.p50, t.p75, t.p90, budget].filter((b) => b >= 1 && b <= budget))).sort((a, b) => a - b));
-  const bids = Array.from({ length: T }, (_, j) => targets.map((t) => Math.min(budget, Math.max(1, Math.round(t.p75 * 0.5 ** j)))));
-  const tierRows = (): R[] => bids.flatMap((tier, j) => tier.map((bid, t) => ({ t, d: j, bid })));
-  let value = run(tierRows());
+  const seen = new Map<number, number>();
+  const rows = base.map((r) => { const k = seen.get(r.t) || 0; seen.set(r.t, k + 1); return { ...r, bid: Math.min(budget, Math.max(1, Math.round(targets[r.t].p75 * 0.5 ** k))) }; });
+  let value = run(rows);
   for (let sweep = 0; sweep < 3; sweep++) {
     let changed = false;
-    for (let j = 0; j < T; j++) for (let t = 0; t < n; t++) {
-      let bestBid = bids[j][t], bestValue = value;
-      for (const candidate of grid[t]) {
-        const old = bids[j][t]; bids[j][t] = candidate;
-        const v = run(tierRows());
-        bids[j][t] = old;
+    for (let r = 0; r < rows.length; r++) {
+      let bestBid = rows[r].bid, bestValue = value;
+      for (const candidate of grid[rows[r].t]) {
+        const old = rows[r].bid; rows[r].bid = candidate;
+        const v = run(rows);
+        rows[r].bid = old;
         if (v > bestValue + 1e-9) { bestValue = v; bestBid = candidate; }
       }
-      if (bestBid !== bids[j][t]) { bids[j][t] = bestBid; value = bestValue; changed = true; }
+      if (bestBid !== rows[r].bid) { rows[r].bid = bestBid; value = bestValue; changed = true; }
     }
     if (!changed) break;
   }
-  // Trim: never bid more than needed. Drop each bid to the lowest value that keeps the expected gain the same.
-  for (let j = 0; j < T; j++) for (let t = 0; t < n; t++) {
-    for (const candidate of grid[t]) {
-      if (candidate >= bids[j][t]) break;
-      const old = bids[j][t]; bids[j][t] = candidate;
-      if (run(tierRows()) >= value - 1e-9) break;
-      bids[j][t] = old;
+  // Trim: drop each bid to the lowest value that keeps the expected gain the same.
+  for (let r = 0; r < rows.length; r++) {
+    for (const candidate of grid[rows[r].t]) {
+      if (candidate >= rows[r].bid) break;
+      const old = rows[r].bid; rows[r].bid = candidate;
+      if (run(rows) >= value - 1e-9) break;
+      rows[r].bid = old;
     }
   }
-  const rows: R[] = tierRows();
-  for (let d = 0; d < m && rows.length < maxRows; d++) for (let t = 0; t < n && rows.length < maxRows; t++) if (!rows.some((r) => r.t === t && r.d === d)) rows.push({ t, d, bid: 1 });
   const detail = { hit: rows.map(() => 0), chance: targets.map(() => 0), any: 0 };
   const expected = run(rows, detail);
-  return {
-    rows: rows.map((r, i) => ({ add: targets[r.t].id, drop: drops[r.d], bid: r.bid, tier: r.d + 1, hit: detail.hit[i] / W })),
-    expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })),
-  };
+  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, net: r.net })), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
 }

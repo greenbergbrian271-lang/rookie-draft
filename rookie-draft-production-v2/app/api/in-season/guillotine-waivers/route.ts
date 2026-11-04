@@ -4,7 +4,7 @@ import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
-  HORIZON_WEIGHTS, buildClaimSheet, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
+  HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
   type GRoster, type PlayerInfo, type Rival, type Tx,
 } from "@/lib/in-season-guillotine";
 
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
   const chopWeek = lastChop ? (batchDone ? lastChop.leg + 1 : lastChop.leg) : 1;
   const horizon = [chopWeek + 1, chopWeek + 2, chopWeek + 3].filter((w) => w <= 18);
   const [players, schedule, projections, weekProj] = await Promise.all([
-    nflPlayersCached(), getNflSchedule(season, [chopWeek, ...horizon]).catch(() => null),
+    nflPlayersCached(), getNflSchedule(season, Array.from({ length: 19 - chopWeek }, (_, i) => chopWeek + i)).catch(() => null),
     Promise.all(horizon.map((w) => getWeekProjections(season, w).catch(() => null))),
     getWeekProjections(season, chopWeek).catch(() => null),
   ]);
@@ -98,7 +98,10 @@ export async function GET(request: Request) {
     if (!p || !positions.has(String(p.position))) return null;
     const proj = horizon.map((_, i) => { const row = projections[i]?.get(id); return row ? projectPoints(row.stats, scoring) : 0; });
     const team = String(p.team || "");
-    return (info[id] = { id, name: playerName(id, players), position: String(p.position), team, injury: String(p.injury_status || ""), age: typeof p.age === "number" ? p.age : null, proj, byeWeeks: horizon.filter((w) => schedule?.[team]?.[w] === null) });
+    const hasGames = (w: number) => !!schedule && Object.values(schedule).some((t) => t?.[w]);
+    const byeAt = (w: number) => hasGames(w) && schedule?.[team]?.[w] === null;
+    const nextBye = Array.from({ length: 18 - chopWeek }, (_, i) => chopWeek + 1 + i).find(byeAt) ?? null;
+    return (info[id] = { id, name: playerName(id, players), position: String(p.position), team, injury: String(p.injury_status || ""), age: typeof p.age === "number" ? p.age : null, proj, byeWeeks: horizon.filter(byeAt), nextBye });
   };
   rosters.forEach((r) => r.players.forEach(build));
   const rostered = new Set(rosters.flatMap((r) => r.players));
@@ -172,7 +175,7 @@ export async function GET(request: Request) {
   const targets = screened.map(({ m, free }) => {
     const bid = priceFor(m);
     const w = weighted(free);
-    return { id: m.c.id, name: m.c.name, position: m.c.position, team: m.c.team, age: m.c.age, injury: m.c.injury, proj: m.c.proj.map(round1), byeWeeks: m.c.byeWeeks, newlyReleased: m.released, gains: free.map(round1), weightedGain: round1(w), bid, rivalsInterested: m.rivals.filter((r) => r.gain >= 1.5).length };
+    return { id: m.c.id, name: m.c.name, position: m.c.position, team: m.c.team, age: m.c.age, injury: m.c.injury, proj: m.c.proj.map(round1), byeWeeks: m.c.byeWeeks, nextBye: m.c.nextBye ?? null, newlyReleased: m.released, gains: free.map(round1), weightedGain: round1(w), bid, rivalsInterested: m.rivals.filter((r) => r.gain >= 1.5).length };
   }).sort((a, b) => b.weightedGain - a.weightedGain);
   // Your typed priority order comes first, then everything else by gain.
   const wantOrder = wantedRows.map((w) => w.player?.id).filter(Boolean) as string[];
@@ -220,11 +223,15 @@ export async function GET(request: Request) {
     return { owner: x.owner, pointsSoFar: x.points, projectedRemaining: x.remaining, chance: round1(x.lowest * 100), best: top.map(({ p, w }) => ({ name: p.name, position: p.position, team: p.team, gainForMe: round1(w) })) };
   });
 
+  // QB rank among every QB in the pool and on rosters, by average weekly projection when he plays.
+  const qbAvg = (p: PlayerInfo) => { const played = p.proj.filter((x) => x > 0); return played.length ? sum(played) / played.length : 0; };
+  const qbs = Object.values(info).filter((p) => p.position === "QB").sort((a, b) => qbAvg(b) - qbAvg(a));
+  qbs.forEach((p, i) => { p.qbRank = i + 1; });
   if (url.searchParams.get("brief") === "1") {
     return Response.json({ week: chopWeek, horizon, bidders, medianBudget, chopPending, simulated: simulated?.owner || null, chop: { teams: chopTeams.map((t) => `${t.owner} ${t.chance}% pts ${t.pointsSoFar} left ${t.projectedRemaining}`), result: chopPending ? null : lastChop?.roster_ids },
       targets: targets.slice(0, 12).map((t) => `${t.name} ${t.position} gain ${t.weightedGain} bid ${t.bid.p50}/${t.bid.p75}/${t.bid.p90} win@79 ${Math.round(t.bid.winAtMax * 100)}% new=${t.newlyReleased}`),
       drops: (() => { const pick = targets.filter((t) => t.bid.winAtMax >= 0.5).slice(0, 5); const inf: Record<string, PlayerInfo> = { ...info }; return dropPlan(slots, me.players, inf, pick.map((t) => t.id)).map((d) => `${info[d.add]?.name} -> drop ${d.drop ? info[d.drop]?.name + " (" + info[d.drop]?.position + (info[d.drop]?.injury ? " " + info[d.drop]?.injury : "") + ")" : "none"} change ${Math.round(d.change * 10) / 10}`); })(),
-      sheet: (() => { const ids = wantedRows.map((w) => w.player?.id).filter(Boolean) as string[]; const use = (ids.length ? ids : targets.slice(0, 6).map((t) => t.id)); const tg = use.map((id) => targets.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t!.id, curve: t!.bid.curve, p50: t!.bid.p50, p75: t!.bid.p75, p90: t!.bid.p90 })); const dr = dropQueries.length ? dropQueries.map((q) => findByName(q, me.players.map((id) => info[id]).filter(Boolean))?.id).filter(Boolean) as string[] : []; const r = buildClaimSheet({ slots, roster: me.players, info, targets: tg, drops: dr, budget: me.faab }); return { expected: Math.round(r.expected * 10) / 10, landAny: Math.round(r.landAny * 100), chance: r.chance.map((c) => `${info[c.id]?.name} ${Math.round(c.win * 100)}%`), rows: r.rows.slice(0, 40).map((x, i) => `${i + 1} ${info[x.add]?.name} / drop ${info[x.drop]?.name} / $${x.bid} / hit ${Math.round(x.hit * 100)}%`) }; })(),
+      matrix: (() => { const ids = targets.slice(0, 14).map((t) => t.id); const mx = buildMatrix(slots, me.players, info, ids); const pairs = claimPairs(mx); const tg = mx.rows.map((r) => targets.find((t) => t.id === r.id)!).map((t) => ({ id: t.id, curve: t.bid.curve, p50: t.bid.p50, p75: t.bid.p75, p90: t.bid.p90 })); const sh = buildClaimSheet({ slots, roster: me.players, info, targets: tg, pairs, budget: me.faab }); return { drops: mx.drops.slice(0, 9).map((d) => `${info[d.id].name} cost ${Math.round(d.cost * 10) / 10}${info[d.id].qbRank ? " qb#" + info[d.id].qbRank : ""} bye ${info[d.id].nextBye}`), rows: mx.rows.map((r) => `${info[r.id].name}: best ${info[r.best!.drop].name} ${Math.round(r.best!.net * 10) / 10} | ` + mx.drops.slice(0, 8).map((d) => `${info[d.id].name.split(" ").pop()} ${Math.round(r.nets[d.id] * 10) / 10}`).join(", ")), sheet: { expected: Math.round(sh.expected * 10) / 10, landAny: Math.round(sh.landAny * 100), rows: sh.rows.map((x, i) => `${i + 1} ${info[x.add].name} / ${info[x.drop].name} / $${x.bid} hit ${Math.round(x.hit * 100)}% net ${Math.round(x.net * 10) / 10}`) } }; })(),
       trades: tradeIdeas.slice(0, 8).map((t) => `${t.name} loss ${t.lineupLoss} ${t.offers.slice(0, 3).map((o) => `${o.owner}$${o.faab}`).join(",")}`) });
   }
   return Response.json({
