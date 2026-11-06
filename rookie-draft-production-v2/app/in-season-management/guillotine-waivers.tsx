@@ -29,11 +29,29 @@ type Found = { id: string; name: string; position: string; team: string };
 type Saved = { t: string[]; d: string[]; rt: string[]; rd: string[]; custom: Found[] };
 const EMPTY: Saved = { t: [], d: [], rt: [], rd: [], custom: [] };
 
+/** Small "i" button: hover on desktop, tap on mobile. Holds the long definitions so they are not always on screen. */
+function Info({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  return (
+    <span ref={box} className={styles.infoWrap} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button className={styles.info} onClick={() => setOpen((v) => !v)} aria-label="Definition" aria-expanded={open}>i</button>
+      {open && <span className={styles.pop} role="tooltip">{children}</span>}
+    </span>
+  );
+}
+
 /** A panel whose table can be minimized. */
-function Sec({ id, title, folded, toggle, children }: { id: string; title: string; folded: boolean; toggle: (id: string) => void; children: ReactNode }) {
+function Sec({ id, title, folded, toggle, info, children }: { id: string; title: string; folded: boolean; toggle: (id: string) => void; info?: ReactNode; children: ReactNode }) {
   return (
     <section className={shared.panel}>
-      <div className={styles.head}><h3 className={styles.h} style={{ margin: 0 }}>{title}</h3><button className={styles.mv} onClick={() => toggle(id)} aria-expanded={!folded}>{folded ? "＋ Show" : "－ Hide"}</button></div>
+      <div className={styles.head}><h3 className={styles.h} style={{ margin: 0 }}>{title}{info && <Info>{info}</Info>}</h3><button className={styles.mv} onClick={() => toggle(id)} aria-expanded={!folded}>{folded ? "＋ Show" : "－ Hide"}</button></div>
       {!folded && children}
     </section>
   );
@@ -239,7 +257,7 @@ export default function GuillotineWaivers() {
       </Sec>
 
       <div className={styles.split}>
-        <Sec id="targets" title="Targets" folded={!!folded.targets} toggle={toggle}>
+        <Sec id="targets" title="Targets" folded={!!folded.targets} toggle={toggle} info={<><b>How Net works.</b> Net is your best possible starting lineup after the swap minus your best lineup today, added up over the next 3 weeks and weighted 1.0 / 0.8 / 0.6 (week 1 counts most; total weight 2.4). It is total lineup points, not points per game: divide by about 2.4 for a rough per-week number (+12 is about +5 a week). It is not a head-to-head between two players: your whole lineup is re-set each week, so a player who would start over someone is credited only with the difference. A target is only scored against the drops ranked at or above his number.</>}>
           <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Player</th><th>Net</th><th>Bid 50 / 75 / 90%</th><th>Order</th></tr></thead><tbody>
             {ranked.map((r, i) => { const t = targetById.get(r.id)!; return (
               <tr key={r.id}>
@@ -264,7 +282,7 @@ export default function GuillotineWaivers() {
             </div>}
           </div>
           {restoreRow("t", saved.rt)}
-          <div className={styles.meta} style={{ marginTop: 8, lineHeight: 1.5 }}><b>How Net works.</b> Net is your best possible starting lineup after the swap minus your best lineup today, added up over the next 3 weeks and weighted 1.0 / 0.8 / 0.6 (week 1 counts most; total weight 2.4). It is total lineup points, not points per game: divide by about 2.4 for a rough per-week number (+12 is about +5 a week). It is not a head-to-head between two players: your whole lineup is re-set each week, so a player who would start over someone is credited only with the difference. A target is only scored against the drops ranked at or above his number. <button className={styles.link} onClick={() => persist(EMPTY)}>Reset to the model&apos;s list</button></div>
+          <div className={styles.meta} style={{ marginTop: 8 }}><button className={styles.link} onClick={() => persist(EMPTY)}>Reset to the model&apos;s list</button></div>
         </Sec>
 
         <Sec id="drops" title="Drops" folded={!!folded.drops} toggle={toggle}>
@@ -277,8 +295,8 @@ export default function GuillotineWaivers() {
         </Sec>
       </div>
 
-      <Sec id="matrix" title="Add / drop matrix" folded={!!folded.matrix} toggle={toggle}>
-        <div className={styles.meta} style={{ marginBottom: 8 }}>Net lineup points over the next 3 weeks if you add the player on the left and cut the player on top. Each target is only compared with the drops ranked at or above his number (#1 vs drop 1, #2 vs drops 1–2, and so on), and there are never more drops than targets. Tap a cell to see who it moves in and out of your lineup. <span className={`${styles.cell} ${styles.t1}`}>+10 Do it</span> <span className={`${styles.cell} ${styles.t2}`}>+5 Worth it</span> <span className={`${styles.cell} ${styles.t3}`}>+2 Marginal</span> <span className={`${styles.cell} ${styles.t4}`}>Skip</span></div>
+      <Sec id="matrix" title="Add / drop matrix" folded={!!folded.matrix} toggle={toggle} info={<>Net lineup points over the next 3 weeks if you add the player on the left and cut the player on top. Each target is only compared with the drops ranked at or above his number (#1 vs drop 1, #2 vs drops 1–2, and so on), and there are never more drops than targets. Tap a cell to see who it moves in and out of your lineup. The outlined cell is each target&apos;s best swap.</>}>
+        <div className={styles.meta} style={{ marginBottom: 8 }}><span className={`${styles.cell} ${styles.t1}`}>+10 Do it</span> <span className={`${styles.cell} ${styles.t2}`}>+5 Worth it</span> <span className={`${styles.cell} ${styles.t3}`}>+2 Marginal</span> <span className={`${styles.cell} ${styles.t4}`}>Skip</span></div>
         <div className={styles.scroll}><table className={`${styles.table} ${styles.mx}`}><thead><tr><th>Add / Drop</th>{cols.map((d, ci) => <th key={d}>{ci + 1}. {last(info[d].name)}<span className={styles.sub}>{(costOf.get(d) ?? 0) < 0.05 ? "free" : `−${r1(costOf.get(d) ?? 0)}`}</span></th>)}</tr></thead><tbody>
           {ranked.map((r, i) => <tr key={r.id}><td><b>{i + 1}. {last(targetById.get(r.id)!.name)}</b></td>{cols.map((d, ci) => { if (ci > i) return <td key={d} className={styles.meta}>·</td>; const net = r.row.nets[d]; const on = focus?.add === r.id && focus?.drop === d; return <td key={d}><button className={`${styles.cell} ${styles.pick} ${tierClass(net)} ${r.best?.drop === d ? styles.best : ""}`} style={on ? { boxShadow: "0 0 0 2px #9fd2ff" } : undefined} onClick={() => setFocus({ add: r.id, drop: d })}>{sign(net)}</button></td>; })}</tr>)}
         </tbody></table></div>
@@ -288,14 +306,13 @@ export default function GuillotineWaivers() {
         </div>}
       </Sec>
 
-      <Sec id="shifts" title="What each add replaces in your lineup" folded={!!folded.shifts} toggle={toggle}>
-        <div className={styles.meta} style={{ marginBottom: 8 }}>Net is not Player A against Player B. Each swap re-sets your whole starting lineup, so it also counts whoever the new player pushes to the bench. Here is the best swap for each target (among the drops he is compared with) and the players actually moving in and out each week.</div>
+      <Sec id="shifts" title="Lineup Impact" folded={!!folded.shifts} toggle={toggle} info={<>Net is not Player A against Player B. Each swap re-sets your whole starting lineup, so it also counts whoever the new player pushes to the bench. This shows the best swap for each target (among the drops he is compared with) and the players actually moving in and out of your lineup each week.</>}>
         <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Add → Drop</th>{live.horizon.slice(0, weeks).map((w) => <th key={w}>Week {w}</th>)}</tr></thead><tbody>
           {ranked.filter((r) => r.best).map((r, i) => <tr key={r.id}><td style={{ whiteSpace: "nowrap" }}><b>{i + 1}. {targetById.get(r.id)!.name}</b><br /><span className={styles.meta}>for {info[r.best!.drop].name} · net {sign(r.best!.net)}</span></td>{shiftRows(r.id, r.best!.drop)}</tr>)}
         </tbody></table></div>
       </Sec>
 
-      <Sec id="claims" title="Claim sheet" folded={!!folded.claims} toggle={toggle}>
+      <Sec id="claims" title="Claim sheet" folded={!!folded.claims} toggle={toggle} info={<>Rows run in target order. Each target&apos;s bids step down by drop number: drop 1 is the most aggressive bid (about a 90% chance to beat the other bids), because it can fire with nothing else won. Drop 2 only fires if an earlier target already took drop 1, so you have already landed a player and it bids less; drop 3 means two earlier wins and bids less again, and so on. Bids never exceed your FAAB. Only swaps worth +2 or more appear.</>}>
         <div className={styles.row}>
           <button className={styles.btn} onClick={build} disabled={building}>{building ? "Building…" : "Build claim sheet"}</button>
           <label className={styles.meta}><input type="checkbox" checked={useTrade} onChange={(e) => setUseTrade(e.target.checked)} disabled={!offer} /> Also show it after the trade selected below{offer ? ` (${sel!.name} → $${after})` : ""}</label>
@@ -305,9 +322,8 @@ export default function GuillotineWaivers() {
             {sheets.after && <> After trading {sheets.sold} (${sheets.budgetAfter}): <b>+{r1(sheets.after.expected)}</b>, minus {sheets.loss} lineup points given up = <b>{sign(sheets.after.expected - sheets.loss - sheets.now.expected)}</b> net vs. no trade.</>}</div>
           <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Add</th><th>Drop</th><th>Net</th><th>Bid</th>{sheets.after && <th>After trade</th>}<th>Chance it hits</th></tr></thead><tbody>
             {sheets.now.rows.map((r, i) => { const a = sheets.after?.rows.find((x) => x.add === r.add && x.drop === r.drop); return (
-              <tr key={i} style={r.hit < 0.005 ? { opacity: 0.5 } : undefined}><td>{i + 1}</td><td><span className={styles.meta}>T{targetIds.indexOf(r.add) + 1}</span> {info[r.add]?.name}</td><td><span className={styles.meta}>D{dropIds.indexOf(r.drop) + 1}</span> {info[r.drop]?.name}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td><td><b>${r.bid}</b></td>{sheets.after && <td>{a ? `$${a.bid}` : "—"}</td>}<td>{r.hit >= 0.005 ? pct(r.hit) : "<1%"}</td></tr>); })}
+              <tr key={i}><td>{i + 1}</td><td>{info[r.add]?.name}</td><td>{info[r.drop]?.name}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td><td><b>${r.bid}</b></td>{sheets.after && <td>{a ? `$${a.bid}` : "—"}</td>}<td>{r.hit >= 0.005 ? pct(r.hit) : "<1%"}</td></tr>); })}
           </tbody></table></div>
-          <div className={styles.meta} style={{ marginTop: 6, lineHeight: 1.5 }}>Rows run in target order. Each target&apos;s bids step down by drop number: drop 1 is the most aggressive bid (about a 90% chance to beat the other bids), because it can fire with nothing else won. Drop 2 only fires if an earlier target already took drop 1, so you have already landed a player and it bids less; drop 3 means two earlier wins and bids less again, and so on. Bids never exceed your FAAB. Only swaps worth +2 or more appear.</div>
         </>}
       </Sec>
 

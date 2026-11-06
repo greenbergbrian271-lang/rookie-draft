@@ -377,7 +377,13 @@ export function bidAtWin(curve: { bid: number; win: number }[], p: number): numb
   }
   return curve[curve.length - 1].bid;
 }
-export const ladderBid = (curve: { bid: number; win: number }[], rank: number, budget: number) => Math.min(Math.max(1, Math.floor(budget)), bidAtWin(curve, LADDER[Math.min(rank, LADDER.length - 1)]));
+/** Drop 1 gets the aggressive bid (capped at your FAAB); each later drop keeps the same step-down ratio, so a cap on your FAAB never flattens the ladder. */
+export function ladderBid(curve: { bid: number; win: number }[], rank: number, budget: number): number {
+  const top = bidAtWin(curve, LADDER[0]);
+  const cap = Math.min(Math.max(1, Math.floor(budget)), top);
+  const ratio = bidAtWin(curve, LADDER[Math.min(rank, LADDER.length - 1)]) / Math.max(1, top);
+  return Math.max(1, Math.round(cap * Math.min(1, ratio)));
+}
 
 /**
  * Prices a list of add-for-drop claims. A claim wins when its bid beats the rival top bid, its add is not already won, its drop is still on the
