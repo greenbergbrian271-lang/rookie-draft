@@ -2,6 +2,13 @@
 // Advice only: nothing here places a claim or proposes a trade in Sleeper. Every number is an estimate and is labelled as one.
 import { assignLineup, type ValuedPlayer } from "./in-season-waivers";
 
+/** Surname for display: "Harold Fannin Jr." is "Fannin", not "Jr.". */
+export function lastName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  while (parts.length > 1 && /^(jr|sr|ii|iii|iv|v)\.?$/i.test(parts[parts.length - 1])) parts.pop();
+  return parts[parts.length - 1] || name;
+}
+
 /** Next three fantasy weeks count less the further out they are: injuries and byes make later weeks less certain. */
 export const HORIZON_WEIGHTS = [1, 0.8, 0.6];
 
@@ -192,17 +199,32 @@ export function projectBid(points: { value: number; w: number }[] | null, rivals
 /* ---------- trading players for FAAB ---------- */
 
 export type TradeOffer = { rosterId: string; owner: string; theirGain: number; faab: number; theirBudget: number };
-/** Highest FAAB-for-player price seen in this league across two seasons (excluding the trade that included a draft pick). */
+/** Highest FAAB-for-player price seen in this league across two seasons for ordinary starters (the trade that included a draft pick is excluded). */
 export const TRADE_CEILING = 70;
 /**
- * What a rival might pay in a trade. A trade needs only one buyer, so it clears well below what a waiver fight would: 30 to 70 FAAB for useful players
- * in both seasons, a few FAAB late. The offer is a quarter of what that team would bid for the player on waivers, shrunk late in the season, capped at
- * the league's highest observed price and at a fifth of the buyer's FAAB.
+ * Star level of a player by position rank on projected points: 0 ordinary, 1 star, 2 elite. Ordinary starters keep the league's observed price
+ * band; stars and elites are not capped by it, because no comparable player has been sold for FAAB in this league.
  */
-export function tradeOffers(rivals: Rival[], bins: ShareBins, timeFactor: number): TradeOffer[] {
+export const STAR_CUTS: Record<string, [number, number]> = { RB: [6, 12], WR: [8, 16], TE: [3, 6], QB: [4, 8] };
+export function starTier(position: string, rank: number): 0 | 1 | 2 {
+  const cut = STAR_CUTS[position];
+  return !cut || rank < 0 ? 0 : rank < cut[0] ? 2 : rank < cut[1] ? 1 : 0;
+}
+/** Share of what the buyer would bid on waivers that he would pay in a trade, by star level. */
+const TRADE_SHARE = [0.25, 0.45, 0.7];
+/** Most of his own remaining FAAB a buyer would spend on one player, by star level. */
+const BUYER_CAP = [0.2, 0.3, 0.35];
+/** Late-season price collapse hits stars less: a team with FAAB to burn still pays for a difference-maker. */
+const TIME_FLOOR = [0, 0.5, 0.75];
+/**
+ * What a rival might pay in a trade. Ordinary players: a quarter of what that team would bid on waivers, shrunk late in the season, capped at the
+ * league's observed ceiling and a fifth of the buyer's FAAB. Stars and elites: a bigger share (45% / 70%), a smaller late-season discount, and a
+ * higher cap on the buyer's own FAAB, with no flat ceiling.
+ */
+export function tradeOffers(rivals: Rival[], bins: ShareBins, timeFactor: number, tier: 0 | 1 | 2 = 0): TradeOffer[] {
   return rivals
     .filter((r) => r.gain >= 0.5)
-    .map((r) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.max(1, Math.round(Math.min(TRADE_CEILING, 0.2 * r.budget, 0.25 * typicalBid(r, bins) * timeFactor))) }))
+    .map((r) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.max(1, Math.round(Math.min(tier ? Infinity : TRADE_CEILING, BUYER_CAP[tier] * r.budget, TRADE_SHARE[tier] * typicalBid(r, bins) * Math.max(TIME_FLOOR[tier], timeFactor)))) }))
     .sort((a, b) => b.faab - a.faab);
 }
 
@@ -282,6 +304,40 @@ export function claimPairs(matrix: Matrix, minNet = TIER_CUTS[2], maxRows = 36):
   const pairs: { add: string; drop: string; net: number }[] = [];
   for (const d of matrix.drops) for (const r of matrix.rows) if ((r.nets[d.id] ?? -99) >= minNet && pairs.length < maxRows) pairs.push({ add: r.id, drop: d.id, net: r.nets[d.id] });
   return pairs;
+}
+
+/**
+ * Claims in the order you ranked them: target 1 against drop 1, target 2 against drops 1 and 2, target 3 against drops 1 to 3, and so on.
+ * Swaps below the Marginal tier are left out.
+ */
+export function orderedPairs(matrix: Matrix, targetOrder: string[], dropOrder: string[], minNet = TIER_CUTS[2], maxRows = 40): { add: string; drop: string; net: number }[] {
+  const rowOf = new Map(matrix.rows.map((r) => [r.id, r]));
+  const pairs: { add: string; drop: string; net: number }[] = [];
+  targetOrder.forEach((tid, i) => {
+    const row = rowOf.get(tid);
+    if (!row) return;
+    for (const did of dropOrder.slice(0, i + 1)) {
+      const net = row.nets[did];
+      if (net !== undefined && net >= minNet && pairs.length < maxRows) pairs.push({ add: tid, drop: did, net });
+    }
+  });
+  return pairs;
+}
+
+/** Who goes into and out of your starting lineup, week by week, if you add one player and cut another. This is what Net is made of. */
+export type Shift = { week: number; gain: number; ins: { id: string; value: number }[]; outs: { id: string; value: number; dropped: boolean }[] };
+export function lineupShift(slots: string[], roster: string[], info: Record<string, PlayerInfo>, add: string, drop: string): Shift[] {
+  const mk = (ids: string[], week: number) => assignLineup(slots, ids.filter((id) => info[id]).map((id): ValuedPlayer => ({ id, position: info[id].position, value: projOf(info, id, week) })));
+  const after = [...roster.filter((id) => id !== drop && id !== add), add];
+  return HORIZON_WEIGHTS.map((_, week) => {
+    const b = mk(roster, week), a = mk(after, week);
+    const before = new Set(Array.from(b.slotOf.keys())), now = new Set(Array.from(a.slotOf.keys()));
+    return {
+      week, gain: a.total - b.total,
+      ins: Array.from(now).filter((id) => !before.has(id)).map((id) => ({ id, value: projOf(info, id, week) })),
+      outs: Array.from(before).filter((id) => !now.has(id)).map((id) => ({ id, value: projOf(info, id, week), dropped: id === drop })),
+    };
+  });
 }
 
 /* ---------- claim sheet (the Sleeper claims list, in order) ---------- */

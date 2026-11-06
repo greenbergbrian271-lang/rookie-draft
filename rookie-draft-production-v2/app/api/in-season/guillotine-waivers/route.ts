@@ -4,7 +4,7 @@ import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
-  HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, tradeOffers, typicalBid, weighted,
+  HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, starTier, tradeOffers, typicalBid, weighted,
   type GRoster, type PlayerInfo, type Rival, type Tx,
 } from "@/lib/in-season-guillotine";
 
@@ -187,13 +187,20 @@ export async function GET(request: Request) {
   const topRef = priceSamples(book, { bidders: 10, released: true, rank: 1, medianBudget, ceiling: 953 });
   const timeFactor = topNow.length && topRef.length ? Math.min(1.2, Math.max(0.1, priceQuantile(topNow, 0.5) / Math.max(1, priceQuantile(topRef, 0.5)))) : 1;
   const myInfo = me.players.map((id) => info[id]).filter(Boolean);
+  // Star level by position rank on average projected points per game played, across every player in the league pool.
+  const avgPlayedP = (p: PlayerInfo) => { const x = p.proj.filter((v) => v > 0); return x.length ? sum(x) / x.length : 0; };
+  const byPos: Record<string, PlayerInfo[]> = {};
+  Object.values(info).forEach((p) => (byPos[p.position] ||= []).push(p));
+  Object.values(byPos).forEach((l) => l.sort((a, b) => avgPlayedP(b) - avgPlayedP(a)));
+  const tierOfPlayer = (p: PlayerInfo) => starTier(p.position, (byPos[p.position] || []).findIndex((x) => x.id === p.id));
   const tradeIdeas = myInfo.map((p) => {
     const without = me.players.filter((id) => id !== p.id);
     const lost = lineupTotals(slots, without, info);
     const loss = weighted(myBase.map((t, i) => t - lost[i]));
     const rivals = rivalsFor(p.id);
-    const offers = tradeOffers(rivals, bins, timeFactor);
-    return { id: p.id, name: p.name, position: p.position, team: p.team, injury: p.injury, age: p.age, proj: p.proj.map(round1), byeWeeks: p.byeWeeks, lineupLoss: round1(loss), offers: offers.slice(0, 6), topOffer: offers[0]?.faab || 0 };
+    const tier = tierOfPlayer(p);
+    const offers = tradeOffers(rivals, bins, timeFactor, tier);
+    return { id: p.id, name: p.name, position: p.position, team: p.team, injury: p.injury, age: p.age, proj: p.proj.map(round1), byeWeeks: p.byeWeeks, lineupLoss: round1(loss), tier, offers: offers.slice(0, 6), topOffer: offers[0]?.faab || 0 };
   }).sort((a, b) => b.topOffer - a.topOffer);
 
   // Chop watch for the week being scored right now.
