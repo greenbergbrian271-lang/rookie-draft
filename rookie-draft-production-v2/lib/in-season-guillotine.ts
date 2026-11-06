@@ -310,16 +310,16 @@ export function claimPairs(matrix: Matrix, minNet = TIER_CUTS[2], maxRows = 36):
  * Claims in the order you ranked them: target 1 against drop 1, target 2 against drops 1 and 2, target 3 against drops 1 to 3, and so on.
  * Swaps below the Marginal tier are left out.
  */
-export function orderedPairs(matrix: Matrix, targetOrder: string[], dropOrder: string[], minNet = TIER_CUTS[2], maxRows = 40): { add: string; drop: string; net: number }[] {
+export function orderedPairs(matrix: Matrix, targetOrder: string[], dropOrder: string[], minNet = TIER_CUTS[2], maxRows = 60): { add: string; drop: string; net: number; rank: number }[] {
   const rowOf = new Map(matrix.rows.map((r) => [r.id, r]));
-  const pairs: { add: string; drop: string; net: number }[] = [];
+  const pairs: { add: string; drop: string; net: number; rank: number }[] = [];
   targetOrder.forEach((tid, i) => {
     const row = rowOf.get(tid);
     if (!row) return;
-    for (const did of dropOrder.slice(0, i + 1)) {
+    dropOrder.slice(0, i + 1).forEach((did, rank) => {
       const net = row.nets[did];
-      if (net !== undefined && net >= minNet && pairs.length < maxRows) pairs.push({ add: tid, drop: did, net });
-    }
+      if (net !== undefined && net >= minNet && pairs.length < maxRows) pairs.push({ add: tid, drop: did, net, rank });
+    });
   });
   return pairs;
 }
@@ -360,18 +360,38 @@ function drawRivalMax(curve: { bid: number; win: number }[], u: number, v: numbe
 }
 
 /**
+ * Claim-sheet bid ladder. A claim that uses drop number 1 can fire with nothing else won, so it carries the most aggressive bid. A claim on drop
+ * number 2 can only fire after an earlier target already took drop 1, so you have already captured value and the bid steps down; each later drop
+ * means one more earlier win and a lower bid still. Aggressiveness is the chance the bid beats the rival top bid.
+ */
+export const LADDER = [0.9, 0.75, 0.55, 0.4, 0.28, 0.18, 0.1, 0.05];
+/** Smallest bid whose win chance reaches `p`, read off the win-probability curve. */
+export function bidAtWin(curve: { bid: number; win: number }[], p: number): number {
+  if (!curve.length) return 1;
+  for (let i = 0; i < curve.length; i++) {
+    if (curve[i].win >= p) {
+      const lo = i === 0 ? { bid: 0, win: 0 } : curve[i - 1];
+      const span = curve[i].win - lo.win;
+      return Math.max(1, Math.ceil(lo.bid + (span > 0 ? (curve[i].bid - lo.bid) * ((p - lo.win) / span) : 0)));
+    }
+  }
+  return curve[curve.length - 1].bid;
+}
+export const ladderBid = (curve: { bid: number; win: number }[], rank: number, budget: number) => Math.min(Math.max(1, Math.floor(budget)), bidAtWin(curve, LADDER[Math.min(rank, LADDER.length - 1)]));
+
+/**
  * Prices a list of add-for-drop claims. A claim wins when its bid beats the rival top bid, its add is not already won, its drop is still on the
  * roster and enough FAAB is left. Rival bids are drawn once per player per simulated week, so every row for a player faces the same competition.
  * Bids are tuned for expected lineup gain over the simulated weeks, then trimmed so no row bids more than it needs to.
  */
-export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; pairs: { add: string; drop: string; net?: number }[]; budget: number; worlds?: number; seed?: number }): ClaimSheet {
+export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; pairs: { add: string; drop: string; net?: number; rank?: number }[]; budget: number; worlds?: number; seed?: number; ladder?: boolean }): ClaimSheet {
   const targets = opts.targets.slice(0, 14);
   const budget = Math.max(0, Math.floor(opts.budget));
   const tIndex = new Map(targets.map((t, i) => [t.id, i]));
   const dropIds = Array.from(new Set(opts.pairs.map((p) => p.drop))).slice(0, 14);
   const dIndex = new Map(dropIds.map((id, i) => [id, i]));
-  type R = { t: number; d: number; bid: number; net: number; add: string; drop: string };
-  const base: R[] = opts.pairs.filter((p) => tIndex.has(p.add) && dIndex.has(p.drop)).slice(0, 40).map((p) => ({ t: tIndex.get(p.add)!, d: dIndex.get(p.drop)!, bid: 1, net: p.net ?? 0, add: p.add, drop: p.drop }));
+  type R = { t: number; d: number; bid: number; net: number; add: string; drop: string; rank: number };
+  const base: R[] = opts.pairs.filter((p) => tIndex.has(p.add) && dIndex.has(p.drop)).slice(0, 40).map((p) => ({ t: tIndex.get(p.add)!, d: dIndex.get(p.drop)!, bid: 1, net: p.net ?? 0, add: p.add, drop: p.drop, rank: p.rank ?? 0 }));
   if (!base.length || budget < 1) return { rows: [], expected: 0, landAny: 0, chance: [] };
   const W = opts.worlds ?? 400;
   const random = mulberry32(opts.seed ?? 7);
@@ -408,7 +428,8 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
   const seen = new Map<number, number>();
   const rows = base.map((r) => { const k = seen.get(r.t) || 0; seen.set(r.t, k + 1); return { ...r, bid: Math.min(budget, Math.max(1, Math.round(targets[r.t].p75 * 0.5 ** k))) }; });
   let value = run(rows);
-  for (let sweep = 0; sweep < 3; sweep++) {
+  if (opts.ladder) rows.forEach((r) => { r.bid = ladderBid(targets[r.t].curve, r.rank, budget); });
+  else for (let sweep = 0; sweep < 3; sweep++) {
     let changed = false;
     for (let r = 0; r < rows.length; r++) {
       let bestBid = rows[r].bid, bestValue = value;
@@ -423,7 +444,7 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
     if (!changed) break;
   }
   // Trim: drop each bid to the lowest value that keeps the expected gain the same.
-  for (let r = 0; r < rows.length; r++) {
+  if (!opts.ladder) for (let r = 0; r < rows.length; r++) {
     for (const candidate of grid[rows[r].t]) {
       if (candidate >= rows[r].bid) break;
       const old = rows[r].bid; rows[r].bid = candidate;
@@ -434,5 +455,5 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
   const detail = { hit: rows.map(() => 0), chance: targets.map(() => 0), any: 0 };
   const expected = run(rows, detail);
   // Rows that essentially never land are noise on a claims list, so they are left off.
-  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, net: r.net })).filter((r) => r.hit >= 0.005), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
+  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, net: r.net })).filter((r) => opts.ladder || r.hit >= 0.005), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
 }

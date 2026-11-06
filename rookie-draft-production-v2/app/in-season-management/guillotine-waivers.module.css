@@ -30,3 +30,4 @@
 .line{font-size:12px;line-height:1.7}
 .pick{cursor:pointer;font-family:inherit}
 .mv{background:#112743;color:inherit;border:1px solid #31527f;border-radius:6px;padding:2px 7px;margin-right:3px;font-size:10px;cursor:pointer}.mv:disabled{opacity:.3;cursor:default}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}

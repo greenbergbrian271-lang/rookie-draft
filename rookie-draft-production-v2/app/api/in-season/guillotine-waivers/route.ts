@@ -66,6 +66,23 @@ export async function GET(request: Request) {
   const teams = Number(settings.num_teams || rosters.length);
   const positions = new Set<string>(); slots.forEach((s) => (SLOT_ELIGIBILITY[s] || [s]).forEach((p) => positions.add(p)));
 
+  // Waiver-pool search for the "Add new target" box: anyone not on a roster (a simulated chop's players count as available).
+  const q = (url.searchParams.get("search") || "").trim();
+  if (q) {
+    const chopOwner = (url.searchParams.get("chop") || "").trim().toLowerCase();
+    const held = new Set(rosters.filter((r) => !(chopOwner && !r.isMine && r.owner.toLowerCase() === chopOwner)).flatMap((r) => r.players));
+    const all = await nflPlayersCached();
+    const words = norm(q).split(" ").filter(Boolean);
+    const hits: { id: string; name: string; position: string; team: string; rank: number }[] = [];
+    for (const [id, p] of Object.entries<any>(all)) {
+      if (held.has(id) || !positions.has(String(p.position)) || !p.team || p.team === "FA") continue;
+      const name = playerName(id, all);
+      const n = norm(name);
+      if (words.length && words.every((w) => n.includes(w))) hits.push({ id, name, position: String(p.position), team: String(p.team), rank: Number(p.search_rank ?? 99999) });
+    }
+    return Response.json({ results: hits.sort((a, b) => a.rank - b.rank).slice(0, 8).map(({ rank, ...h }) => h) });
+  }
+
   const fetchTx = async (id: string, cache: boolean): Promise<Tx[]> => (await Promise.all(Array.from({ length: 19 }, (_, i) => i + 1).map(async (w) => (await sleeper<any[]>(`/league/${id}/transactions/${w}`, !cache ? false : true).catch(() => [] as any[])).map((t) => ({ ...t, leg: t.leg ?? w }))))).flat();
   const [txs, lastYearTx] = await Promise.all([fetchTx(LEAGUE, false), fetchTx(LAST_YEAR, true)]);
 
@@ -133,7 +150,10 @@ export async function GET(request: Request) {
     }
     return best;
   };
-  const wantedRows = wantQueries.map((q) => ({ query: q, player: findByName(q, pool) || lookupAll(q) }));
+  const wantedRows = [
+    ...wantQueries.map((q) => ({ query: q, player: findByName(q, pool) || lookupAll(q) })),
+    ...parseList("wantIds").map((id) => ({ query: id, player: rostered.has(id) ? null : build(id) })),
+  ];
   const candidates = [...pool.slice(0, 160)];
   wantedRows.forEach((w) => { if (w.player && !candidates.includes(w.player)) candidates.push(w.player); });
 
@@ -171,7 +191,7 @@ export async function GET(request: Request) {
   };
 
   const wantedIds = new Set(wantedRows.map((w) => w.player?.id).filter(Boolean) as string[]);
-  const screened = market.map((m) => ({ m, free: gainsFor(slots, me.players, info, m.c.id, null, myBase) })).filter((x) => wantedIds.has(x.m.c.id) || weighted(x.free) >= 0.75).sort((a, b) => weighted(b.free) - weighted(a.free)).slice(0, 40);
+  const screened = market.map((m) => ({ m, free: gainsFor(slots, me.players, info, m.c.id, null, myBase) })).filter((x) => wantedIds.has(x.m.c.id) || weighted(x.free) >= 0.75).sort((a, b) => weighted(b.free) - weighted(a.free)).filter((x, i) => i < 40 || wantedIds.has(x.m.c.id));
   const targets = screened.map(({ m, free }) => {
     const bid = priceFor(m);
     const w = weighted(free);
