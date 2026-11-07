@@ -196,6 +196,8 @@
 .posBadge{display:inline-block;min-width:38px;text-align:center;padding:4px 6px;border-radius:6px;font-size:10px;font-weight:900;background:#1b2f4d;color:#cfe0f5}
 .qb{background:#5a2a3d;color:#ffc3d2}.rb{background:#1f4d3d;color:#a8f0d0}.wr{background:#1f3f6b;color:#b7d4ff}.te{background:#5a4620;color:#ffe0a0}.flexPos{background:#33305a;color:#d4ceff}.otherPos{background:#2a3446;color:#cfd8e6}
 .statusChip{padding:2px 7px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+.chipNeutral{background:#1f2a3a;color:#b9cdee}.chipBye{background:#3a2330;color:#f3b6d0}
+.lookahead{display:block;margin-top:2px;font-size:11px;opacity:.8}
 .flag_critical{background:#4a1f2a;color:#ffb3bf}.flag_high{background:#4a3a1a;color:#ffd98a}.flag_watch{background:#33291a;color:#f8dfaa}
 
 /* ---- League Overview ---- */

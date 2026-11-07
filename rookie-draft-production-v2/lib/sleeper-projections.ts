@@ -1,11 +1,12 @@
 // Sleeper's weekly projections (rotowire-sourced). Not an official documented API, so every caller must tolerate failure.
 export type ProjectionRow = { stats: Record<string, number>; opponent: string | null; date: string | null; team: string | null };
 
-let cache: { key: string; at: number; data: Map<string, ProjectionRow> } | null = null;
+const cache = new Map<string, { at: number; data: Map<string, ProjectionRow> }>();
 
 export async function getWeekProjections(season: string, week: number): Promise<Map<string, ProjectionRow>> {
   const key = `${season}:${week}`;
-  if (cache && cache.key === key && Date.now() - cache.at < 15 * 60 * 1000) return cache.data;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < 15 * 60 * 1000) return hit.data;
   const positions = ["QB", "RB", "WR", "TE", "K", "DEF"].map((p) => `position[]=${p}`).join("&");
   const url = `https://api.sleeper.com/projections/nfl/${season}/${week}?season_type=regular&${positions}&order_by=pts_ppr`;
   // The response is several MB (over Next's 2 MB fetch-cache limit), so it is cached in memory instead.
@@ -17,7 +18,8 @@ export async function getWeekProjections(season: string, week: number): Promise<
     if (!row?.player_id || !row.stats) continue;
     data.set(String(row.player_id), { stats: row.stats, opponent: row.opponent || null, date: row.date || null, team: row.team || null });
   }
-  cache = { key, at: Date.now(), data };
+  cache.set(key, { at: Date.now(), data });
+  for (const oldKey of [...cache.keys()].slice(0, Math.max(0, cache.size - 6))) cache.delete(oldKey);
   return data;
 }
 

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 import { optimizeLineup, type OptimizerResult } from "@/lib/in-season-optimizer";
+import { formatKickoff, gameFor, hasKickedOff, weatherFlag } from "@/lib/in-season-schedule";
+import type { NflSchedule } from "@/lib/espn-nfl-schedule";
 import NflPlayerName from "@/components/NflPlayerName";
 import {
   buildLineup,
@@ -27,6 +29,32 @@ import {
 import { LeagueHeader, LeagueNav, ManagerLink } from "./league-nav";
 import { useCollapsible } from "./use-collapsible";
 import styles from "./in-season-management.module.css";
+
+/** Schedule and projection data from /api/in-season/outlook; every field is optional so the page still works without it. */
+export type LineupOutlook = { week: number; horizon: number[]; schedule: NflSchedule | null; leagues: Record<string, { myProjections?: Record<string, number[]> } | undefined> };
+
+function GameChips({ player, outlook }: { player: PlayerDetail; outlook?: LineupOutlook | null }) {
+  const schedule = outlook?.schedule || undefined;
+  if (!outlook || !schedule || !player.team) return null;
+  const game = gameFor(schedule, player.team, outlook.week);
+  if (game === null) return <span className={`${styles.statusChip} ${styles.chipBye}`}>Bye</span>;
+  if (!game) return null;
+  const weather = weatherFlag(game);
+  return (
+    <>
+      {!hasKickedOff(game) && <span className={`${styles.statusChip} ${styles.chipNeutral}`}>{formatKickoff(game.kickoff)}{game.indoor ? " · dome" : ""}</span>}
+      {!hasKickedOff(game) && weather && <span className={`${styles.statusChip} ${styles[`flag_${weather.severity}`]}`}>{weather.label}</span>}
+    </>
+  );
+}
+
+/** Projected points for the next three weeks, with byes shown instead of a number. */
+function Lookahead({ player, leagueId, outlook }: { player: PlayerDetail; leagueId: string; outlook?: LineupOutlook | null }) {
+  const values = outlook?.leagues[leagueId]?.myProjections?.[player.id];
+  if (!outlook || !values || !outlook.horizon.length) return null;
+  const parts = outlook.horizon.map((week, index) => (gameFor(outlook.schedule || undefined, player.team, week) === null ? "BYE" : (values[index] ?? 0).toFixed(1)));
+  return <small className={styles.lookahead}>Next {outlook.horizon.length} wks: {parts.join(" · ")}</small>;
+}
 
 const fmt = (value: number | null | undefined, digits = 1) => (value == null ? "—" : value.toFixed(digits));
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -53,17 +81,19 @@ function StatusChip({ player }: { player: PlayerDetail }) {
   return <span className={`${styles.statusChip} ${styles[`flag_${flag.severity}`]}`}>{flag.label}</span>;
 }
 
-function PlayerLine({ player }: { player: PlayerDetail }) {
+function PlayerLine({ player, leagueId, outlook }: { player: PlayerDetail; leagueId?: string; outlook?: LineupOutlook | null }) {
   return (
     <div className={styles.playerCell}>
       <NflPlayerName name={player.name} position={player.position} team={player.team} sleeperId={player.id} />
       <small>{player.position} · {player.team || "FA"}</small>
       <StatusChip player={player} />
+      <GameChips player={player} outlook={outlook} />
+      {leagueId && <Lookahead player={player} leagueId={leagueId} outlook={outlook} />}
     </div>
   );
 }
 
-function BenchTable({ title, players, league }: { title: string; players: PlayerDetail[]; league: LeagueData }) {
+function BenchTable({ title, players, league, outlook }: { title: string; players: PlayerDetail[]; league: LeagueData; outlook?: LineupOutlook | null }) {
   if (!players.length) return null;
   return (
     <section className={styles.lineupPanel}>
@@ -71,7 +101,7 @@ function BenchTable({ title, players, league }: { title: string; players: Player
       {players.map((player) => (
         <div className={styles.lineupRow} key={player.id}>
           <SlotBadge label={player.position} position={player.position} />
-          <PlayerLine player={player} />
+          <PlayerLine player={player} leagueId={league.id} outlook={outlook} />
           <span className={styles.pointsCell}><i>{fmt(projectionFor(league, player.id)?.pts)}</i><i>{fmt(seasonAverage(league, player.id))}</i></span>
         </div>
       ))}
@@ -79,7 +109,7 @@ function BenchTable({ title, players, league }: { title: string; players: Player
   );
 }
 
-function StartersPanel({ title, lineup, subtitle, changed }: { title: string; lineup: Lineup; subtitle?: React.ReactNode; changed?: Set<string> }) {
+function StartersPanel({ title, lineup, subtitle, changed, leagueId, outlook }: { title: string; lineup: Lineup; subtitle?: React.ReactNode; changed?: Set<string>; leagueId?: string; outlook?: LineupOutlook | null }) {
   const total = lineup.starters.reduce((sum, row) => sum + (row.points ?? 0), 0);
   const started = total > 0;
   return (
@@ -93,6 +123,8 @@ function StartersPanel({ title, lineup, subtitle, changed }: { title: string; li
               <NflPlayerName name={row.player.name} position={row.player.position} team={row.player.team} sleeperId={row.player.id} />
               <small>{row.player.position} · {row.player.team || "FA"}{gameLabel(row.game) ? ` · ${gameLabel(row.game)}` : ""}</small>
               <StatusChip player={row.player} />
+              <GameChips player={row.player} outlook={outlook} />
+              {leagueId && <Lookahead player={row.player} leagueId={leagueId} outlook={outlook} />}
             </div>
           ) : <div className={styles.playerCell}><em className={styles.emptySlot}>{row.id ? `Player ${row.id}` : "Empty slot"}</em></div>}
           <span className={styles.pointsCell}><i>{fmt(row.proj)}</i><i>{row.points != null && (started || row.points > 0) ? row.points.toFixed(2) : "—"}</i></span>
@@ -187,7 +219,7 @@ function LineupCheck({ result, showing, onToggle }: { result: OptimizerResult; s
   );
 }
 
-function TeamLineup({ league, team, intents, onOpenManager }: { league: LeagueData; team: TeamData; intents: Intents; onOpenManager?: (id: string) => void }) {
+function TeamLineup({ league, team, intents, onOpenManager, outlook }: { league: LeagueData; team: TeamData; intents: Intents; onOpenManager?: (id: string) => void; outlook?: LineupOutlook | null }) {
   const { matchup, opponentMatch, opponent } = matchupOf(league, team);
   const [showSuggested, setShowSuggested] = useState(false);
   const optimized = optimizeLineup(league, team, matchup);
@@ -202,22 +234,22 @@ function TeamLineup({ league, team, intents, onOpenManager }: { league: LeagueDa
       {theirs && opponent ? (
         <>
           <div className={styles.lineupVs}>
-            <StartersPanel title={showSuggested && !optimized.optimal ? "Suggested lineup" : "Your lineup"} lineup={lineup} changed={changedIds} />
-            <StartersPanel title="Opponent" lineup={theirs} subtitle={<ManagerLink ownerId={opponent.ownerId} onOpen={onOpenManager}>{teamLabel(opponent)}</ManagerLink>} />
+            <StartersPanel title={showSuggested && !optimized.optimal ? "Suggested lineup" : "Your lineup"} lineup={lineup} changed={changedIds} leagueId={league.id} outlook={outlook} />
+            <StartersPanel title="Opponent" lineup={theirs} outlook={outlook} subtitle={<ManagerLink ownerId={opponent.ownerId} onOpen={onOpenManager}>{teamLabel(opponent)}</ManagerLink>} />
           </div>
           <div className={styles.lineupBenchRow}>
-            <BenchTable title="Your bench" players={lineup.bench} league={league} />
-            <BenchTable title="Injured reserve" players={lineup.reserve} league={league} />
-            <BenchTable title="Taxi squad" players={lineup.taxi} league={league} />
+            <BenchTable title="Your bench" players={lineup.bench} league={league} outlook={outlook} />
+            <BenchTable title="Injured reserve" players={lineup.reserve} league={league} outlook={outlook} />
+            <BenchTable title="Taxi squad" players={lineup.taxi} league={league} outlook={outlook} />
           </div>
         </>
       ) : (
         <div className={styles.lineupLayout}>
-          <StartersPanel title={showSuggested && !optimized.optimal ? "Suggested lineup" : "Starting lineup"} lineup={lineup} changed={changedIds} />
+          <StartersPanel title={showSuggested && !optimized.optimal ? "Suggested lineup" : "Starting lineup"} lineup={lineup} changed={changedIds} leagueId={league.id} outlook={outlook} />
           <div className={styles.lineupSide}>
-            <BenchTable title="Bench" players={lineup.bench} league={league} />
-            <BenchTable title="Injured reserve" players={lineup.reserve} league={league} />
-            <BenchTable title="Taxi squad" players={lineup.taxi} league={league} />
+            <BenchTable title="Bench" players={lineup.bench} league={league} outlook={outlook} />
+            <BenchTable title="Injured reserve" players={lineup.reserve} league={league} outlook={outlook} />
+            <BenchTable title="Taxi squad" players={lineup.taxi} league={league} outlook={outlook} />
           </div>
         </div>
       )}
@@ -241,7 +273,7 @@ function summaryFor(league: LeagueData, mine: TeamData | undefined): string {
   return `${VERDICT_LABEL[out.verdict]} · ${score}proj ${fmt(out.myProj)}–${fmt(out.theirProj)} vs ${opponent ? teamLabel(opponent) : "opponent"}`;
 }
 
-export default function LineupView({ leagues, intents, onOpenManager }: { leagues: LeagueData[]; intents: Intents; onOpenManager?: (id: string) => void }) {
+export default function LineupView({ leagues, intents, onOpenManager, outlook }: { leagues: LeagueData[]; intents: Intents; onOpenManager?: (id: string) => void; outlook?: LineupOutlook | null }) {
   const ordered = sortLeagues(leagues);
   const { collapsed, toggle, jump, collapseAll, expandAll } = useCollapsible(ordered.map((league) => league.id), "ism-lineups-collapsed");
   return (
@@ -266,7 +298,7 @@ export default function LineupView({ leagues, intents, onOpenManager }: { league
               !league.ok ? <p className={styles.leagueWarning}>{league.error || "Sleeper could not return this league."}</p>
               : league.eliminated || mine?.eliminated ? <p className={styles.leagueWarning}>Your team has been eliminated from this {isGuillotine(league) ? "guillotine " : ""}league, so there is no active lineup.</p>
               : !mine ? <p className={styles.leagueWarning}>Your team wasn&rsquo;t matched in this league. Check your team identity in Integrations.</p>
-              : <TeamLineup league={league} team={mine} intents={intents} onOpenManager={onOpenManager} />
+              : <TeamLineup league={league} team={mine} intents={intents} onOpenManager={onOpenManager} outlook={outlook} />
             )}
             {!folded && league.ok && isDynasty(league) && league.windowError && <p className={styles.leagueNote}>Team window unavailable right now.</p>}
           </article>

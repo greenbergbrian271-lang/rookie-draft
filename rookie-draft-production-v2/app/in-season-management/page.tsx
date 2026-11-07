@@ -3,19 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw, ShieldCheck, Sparkles, TrendingUp, WalletCards } from "lucide-react";
-import { buildAlerts, sortLeagues, type LeagueData } from "@/lib/in-season";
+import { buildAlerts, sortLeagues, type LeagueData, type InSeasonAlert } from "@/lib/in-season";
+import { buildLineupAlerts } from "@/lib/in-season-optimizer";
+import { buildWeatherAlerts } from "@/lib/in-season-schedule";
+import type { NflSchedule } from "@/lib/espn-nfl-schedule";
 import ActionQueue from "./action-queue";
 import { useInSeasonState } from "./use-in-season-state";
 import LeagueOverviewView from "./league-overview-view";
-import LineupView from "./lineup-view";
+import LineupView, { type LineupOutlook } from "./lineup-view";
 import ManagersView from "./managers-view";
 import ManagerModal from "./manager-modal";
+import GuillotineWaivers from "./guillotine-waivers";
 import OverviewSnapshot from "./overview-snapshot";
 import { buildManagerCards } from "@/lib/in-season-managers";
 import type { LeagueTransactions } from "@/lib/in-season-managers";
 import styles from "./in-season-management.module.css";
 
-type Section = "overview" | "lineups" | "league-overview" | "waivers" | "players" | "managers";
+type Section = "overview" | "lineups" | "league-overview" | "waivers" | "guillotine" | "players" | "managers";
 type SleeperCheck = {
   key: string;
   configuredName: string;
@@ -31,6 +35,7 @@ type SleeperCheck = {
 };
 type CheckResponse = { checks?: SleeperCheck[] };
 type LeagueDataResponse = {leagues?:LeagueData[]; fetchedAt?:string};
+type OutlookPayload = { week: number; season: string; horizon: number[]; schedule: NflSchedule | null; leagues: LineupOutlook["leagues"]; fetchedAt: string };
 
 function displayDate(value: string | null) {
   if (!value) return "Not checked yet";
@@ -42,7 +47,7 @@ function displayDate(value: string | null) {
 
 export default function InSeasonManagementPage() {
   const pathname = usePathname();
-  const section: Section = pathname.endsWith("/lineups") ? "lineups" : pathname.endsWith("/league-overview") ? "league-overview" : pathname.endsWith("/waivers") ? "waivers" : pathname.endsWith("/players") ? "players" : pathname.endsWith("/managers") ? "managers" : "overview";
+  const section: Section = pathname.endsWith("/lineups") ? "lineups" : pathname.endsWith("/league-overview") ? "league-overview" : pathname.endsWith("/waivers") ? "waivers" : pathname.endsWith("/guillotine") ? "guillotine" : pathname.endsWith("/players") ? "players" : pathname.endsWith("/managers") ? "managers" : "overview";
   const [checks, setChecks] = useState<SleeperCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,6 +58,7 @@ export default function InSeasonManagementPage() {
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState("");
   const [managerId, setManagerId] = useState<string | null>(null);
+  const [outlook, setOutlook] = useState<OutlookPayload | null>(null);
   const { intents, dismissed, saveError, setIntent, dismiss, restore } = useInSeasonState();
 
   const refresh = useCallback(async (manual = false) => {
@@ -97,6 +103,16 @@ export default function InSeasonManagementPage() {
     void refresh();
   }, [refresh]);
 
+  // The outlook (schedule, weather, projections) is heavy, so it loads after the league data and never blocks first paint.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/in-season/outlook")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => { if (!cancelled && payload && !payload.error) setOutlook(payload as OutlookPayload); })
+      .catch(() => { /* alerts that need the outlook are simply left out */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // Trade and waiver history is only needed for Manager Cards, so it loads when that page opens.
   useEffect(() => {
     if ((section !== "managers" && !managerId) || transactions.length || txLoading) return;
@@ -111,7 +127,12 @@ export default function InSeasonManagementPage() {
   const managerCards = useMemo(() => buildManagerCards(leagueData, transactions, intents), [leagueData, transactions, intents]);
   const openManager = useCallback((ownerId: string) => setManagerId(ownerId), []);
 
-  const alerts = useMemo(() => buildAlerts(leagueData, intents), [leagueData, intents]);
+  const alerts = useMemo(() => {
+    const base = buildAlerts(leagueData, intents);
+    const lineup = buildLineupAlerts(leagueData);
+    const weather: InSeasonAlert[] = outlook?.schedule ? buildWeatherAlerts(leagueData, outlook.schedule, outlook.week) : [];
+    return [...base, ...lineup, ...weather].sort((a, b) => b.quality - a.quality || a.title.localeCompare(b.title));
+  }, [leagueData, intents, outlook]);
 
 
 
@@ -145,9 +166,10 @@ export default function InSeasonManagementPage() {
       {section === "overview" && <OverviewSnapshot leagues={leagueData} intents={intents} onOpenManager={openManager} />}
       {section === "overview" && leagueData.length > 0 && <DataHealth leagues={leagueData} />}
       {section === "managers" && <ManagersView cards={managerCards} loaded={leagueData.length > 0} txLoading={txLoading} txError={txError} onOpenManager={openManager} />}
-      {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} />}
+      {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} outlook={outlook} />}
       {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} onOpenManager={openManager} />}
 
+      {section === "guillotine" && <GuillotineWaivers onOpenManager={openManager} />}
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
 
       {section === "players" && <LiveLeagueView kind="players" leagues={leagueData} checks={checks} />}
@@ -163,7 +185,7 @@ export default function InSeasonManagementPage() {
 
 function LiveLeagueView({kind,leagues,checks}:{kind:"lineups"|"waivers"|"players";leagues:LeagueData[];checks:SleeperCheck[]}) {
   const active=leagues.filter(l=>l.ok&&!l.eliminated);
-  const title=kind==="lineups"?"Lineups & Matchups":kind==="waivers"?"Waivers & Guillotine":"Player Intelligence";
+  const title=kind==="lineups"?"Lineups & Matchups":kind==="waivers"?"Waivers":"Player Intelligence";
   return <section className={styles.modulePage}>
     <div className={styles.moduleHero}><div className={styles.moduleIcon}>{kind==="lineups"?<Sparkles size={19}/>:kind==="waivers"?<WalletCards size={19}/>:<TrendingUp size={19}/>}</div><div><div className={styles.sectionKicker}>Sleeper · Live league data</div><h2>{title}</h2><p>{kind==="lineups"?"Current rosters, starter slots, league matchup scores, and roster records from Sleeper.":kind==="waivers"?"League waiver settings, FAAB budgets where available, and recent transaction activity.":"League scoring and roster context for the next layer of player-level signals."}</p></div></div>
     {leagues.length===0?<div className={styles.emptyState}><RefreshCw size={20}/><strong>Loading Sleeper league data</strong><span>League data will appear once the request completes.</span></div>:leagues.map(league=><article className={styles.leagueCard} key={league.id}>

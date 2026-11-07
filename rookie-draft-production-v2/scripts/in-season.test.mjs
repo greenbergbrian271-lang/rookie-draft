@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import {assignLineup,buildWaiverPlan,suggestBid,simulateChop,teamSd} from "../lib/in-season-waivers.ts";
+import {buildWeatherAlerts,weatherFlag,hasKickedOff,byeWeeks} from "../lib/in-season-schedule.ts";
 import {optimizeLineup,buildLineupAlerts} from "../lib/in-season-optimizer.ts";
 import {buildManagerCards} from "../lib/in-season-managers.ts";
 import {buildAlerts,buildLineup,buildRootingGuide,buildStandings,byeSlots,findMine,sortLeagues,playoffFormat,buildPlayoffPicture,NISKAYUNA_LEAGUE_ID,weekKey,effectiveWindow,guillotineStatus,guillotineBoard,irEligible,livePlayerProjection,matchupProjected,projectedOutcome} from "../lib/in-season.ts";
@@ -190,4 +192,55 @@ assert.equal(lk.lockedCount,1);
 assert.equal(buildLineupAlerts([t1],1,NOW).length,1);
 assert.equal(buildLineupAlerts([best],1,NOW).length,0);
 assert.equal(buildLineupAlerts([hurt],1,NOW).length,0);
+
+// ---- waivers: lineup assignment, recommendations, FAAB bids ----
+assert.equal(assignLineup(["QB","RB","FLEX"],[{id:"a",position:"QB",value:20},{id:"b",position:"RB",value:10},{id:"c",position:"RB",value:12},{id:"d",position:"WR",value:9},{id:"e",position:"RB",value:5}]).total,42);
+const WSLOTS=["QB","RB","RB","WR","WR","TE","FLEX","BN","BN","BN"];
+const wRoster=[mkP("q","QB"),mkP("r1","RB"),mkP("r2","RB"),mkP("w1","WR"),mkP("w2","WR"),mkP("t","TE"),mkP("x1","RB"),mkP("x2","WR"),mkP("hurt","WR",{injuryStatus:"Out"}),mkP("kid","WR")];
+const wProj={q:[20,20,20],r1:[15,15,15],r2:[12,12,12],w1:[13,13,13],w2:[11,11,11],t:[8,8,8],x1:[7,7,7],x2:[4,4,4],hurt:[0,0,0],kid:[1,1,1]};
+const wTeam=(extra={})=>({...team("1",5,2,700,{isMine:true,players:wRoster.map(p=>p.id),playerDetails:wRoster,reserve:[],taxi:[]}),...extra});
+const wLeague={...league,rosterPositions:WSLOTS};
+const outlook=(over={})=>({leagueId:"L",weeks:[9,10,11],rules:{budget:200,used:50,remaining:150,clearDays:2,daily:false,bidMin:1,tradeDeadlineWeek:11,rosterCapacity:10},processing:null,myProjections:wProj,
+  candidates:[{id:"cw",name:"Pickup WR",position:"WR",team:"BUF",age:24,injury:"",proj:[16,16,16],trend:250000},{id:"cs",name:"Scrub RB",position:"RB",team:"CHI",age:30,injury:"",proj:[3,3,3],trend:0}],
+  bids:{n:30,median:10,p25:3,p75:25,p90:50,max:90,byPosition:{},recent:[]},...over});
+const planFull=buildWaiverPlan(wLeague,wTeam(),outlook());
+assert.equal(planFull.openSpots,0);
+assert.equal(planFull.recommendations.length,1,"only the pickup who improves the lineup is suggested");
+const r0=planFull.recommendations[0];
+assert.equal(r0.add.id,"cw");assert.equal(r0.drop.id,"kid","drops the least useful healthy player, never the injured one");
+assert.ok(Math.abs(r0.total-27)<0.01,"16 projected replaces the 7-point FLEX for three weeks: +9 x 3 = 27");assert.equal(r0.startsAt,"WR");
+assert.ok(r0.bid.low>=25&&r0.bid.high<=50&&r0.bid.affordable,"strong, popular add prices at the 75th-90th percentile");
+// open roster spot: nothing needs to be dropped
+const planOpen=buildWaiverPlan(wLeague,wTeam(),outlook({rules:{...outlook().rules,rosterCapacity:12}}));
+assert.equal(planOpen.recommendations[0].drop,null);assert.equal(planOpen.openSpots,2);
+// dynasty: a valued asset on the bench is protected even if he scores nothing
+const dyn=buildWaiverPlan(wLeague,wTeam(),outlook({ktc:{kid:4000}}));
+assert.notEqual(dyn.recommendations[0].drop.id,"kid");
+// nothing worth adding
+assert.ok(buildWaiverPlan(wLeague,wTeam(),outlook({candidates:[{id:"cs",name:"Scrub RB",position:"RB",team:"CHI",age:30,injury:"",proj:[3,3,3],trend:0}]})).empty);
+// no FAAB left
+assert.equal(suggestBid(8,0,"WR",0,{n:30,median:10,p25:3,p75:25,p90:50,max:90,byPosition:{},recent:[]},{...outlook().rules,remaining:0}).affordable,false);
+// little bid history falls back to a share of remaining budget
+const noHist=suggestBid(8,0,"WR",0,null,outlook().rules);assert.match(noHist.basis,/too little bid history/);assert.ok(noHist.high<=outlook().rules.remaining);
+// a priced-out claim is flagged
+assert.equal(suggestBid(8,0,"WR",0,{n:30,median:100,p25:80,p75:120,p90:150,max:200,byPosition:{},recent:[]},{...outlook().rules,remaining:20}).affordable,false);
+
+// ---- guillotine chop odds ----
+const odds=simulateChop([{id:"a",mean:130,sd:15},{id:"b",mean:120,sd:15},{id:"c",mean:110,sd:15},{id:"d",mean:100,sd:15},{id:"e",mean:90,sd:15}],4000,3);
+assert.equal(Math.round(odds.reduce((a,o)=>a+o.lowest,0)*1000)/1000,1,"exactly one team is lowest per simulation");
+assert.ok(odds[4].lowest>odds[0].lowest,"the lowest projection is the most likely to be chopped");
+assert.deepEqual(simulateChop([{id:"a",mean:130,sd:15},{id:"b",mean:100,sd:15}],500,9),simulateChop([{id:"a",mean:130,sd:15},{id:"b",mean:100,sd:15}],500,9),"same seed, same answer");
+assert.equal(teamSd([100,100],18),18);assert.ok(teamSd([90,110,100,120,80])>10);
+
+// ---- schedule: kickoff locks, byes, weather alerts ----
+const mkGame=(over={})=>({week:8,kickoff:"2026-11-01T18:00Z",opponent:"CHI",home:true,indoor:false,state:"pre",weather:{text:"Snow showers",temp:28},city:"Orchard Park",...over});
+assert.equal(hasKickedOff(mkGame(),new Date("2026-11-01T17:59:00Z")),false);assert.equal(hasKickedOff(mkGame(),new Date("2026-11-01T18:01:00Z")),true);assert.equal(hasKickedOff(mkGame({state:"post"}),new Date("2026-10-31T00:00:00Z")),true);
+assert.equal(weatherFlag(mkGame()).severity,"high");assert.equal(weatherFlag(mkGame({indoor:true})),null);assert.equal(weatherFlag(mkGame({weather:{text:"Partly sunny",temp:68}})),null);assert.equal(weatherFlag(mkGame({weather:{text:"Cloudy",temp:20}})).label,"20°F cold");
+const sched={BUF:{8:mkGame(),9:null,10:mkGame({week:10})},CHI:{8:mkGame({home:false,opponent:"BUF"})}};
+assert.deepEqual(byeWeeks(sched,"BUF",[8,9,10]),[9]);
+const wxLeague={...league,id:"W1",name:"Weather League",status:"in_season",rosterPositions:["QB","RB","BN"],projections:{p1:{pts:18,opp:"CHI",date:"2026-11-01"},p2:{pts:12,opp:"CHI",date:"2026-11-01"}},
+  teams:[team("1",5,2,700,{isMine:true,players:["p1","p2"],starters:["p1","p2"],playerDetails:[mkP("p1","QB",{team:"BUF"}),mkP("p2","RB",{team:"BUF"})]})],matchups:[{rosterId:"1",matchupId:1,points:0,starters:["p1","p2"],startersPoints:{}}]};
+const wx=buildWeatherAlerts([wxLeague,{...wxLeague,id:"W2",name:"Second League"}],sched,8,new Date("2026-10-31T12:00:00Z"));
+assert.equal(wx.length,1,"one alert per game, not per player or league");assert.equal(wx[0].leagues.length,2);assert.equal(wx[0].details.length,2);assert.match(wx[0].title,/CHI at BUF/);
+assert.equal(buildWeatherAlerts([wxLeague],sched,8,new Date("2026-11-01T19:00:00Z")).length,0,"no weather alert once the game has kicked off");
 console.log("in-season unit checks passed");
