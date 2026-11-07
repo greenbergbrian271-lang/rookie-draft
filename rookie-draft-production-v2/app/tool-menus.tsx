@@ -4,6 +4,7 @@ import Link from "next/link";
 import {usePathname,useRouter} from "next/navigation";
 import {Briefcase,Check,Home,RefreshCw,Search,Table2,TriangleAlert} from "lucide-react";
 import {schoolStyle} from "@/lib/school-colors";
+import {MobileSections} from "./nav";
 import AddPlayersModal from "@/components/AddPlayersModal";
 import NewPlayerWatchedModal from "@/components/NewPlayerWatchedModal";
 import BestUnwatchedPlayerModal from "@/components/BestUnwatchedPlayerModal";
@@ -29,6 +30,7 @@ const HISTORICAL_SHEET_URLS:Record<number,string>={
   2027:"https://docs.google.com/spreadsheets/d/1286W2j0GMTBBeRtww_dK7lsssnrEUIwSmdDveuivMYQ/edit"
 };
 export default function ToolMenus(){const {draftClass,activeDraftClass,isLocked}=useDraftClassState();const [open,setOpen]=useState<string|null>(null),[tool,setTool]=useState<Item|null>(null),[addOpen,setAddOpen]=useState(false),[watchedOpen,setWatchedOpen]=useState(false),[bestUnwatchedOpen,setBestUnwatchedOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[playerId,setPlayerId]=useState(""),[msg,setMsg]=useState(""),[choice,setChoice]=useState(""),[playerId2,setPlayerId2]=useState(""),[gradeRows,setGradeRows]=useState<any[]>([]);const [reorderOpen,setReorderOpen]=useState(false),[maybeOpen,setMaybeOpen]=useState(false),[archiveOpen,setArchiveOpen]=useState(false),[returningOpen,setReturningOpen]=useState(false),[combineOpen,setCombineOpen]=useState(false),[mockOpen,setMockOpen]=useState(false),[compareOpen,setCompareOpen]=useState(false),[combineStatus,setCombineStatus]=useState<any>(null);const [transitioning,setTransitioning]=useState(false);const pathname=usePathname(),router=useRouter();const [refreshing,setRefreshing]=useState(false),[report,setReport]=useState<any>(null),[reportOpen,setReportOpen]=useState(false);
+useEffect(()=>{const closeTools=()=>setOpen(null);window.addEventListener("close-tool-menus",closeTools);return()=>window.removeEventListener("close-tool-menus",closeTools)},[]);
 useEffect(()=>{if(tool){fetch(`/api/grades?draftClass=${draftClass}`,{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setGradeRows(x)).catch(()=>{});fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(x=>Array.isArray(x)&&setPlayers(x)).catch(()=>{});if(tool.id==="combine-refresh")fetch("/api/combine-refresh",{cache:"no-store"}).then(r=>r.json()).then(setCombineStatus).catch(()=>{})}},[tool,draftClass]);
 async function refreshAll(){if(refreshing)return;setRefreshing(true);setOpen(null);try{const r=await fetch("/api/platform-status",{method:"POST",cache:"no-store"}),j=await r.json();if(!r.ok)throw new Error(j?.error||"HTTP "+r.status);setReport(j);router.refresh();window.dispatchEvent(new CustomEvent("platform-refresh",{detail:j}))}catch(e:any){setReport({checkedAt:new Date().toISOString(),error:e?.message||"Refresh failed",checks:[]})}finally{setRefreshing(false);setReportOpen(true)}}
 function close(){setTool(null);setMsg("");setPlayerId("");setChoice("");setPlayerId2("")}
@@ -57,6 +59,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>
     </div>}
   </div>
 </div>
+<MobileSections/>
 <div className="tool-menubar-menus">
 {groups.map((g,groupIndex)=><div className="tool-menu" key={g.label}>
   <button
@@ -66,7 +69,7 @@ return <><div className="tool-menubar" onMouseLeave={()=>setOpen(null)}>
     aria-label={g.label}
     aria-controls={menuId(g.label)}
     className={`tool-menu-button${open===g.label?" open":""}${groupIndex===1?" scouting-tools":""}`}
-    onClick={()=>setOpen(open===g.label?null:g.label)}
+    onClick={()=>{window.dispatchEvent(new Event("close-section-menus"));setOpen(open===g.label?null:g.label)}}
     onKeyDown={e=>openMenuFromKeyboard(e,g.label)}
     onMouseEnter={()=>open&&setOpen(g.label)}
   >

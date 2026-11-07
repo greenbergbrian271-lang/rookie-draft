@@ -100,6 +100,7 @@ const defaultsFor = (position: string) =>
 export async function addPlayersToScouting(players: Pick<DbPlayer, "id" | "name" | "position">[]) {
   const added: typeof players = [];
   const failed: { name: string; message: string }[] = [];
+  let locked = false;
   for (const p of players) {
     try {
       const r = await fetch("/api/players", {
@@ -107,7 +108,17 @@ export async function addPlayersToScouting(players: Pick<DbPlayer, "id" | "name"
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: p.id, status: "WATCHED" }),
       });
-      if (!r.ok) throw new Error("Could not add " + p.name + " to scouting.");
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}) as any);
+        if (j?.authRequired || r.status === 401) {
+          // Preview deployments (and a locked admin session) reject every write; no point trying the rest.
+          locked = true;
+          throw new Error(
+            "Admin is locked, so changes can't be saved. Unlock admin (top right) and try again.",
+          );
+        }
+        throw new Error(j?.error ? `${j.error}${j.detail ? ` (${j.detail})` : ""}` : `Could not add ${p.name} to scouting (HTTP ${r.status}).`);
+      }
       await Promise.all(
         Object.entries(defaultsFor(p.position)).map(([category, commentary]) =>
           fetch("/api/evaluations", {
@@ -120,8 +131,12 @@ export async function addPlayersToScouting(players: Pick<DbPlayer, "id" | "name"
       added.push(p);
     } catch (e: any) {
       failed.push({ name: p.name, message: e?.message || "Could not add " + p.name + "." });
+      if (locked) {
+        for (const rest of players.slice(players.indexOf(p) + 1)) failed.push({ name: rest.name, message: e.message });
+        break;
+      }
     }
   }
   if (added.length && typeof window !== "undefined") window.dispatchEvent(new Event("rookie-draft:players-changed"));
-  return { added, failed };
+  return { added, failed, locked };
 }

@@ -29,7 +29,7 @@ export default function NewPlayerWatchedModal({open,onClose,onDone,draftClass=20
     try{
       const picked=queue.map(byId).filter((p):p is Player=>Boolean(p));
       const {added,failed}=await addPlayersToScouting(picked);
-      if(failed.length)throw new Error((added.length?added.length+" added. ":"")+failed.map(f=>f.message).join(" "));
+      if(failed.length)throw new Error((added.length?added.length+" added. ":"")+Array.from(new Set(failed.map(f=>f.message))).join(" "));
       setMsg(`${picked.length} player${picked.length===1?"":"s"} added to the appropriate scouting page${picked.length===1?"":"s"}.`);setComplete(true);setQueue([]);setSelected([]);onDone?.();
     }catch(e:any){setMsg(e?.message||"Could not process queue.")}finally{setBusy(false)}
   }

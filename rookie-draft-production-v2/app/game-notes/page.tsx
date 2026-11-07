@@ -16,10 +16,11 @@ async function addUnwatched(x:any){
   const listed=parseGameNotePlayers(String(draftNotes[id]??x.notes??""));
   if(!listed.length){show({tone:"warn",title:"No players found in this note",lines:["Player lines need to look like “• WR Player Name” (a jersey number before the position is fine)."]});return}
   const m=matchNotePlayers(listed,ps,draftClass),names=(list:any[])=>list.map(p=>p.name+" ("+p.position+")").join(", "),lines:string[]=[];
-  const {added,failed}=m.toAdd.length?await addPlayersToScouting(m.toAdd):{added:[] as any[],failed:[] as {name:string;message:string}[]};
+  const {added,failed,locked}=m.toAdd.length?await addPlayersToScouting(m.toAdd):{added:[] as any[],failed:[] as {name:string;message:string}[],locked:false};
+  if(locked){show({tone:"error",title:"Admin is locked",lines:["Nothing was added. "+failed[0].message,"Would have added: "+names(m.toAdd)]});return}
   if(added.length){const ids=new Set(added.map((p:any)=>String(p.id)));setSearchData(d=>({...d,players:d.players.map((p:any)=>ids.has(String(p.id))?{...p,scouting_status:"WATCHED"}:p)}))}
   if(added.length)lines.push("Added to scouting: "+names(added));
-  if(failed.length)lines.push("Could not add: "+failed.map(f=>f.name).join(", ")+". "+failed[0].message);
+  if(failed.length)lines.push("Could not add "+failed.map(f=>f.name).join(", ")+": "+failed[0].message);
   if(m.hasProfile.length)lines.push("Already have an active profile ("+m.hasProfile.length+"): "+m.hasProfile.map(p=>p.name).join(", "));
   if(m.onMaybe.length)lines.push("Left alone, on the Maybe list: "+m.onMaybe.map(p=>p.name).join(", "));
   if(m.finished.length)lines.push("Left alone, scouting marked finished: "+m.finished.map(p=>p.name).join(", "));
