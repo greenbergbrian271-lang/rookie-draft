@@ -903,3 +903,5 @@
   .tool-menubar-menus{gap:3px}
   .nav-mobile-btn{height:30px;font-size:9.5px;padding:0 2px}
 }
+
+.game-note-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.game-note-toolbar button{padding:6px 10px;font-size:13px}
