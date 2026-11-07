@@ -1,5 +1,6 @@
 import {getIntegrations} from "@/lib/integrations";
 import {ensureTursoSchema} from "@/lib/turso";
+import {refreshCollegeData} from "@/lib/college-football-sync";
 
 export const dynamic="force-dynamic";
 export const maxDuration=60;
@@ -62,6 +63,13 @@ export async function POST(req:Request){
     return n?(n+" "+year+" picks · "+(j.complete?"complete":"in progress")+" · "+(j.source||"stored copy")):"No "+year+" picks yet (draft has not started)";
   });
 
+  // College schedule + rankings: re-pull from ESPN and overwrite the cached copies so kickoff times and polls are current.
+  const college=timed("college","College Football",true,async()=>{
+    const r=await refreshCollegeData(10);
+    const bits=[(r.poll||"Rankings")+" "+(r.rankedTeams?r.rankedTeams+" ranked teams":"unavailable")+(r.rankChanges?" · "+r.rankChanges+" rank change"+(r.rankChanges===1?"":"s"):" · no rank changes")];
+    bits.push(r.games+" games in next "+r.days+" days"+(r.kickoffChanges?" · "+r.kickoffChanges+" kickoff time"+(r.kickoffChanges===1?"":"s")+" updated":" · kickoff times unchanged")+(r.newGames?" · "+r.newGames+" new":""));
+    return bits.join(" · ");
+  });
   const database=timed("database","Database",false,async()=>{const c=await ensureTursoSchema();await c.execute("select 1");return "Connected"});
   const ktc=timed("ktc","KeepTradeCut",false,async()=>{
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
@@ -69,6 +77,6 @@ export async function POST(req:Request){
     finally{clearTimeout(timer)}
   });
 
-  const checks=await Promise.all([sleeper,espn,draft,database,ktc]);
+  const checks=await Promise.all([sleeper,espn,college,draft,database,ktc]);
   return Response.json({checkedAt:new Date().toISOString(),draftSeason,draftYear:year,checks});
 }

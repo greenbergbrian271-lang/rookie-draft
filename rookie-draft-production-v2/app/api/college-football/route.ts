@@ -1,12 +1,12 @@
 import {cacheGet} from "@/lib/cache";
-import {currentFootballWeek,syncRange,syncDates,saveRankings,ymd} from "@/lib/college-football-sync";
+import {currentFootballWeek,syncRange,syncDates,saveRankings,ymd,diffEvents,diffRankings,pollLabel} from "@/lib/college-football-sync";
 
 const parse=(s:string)=>new Date(Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8),16));
 
 export async function GET(req:Request){
   try{
     const u=new URL(req.url),fresh=u.searchParams.get("fresh")==="1",dateParam=u.searchParams.get("dates"),idParam=u.searchParams.get("ids");
-    let start=u.searchParams.get("start"),end=u.searchParams.get("end"),events:any[]=[];
+    let start=u.searchParams.get("start"),end=u.searchParams.get("end"),events:any[]=[],changes:{kickoff:number;added:number;rankChanges:number}|null=null;
     if(dateParam){
       const dates=Array.from(new Set(dateParam.split(",").map(x=>x.trim()).filter(x=>/^\d{8}$/.test(x)))).slice(0,20);
       if(!dates.length)return Response.json({error:"Provide one or more YYYYMMDD dates."},{status:400});
@@ -14,15 +14,19 @@ export async function GET(req:Request){
     }else{
       if(!start||!end){const w=currentFootballWeek();start=ymd(w.start);end=ymd(w.end)}
       const key="cfb:schedule:"+start+":"+end;
+      const previousEvents=fresh?await cacheGet<any[]>(key):null;
       events=fresh?[]:(await cacheGet<any[]>(key))||[];
       if(!events.length)events=await syncRange(parse(start),parse(end));
+      if(fresh)changes={...diffEvents(previousEvents,events),rankChanges:0};
     }
     let rankings:any[]=[];
     if(!dateParam){
+      const previousRankings=fresh?await cacheGet<any[]>("cfb:rankings"):null;
       rankings=fresh?[]:(await cacheGet<any[]>("cfb:rankings"))||[];
       if(!rankings.length)rankings=await saveRankings();
+      if(fresh&&changes)changes.rankChanges=diffRankings(previousRankings,rankings);
     }
-    return Response.json({source:dateParam?"historical-ESPN":fresh?"live-ESPN":"cached-ESPN",fresh,start,end,events:events||[],rankings:rankings||[],refreshedAt:new Date().toISOString(),rosterByTeam:{}});
+    return Response.json({source:dateParam?"historical-ESPN":fresh?"live-ESPN":"cached-ESPN",fresh,start,end,events:events||[],rankings:rankings||[],poll:pollLabel(rankings),changes,refreshedAt:new Date().toISOString(),rosterByTeam:{}});
   }catch(e:any){
     return Response.json({error:"Could not load college football schedule",detail:e?.message},{status:502});
   }

@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
 import {schoolStyle} from "@/lib/school-colors";
+import {addPlayersToScouting} from "@/lib/scouting-watch";
 
 type Player={id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;scouting_status:string};
 const norm=(s:any)=>String(s??"").trim().toLowerCase();
@@ -27,17 +28,9 @@ export default function NewPlayerWatchedModal({open,onClose,onDone,draftClass=20
     setBusy(true);setMsg("");
     try{
       const picked=queue.map(byId).filter((p):p is Player=>Boolean(p));
-      for(const p of picked){
-        const r=await fetch("/api/players",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:p.id,status:"WATCHED"})});
-        if(!r.ok)throw new Error("Could not add "+p.name+" to scouting.");
-        const defaults=p.position==="QB"
-          ?{"Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"}
-          :p.position==="TE"
-            ?{"Special Teams":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"}
-            :{"Special Teams?":"No","Injury Concerns":"No","Off-Field?":"No","All Star Game?":"None"};
-        await Promise.all(Object.entries(defaults).map(([category,commentary])=>fetch("/api/evaluations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({playerId:p.id,category,value:null,commentary})})));
-      }
-      setMsg(`${picked.length} player${picked.length===1?"":"s"} added to the appropriate scouting page${picked.length===1?"":"s"}.`);setComplete(true);setQueue([]);setSelected([]);window.dispatchEvent(new Event("rookie-draft:players-changed"));onDone?.();
+      const {added,failed}=await addPlayersToScouting(picked);
+      if(failed.length)throw new Error((added.length?added.length+" added. ":"")+failed.map(f=>f.message).join(" "));
+      setMsg(`${picked.length} player${picked.length===1?"":"s"} added to the appropriate scouting page${picked.length===1?"":"s"}.`);setComplete(true);setQueue([]);setSelected([]);onDone?.();
     }catch(e:any){setMsg(e?.message||"Could not process queue.")}finally{setBusy(false)}
   }
   if(!open)return null;
