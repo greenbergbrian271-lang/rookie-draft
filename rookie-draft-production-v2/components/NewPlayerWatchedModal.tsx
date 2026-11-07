@@ -6,13 +6,33 @@ import {addPlayersToScouting} from "@/lib/scouting-watch";
 type Player={id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;scouting_status:string};
 const norm=(s:any)=>String(s??"").trim().toLowerCase();
 
-export default function NewPlayerWatchedModal({open,onClose,onDone,draftClass=2027}:{open:boolean;onClose:()=>void;onDone?:()=>void;draftClass?:number}){
+const EMPTY_SEED:Array<{name:string;position?:string;college?:string}>=[];
+const nameKey=(s:any)=>String(s??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+
+export default function NewPlayerWatchedModal({open,onClose,onDone,draftClass=2027,seed=EMPTY_SEED}:{open:boolean;onClose:()=>void;onDone?:()=>void;draftClass?:number;seed?:Array<{name:string;position?:string;college?:string}>}){
   const [players,setPlayers]=useState<Player[]>([]),[position,setPosition]=useState("ALL"),[college,setCollege]=useState(""),[search,setSearch]=useState("");
   const [selected,setSelected]=useState<string[]>([]),[queue,setQueue]=useState<string[]>([]),[busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[complete,setComplete]=useState(false),[sheetIds,setSheetIds]=useState<string[]>([]);
 
   useEffect(()=>{if(!open)return;setPosition("ALL");setCollege("");setSearch("");setSelected([]);setQueue([]);setMsg("");setComplete(false);setBusy(true);
     try{const saved=JSON.parse(sessionStorage.getItem("rookie-draft:scouting-sheet-player-ids")||"[]");setSheetIds(Array.isArray(saved)?saved.map(String):[])}catch{setSheetIds([])}
-    fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(Array.isArray(j))setPlayers(j)}).catch(()=>setMsg("Could not load players.")).finally(()=>setBusy(false));
+    let sheet:string[]=[];try{const saved=JSON.parse(sessionStorage.getItem("rookie-draft:scouting-sheet-player-ids")||"[]");sheet=Array.isArray(saved)?saved.map(String):[]}catch{}
+    fetch("/api/players",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!Array.isArray(j))return;setPlayers(j);
+      if(!seed.length)return;
+      // Seeded (e.g. from a Game Note): pre-queue listed players who are on Players to Scout but not yet on scouting pages
+      const pool=(j as Player[]).filter(p=>p.draft_class===draftClass);
+      const open_=pool.filter(p=>!["WATCHED","FINISHED","MAYBE"].includes(p.scouting_status)&&!sheet.includes(String(p.id)));
+      const ids:string[]=[];const missing:string[]=[];let already=0;
+      for(const s of seed){const k=nameKey(s.name);const hit=open_.find(p=>nameKey(p.name)===k&&(!s.position||p.position===s.position))||open_.find(p=>nameKey(p.name)===k);
+        if(hit){if(!ids.includes(String(hit.id)))ids.push(String(hit.id))}
+        else if(pool.some(p=>nameKey(p.name)===k))already++;
+        else missing.push(s.name)}
+      setQueue(ids);
+      const bits:string[]=[];
+      if(ids.length)bits.push(ids.length+" unwatched player"+(ids.length===1?"":"s")+" from this game queued. Review, then Process Queue.");
+      else bits.push("Every player in this note is already on the scouting pages.");
+      if(missing.length)bits.push("Not on Players to Scout (add them with Add Player): "+missing.join(", ")+".");
+      setMsg(bits.join(" "));
+    }).catch(()=>setMsg("Could not load players.")).finally(()=>setBusy(false));
   },[open]);
 
   const classPlayers=useMemo(()=>players.filter(p=>p.draft_class===draftClass),[players,draftClass]);
