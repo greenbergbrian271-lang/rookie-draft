@@ -32,7 +32,7 @@ export function parseGameNotePlayers(notes: string): NotePlayer[] {
   let team = "";
   const found: NotePlayer[] = [];
   for (const raw of String(notes || "").split(/\r?\n/)) {
-    const line = raw.trim();
+    const line = raw.trim().replace(/\*\*(.+?)\*\*/g, "$1").replace(/==(.+?)==/g, "$1").replace(/_([^_]+?)_/g, "$1");
     if (!line) continue;
     if (/^[◦▪‣]/.test(line)) continue;
     const bullet = line.match(/^[•\-*]\s*(.+)$/);
