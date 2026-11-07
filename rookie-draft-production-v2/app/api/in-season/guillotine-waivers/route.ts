@@ -31,7 +31,7 @@ async function loadRosters(leagueId: string) {
   const nameOf = (r: any) => users.find((x: any) => String(x.user_id) === String(r.owner_id))?.display_name || String(r.owner_id || r.roster_id);
   const rosters: GRoster[] = rosterRows.map((r: any) => {
     const ids = [...(r.players || []), ...(r.reserve || []), ...(r.taxi || [])].map(String).filter((id) => id !== "0");
-    return { rosterId: String(r.roster_id), owner: nameOf(r), isMine: isMineRoster({ teamIdentity: "cds1204" }, r, users), eliminated: !ids.length || r.settings?.eliminated > 0, players: ids, faab: Math.max(0, budget - Number(r.settings?.waiver_budget_used || 0)), waiverPosition: Number(r.settings?.waiver_position || 0) };
+    return { rosterId: String(r.roster_id), ownerId: String(r.owner_id || ""), owner: nameOf(r), isMine: isMineRoster({ teamIdentity: "cds1204" }, r, users), eliminated: !ids.length || r.settings?.eliminated > 0, players: ids, faab: Math.max(0, budget - Number(r.settings?.waiver_budget_used || 0)), waiverPosition: Number(r.settings?.waiver_position || 0) };
   });
   return { league, rosters, budget };
 }
@@ -247,7 +247,7 @@ export async function GET(request: Request) {
   const chopTeams = chopRows.map((x) => ({ ...x, lowest: odds.find((o) => o.rosterId === x.id)?.lowest || 0 })).sort((a, b) => b.lowest - a.lowest).slice(0, 5).map((x) => {
     const roster = alive.find((r) => r.rosterId === x.id)!;
     const top = roster.players.map((id) => info[id]).filter(Boolean).map((p) => ({ p, w: weighted(gainsFor(slots, me.players, info, p.id, null, myBase)) })).sort((a, b) => b.w - a.w).slice(0, 3);
-    return { owner: x.owner, pointsSoFar: x.points, projectedRemaining: x.remaining, chance: round1(x.lowest * 100), best: top.map(({ p, w }) => ({ name: p.name, position: p.position, team: p.team, gainForMe: round1(w) })) };
+    return { owner: x.owner, ownerId: roster.ownerId, pointsSoFar: x.points, projectedRemaining: x.remaining, chance: round1(x.lowest * 100), best: top.map(({ p, w }) => ({ id: p.id, name: p.name, position: p.position, team: p.team, gainForMe: round1(w) })) };
   });
 
   // QB rank among every QB in the pool and on rosters, by average weekly projection when he plays.

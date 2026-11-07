@@ -13,7 +13,7 @@ export function lastName(name: string): string {
 export const HORIZON_WEIGHTS = [1, 0.8, 0.6];
 
 export type PlayerInfo = { id: string; name: string; position: string; team: string; injury: string; age: number | null; proj: number[]; byeWeeks: number[]; /** Next bye week still ahead this season (null once it has passed). */ nextBye?: number | null; /** QB only: rank by projected points among every QB in the league pool, 1 is best. */ qbRank?: number | null };
-export type GRoster = { rosterId: string; owner: string; isMine: boolean; eliminated: boolean; players: string[]; faab: number; waiverPosition: number };
+export type GRoster = { rosterId: string; ownerId: string; owner: string; isMine: boolean; eliminated: boolean; players: string[]; faab: number; waiverPosition: number };
 export type Tx = { type: string; status: string; leg: number; created: number; status_updated?: number; roster_ids?: number[]; adds?: Record<string, number> | null; drops?: Record<string, number> | null; settings?: { waiver_bid?: number; seq?: number } | null; waiver_budget?: { amount: number; sender: number; receiver: number }[] };
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);

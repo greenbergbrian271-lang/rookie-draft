@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import NflPlayerName from "@/components/NflPlayerName";
+import { ManagerLink } from "./league-nav";
 import { buildClaimSheet, buildMatrix, lastName, lineupShift, orderedPairs, tierOf, winAt, type ClaimSheet, type PlayerInfo } from "@/lib/in-season-guillotine";
 import shared from "./in-season-management.module.css";
 import styles from "./guillotine-waivers.module.css";
@@ -13,7 +15,7 @@ type Data = {
   eliminated?: boolean; week: number; horizon: number[]; league: { id: string; name: string; slots: string[] };
   me: { faab: number; waiverPosition: number; roster: PlayerInfo[] };
   faab: { teams: number; top: { owner: string; faab: number }; second: { owner: string; faab: number } | null; leadOverSecond: number; leadOverAverage: number; average: number; lowest: { owner: string; faab: number }; mine: number; mineRank: number };
-  chop: { week: number; scoringPosted: boolean; result: { owner: string } | null; teams: { owner: string; chance: number; pointsSoFar: number; projectedRemaining: number; best: { name: string; position: string; gainForMe: number }[] }[] };
+  chop: { week: number; scoringPosted: boolean; result: { owner: string } | null; teams: { owner: string; ownerId?: string; chance: number; pointsSoFar: number; projectedRemaining: number; best: { id: string; name: string; position: string; team: string; gainForMe: number }[] }[] };
   simulatedChop: { owner: string; released: number } | null; owners: string[]; targets: Target[]; tradeIdeas: Idea[];
 };
 type LeagueTab = { id: string; name: string; eliminated: boolean };
@@ -78,7 +80,7 @@ function dropNote(p: PlayerInfo, cost: number, roster: PlayerInfo[]): string {
   return parts.join(" · ");
 }
 
-export default function GuillotineWaivers() {
+export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (ownerId: string) => void } = {}) {
   const [leagues, setLeagues] = useState<LeagueTab[]>([]);
   const [leagueId, setLeagueId] = useState("");
   const [chop, setChop] = useState<string>(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("chop") || ""));
@@ -228,10 +230,13 @@ export default function GuillotineWaivers() {
     const list = ids.filter((id) => info[id]);
     return list.length ? <div className={styles.meta} style={{ marginTop: 6 }}>Removed: {list.map((id) => <button key={id} className={styles.link} style={{ marginRight: 8 }} onClick={() => restoreItem(kind, id)}>＋ {info[id].name}</button>)}</div> : null;
   };
+  /** A player name that opens the NFL player card. */
+  const pn = (id: string, label?: string) => { const p = info[id]; return p ? <NflPlayerName name={p.name} label={label} position={p.position} team={p.team} sleeperId={p.id} /> : null; };
+  const names = (xs: { id: string; value: number; note?: string }[]) => xs.length ? xs.map((x, k) => <span key={x.id}>{k ? ", " : ""}{pn(x.id, last(info[x.id].name))} {r1(x.value)}{x.note ? ` (${x.note})` : ""}</span>) : "none";
   const shiftRows = (add: string, drop: string) => lineupShift(live.league.slots, rosterIds, info, add, drop).slice(0, weeks).map((s) => (
     <td key={s.week} style={{ whiteSpace: "normal", minWidth: 150 }}>
       <b>{sign(s.gain)}</b>
-      <div className={styles.meta}>{s.ins.length || s.outs.length ? <>In: {s.ins.map((x) => `${last(info[x.id].name)} ${r1(x.value)}`).join(", ") || "none"}<br />Out: {s.outs.map((x) => `${last(info[x.id].name)} ${r1(x.value)} (${x.dropped ? "cut" : "to bench"})`).join(", ") || "none"}</> : "Starting lineup unchanged"}</div>
+      <div className={styles.meta}>{s.ins.length || s.outs.length ? <>In: {names(s.ins)}<br />Out: {names(s.outs.map((x) => ({ ...x, note: x.dropped ? "cut" : "to bench" })))}</> : "Starting lineup unchanged"}</div>
     </td>));
   const shown = new Set(targetIds);
 
@@ -262,7 +267,7 @@ export default function GuillotineWaivers() {
             {ranked.map((r, i) => { const t = targetById.get(r.id)!; return (
               <tr key={r.id}>
                 <td>{i + 1}</td>
-                <td><b>{t.name}</b><br /><span className={styles.meta}>{tag(t)}{t.byeWeeks.length ? ` · bye wk ${t.byeWeeks.join(",")}` : ""}</span>{t.newlyReleased && <span className={`${styles.badge} ${styles.good}`}>New</span>}{customIds.includes(r.id) && <span className={styles.badge}>Custom</span>}</td>
+                <td><b>{pn(t.id)}</b><br /><span className={styles.meta}>{tag(t)}{t.byeWeeks.length ? ` · bye wk ${t.byeWeeks.join(",")}` : ""}</span>{t.newlyReleased && <span className={`${styles.badge} ${styles.good}`}>New</span>}{customIds.includes(r.id) && <span className={styles.badge}>Custom</span>}</td>
                 <td><span className={`${styles.cell} ${tierClass(r.best?.net ?? -9)}`}>{sign(r.best?.net ?? 0)}</span></td>
                 <td>${t.bid.p50} / ${t.bid.p75} / ${t.bid.p90}</td>
                 <td>{mover("t", r.id, i, ranked.length)}</td>
@@ -288,7 +293,7 @@ export default function GuillotineWaivers() {
         <Sec id="drops" title="Drops" folded={!!folded.drops} toggle={toggle}>
           <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Player</th><th>Costs you</th><th>Order</th></tr></thead><tbody>
             {(showAllDrops ? dropIds : dropIds.slice(0, 10)).map((id, i) => { const p = info[id]; const cost = costOf.get(id) ?? 0; return (
-              <tr key={id}><td>{i + 1}</td><td><b>{p.name}</b> <span className={styles.meta}>{tag(p)}</span><br /><span className={styles.meta}>{dropNote(p, cost, rosterInfo)}</span></td><td>{cost < 0.05 ? "0" : `−${r1(cost)}`}</td><td>{mover("d", id, i, dropIds.length)}</td></tr>); })}
+              <tr key={id}><td>{i + 1}</td><td><b>{pn(id)}</b> <span className={styles.meta}>{tag(p)}</span><br /><span className={styles.meta}>{dropNote(p, cost, rosterInfo)}</span></td><td>{cost < 0.05 ? "0" : `−${r1(cost)}`}</td><td>{mover("d", id, i, dropIds.length)}</td></tr>); })}
           </tbody></table></div>
           {dropIds.length > 10 && <button className={styles.link} style={{ marginTop: 6 }} onClick={() => setShowAllDrops(!showAllDrops)}>{showAllDrops ? "Show top 10" : `Show all ${dropIds.length}`}</button>}
           {restoreRow("d", saved.rd)}
@@ -297,18 +302,18 @@ export default function GuillotineWaivers() {
 
       <Sec id="matrix" title="Add / drop matrix" folded={!!folded.matrix} toggle={toggle} info={<>Net lineup points over the next 3 weeks if you add the player on the left and cut the player on top. Each target is only compared with the drops ranked at or above his number (#1 vs drop 1, #2 vs drops 1–2, and so on), and there are never more drops than targets. Tap a cell to see who it moves in and out of your lineup. The outlined cell is each target&apos;s best swap.</>}>
         <div className={styles.meta} style={{ marginBottom: 8 }}><span className={`${styles.cell} ${styles.t1}`}>+10 Do it</span> <span className={`${styles.cell} ${styles.t2}`}>+5 Worth it</span> <span className={`${styles.cell} ${styles.t3}`}>+2 Marginal</span> <span className={`${styles.cell} ${styles.t4}`}>Skip</span></div>
-        <div className={styles.scroll}><table className={`${styles.table} ${styles.mx}`}><thead><tr><th>Add / Drop</th>{cols.map((d, ci) => <th key={d}>{ci + 1}. {last(info[d].name)}<span className={styles.sub}>{(costOf.get(d) ?? 0) < 0.05 ? "free" : `−${r1(costOf.get(d) ?? 0)}`}</span></th>)}</tr></thead><tbody>
-          {ranked.map((r, i) => <tr key={r.id}><td><b>{i + 1}. {last(targetById.get(r.id)!.name)}</b></td>{cols.map((d, ci) => { if (ci > i) return <td key={d} className={styles.meta}>·</td>; const net = r.row.nets[d]; const on = focus?.add === r.id && focus?.drop === d; return <td key={d}><button className={`${styles.cell} ${styles.pick} ${tierClass(net)} ${r.best?.drop === d ? styles.best : ""}`} style={on ? { boxShadow: "0 0 0 2px #9fd2ff" } : undefined} onClick={() => setFocus({ add: r.id, drop: d })}>{sign(net)}</button></td>; })}</tr>)}
+        <div className={styles.scroll}><table className={`${styles.table} ${styles.mx}`}><thead><tr><th>Add / Drop</th>{cols.map((d, ci) => <th key={d}>{ci + 1}. {pn(d, last(info[d].name))}<span className={styles.sub}>{(costOf.get(d) ?? 0) < 0.05 ? "free" : `−${r1(costOf.get(d) ?? 0)}`}</span></th>)}</tr></thead><tbody>
+          {ranked.map((r, i) => <tr key={r.id}><td><b>{i + 1}. {pn(r.id, last(targetById.get(r.id)!.name))}</b></td>{cols.map((d, ci) => { if (ci > i) return <td key={d} className={styles.meta}>·</td>; const net = r.row.nets[d]; const on = focus?.add === r.id && focus?.drop === d; return <td key={d}><button className={`${styles.cell} ${styles.pick} ${tierClass(net)} ${r.best?.drop === d ? styles.best : ""}`} style={on ? { boxShadow: "0 0 0 2px #9fd2ff" } : undefined} onClick={() => setFocus({ add: r.id, drop: d })}>{sign(net)}</button></td>; })}</tr>)}
         </tbody></table></div>
         {focus && info[focus.add] && info[focus.drop] && <div style={{ marginTop: 10 }}>
-          <div className={styles.meta} style={{ marginBottom: 4 }}><b>{info[focus.add].name}</b> in, <b>{info[focus.drop].name}</b> cut: who moves in and out of your starting lineup.</div>
+          <div className={styles.meta} style={{ marginBottom: 4 }}><b>{pn(focus.add)}</b> in, <b>{pn(focus.drop)}</b> cut: who moves in and out of your starting lineup.</div>
           <div className={styles.scroll}><table className={styles.table}><thead><tr>{live.horizon.slice(0, weeks).map((w) => <th key={w}>Week {w}</th>)}</tr></thead><tbody><tr>{shiftRows(focus.add, focus.drop)}</tr></tbody></table></div>
         </div>}
       </Sec>
 
       <Sec id="shifts" title="Lineup Impact" folded={!!folded.shifts} toggle={toggle} info={<>Net is not Player A against Player B. Each swap re-sets your whole starting lineup, so it also counts whoever the new player pushes to the bench. This shows the best swap for each target (among the drops he is compared with) and the players actually moving in and out of your lineup each week.</>}>
         <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Add → Drop</th>{live.horizon.slice(0, weeks).map((w) => <th key={w}>Week {w}</th>)}</tr></thead><tbody>
-          {ranked.filter((r) => r.best).map((r, i) => <tr key={r.id}><td style={{ whiteSpace: "nowrap" }}><b>{i + 1}. {targetById.get(r.id)!.name}</b><br /><span className={styles.meta}>for {info[r.best!.drop].name} · net {sign(r.best!.net)}</span></td>{shiftRows(r.id, r.best!.drop)}</tr>)}
+          {ranked.filter((r) => r.best).map((r, i) => <tr key={r.id}><td style={{ whiteSpace: "nowrap" }}><b>{i + 1}. {pn(r.id)}</b><br /><span className={styles.meta}>for {pn(r.best!.drop)} · net {sign(r.best!.net)}</span></td>{shiftRows(r.id, r.best!.drop)}</tr>)}
         </tbody></table></div>
       </Sec>
 
@@ -322,14 +327,14 @@ export default function GuillotineWaivers() {
             {sheets.after && <> After trading {sheets.sold} (${sheets.budgetAfter}): <b>+{r1(sheets.after.expected)}</b>, minus {sheets.loss} lineup points given up = <b>{sign(sheets.after.expected - sheets.loss - sheets.now.expected)}</b> net vs. no trade.</>}</div>
           <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Add</th><th>Drop</th><th>Net</th><th>Bid</th>{sheets.after && <th>After trade</th>}<th>Chance it hits</th></tr></thead><tbody>
             {sheets.now.rows.map((r, i) => { const a = sheets.after?.rows.find((x) => x.add === r.add && x.drop === r.drop); return (
-              <tr key={i}><td>{i + 1}</td><td>{info[r.add]?.name}</td><td>{info[r.drop]?.name}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td><td><b>${r.bid}</b></td>{sheets.after && <td>{a ? `$${a.bid}` : "—"}</td>}<td>{r.hit >= 0.005 ? pct(r.hit) : "<1%"}</td></tr>); })}
+              <tr key={i}><td>{i + 1}</td><td>{pn(r.add)}</td><td>{pn(r.drop)}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td><td><b>${r.bid}</b></td>{sheets.after && <td>{a ? `$${a.bid}` : "—"}</td>}<td>{r.hit >= 0.005 ? pct(r.hit) : "<1%"}</td></tr>); })}
           </tbody></table></div>
         </>}
       </Sec>
 
       <Sec id="trade" title="Trade for FAAB" folded={!!folded.trade} toggle={toggle}>
         <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Player</th><th>Lineup cost</th><th>Est. FAAB from</th><th /></tr></thead><tbody>
-          {live.tradeIdeas.map((i) => <tr key={i.id}><td>{i.name} <span className={styles.meta}>{tag(i)}</span>{i.tier === 2 ? <span className={`${styles.badge} ${styles.good}`}>Elite</span> : i.tier === 1 ? <span className={styles.badge}>Star</span> : null}</td><td>{i.lineupLoss > 0 ? `−${i.lineupLoss}` : "None"}</td><td className={styles.meta}>{i.offers.length ? i.offers.slice(0, 3).map((o) => `${o.owner} ~$${o.faab}`).join(", ") : "No buyers"}</td><td>{i.offers.length > 0 && <button className={styles.btn} onClick={() => { setSellId(i.id); setBuyer(i.offers[0].owner); }}>Simulate</button>}</td></tr>)}
+          {live.tradeIdeas.map((i) => <tr key={i.id}><td><NflPlayerName name={i.name} position={i.position} team={i.team} sleeperId={i.id} /> <span className={styles.meta}>{tag(i)}</span>{i.tier === 2 ? <span className={`${styles.badge} ${styles.good}`}>Elite</span> : i.tier === 1 ? <span className={styles.badge}>Star</span> : null}</td><td>{i.lineupLoss > 0 ? `−${i.lineupLoss}` : "None"}</td><td className={styles.meta}>{i.offers.length ? i.offers.slice(0, 3).map((o) => `${o.owner} ~$${o.faab}`).join(", ") : "No buyers"}</td><td>{i.offers.length > 0 && <button className={styles.btn} onClick={() => { setSellId(i.id); setBuyer(i.offers[0].owner); }}>Simulate</button>}</td></tr>)}
         </tbody></table></div>
         <div className={styles.row} style={{ marginTop: 12 }}>
           <label className={styles.meta}>Trade<br /><select className={styles.select} value={sellId} onChange={(e) => { setSellId(e.target.value); setBuyer(live.tradeIdeas.find((i) => i.id === e.target.value)?.offers[0]?.owner || ""); }}><option value="">Pick a player</option>{live.tradeIdeas.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.position})</option>)}</select></label>
@@ -337,7 +342,7 @@ export default function GuillotineWaivers() {
           {offer && <div className={styles.stat}><b>${faab} → ${after}</b><span>~${offer.faab} back · lineup −{sel!.lineupLoss}</span></div>}
         </div>
         {offer && <div className={styles.scroll} style={{ marginTop: 10 }}><table className={styles.table}><thead><tr><th>Target</th><th>Win % at ${faab}</th><th>At ${after}</th></tr></thead><tbody>
-          {ranked.slice(0, 6).map((r) => { const t = targetById.get(r.id)!; return <tr key={t.id}><td>{t.name}</td><td>{pct(winAt(t.bid.curve, faab))}</td><td>{pct(winAt(t.bid.curve, after))}</td></tr>; })}
+          {ranked.slice(0, 6).map((r) => { const t = targetById.get(r.id)!; return <tr key={t.id}><td>{pn(t.id)}</td><td>{pct(winAt(t.bid.curve, faab))}</td><td>{pct(winAt(t.bid.curve, after))}</td></tr>; })}
         </tbody></table></div>}
       </Sec>
 
@@ -345,7 +350,7 @@ export default function GuillotineWaivers() {
         {live.chop.result ? <div className={styles.meta}>Week {live.chop.week}: {live.chop.result.owner} was chopped. Their players are on the wire for Wednesday.</div> : <>
           <div className={styles.meta} style={{ marginBottom: 6 }}>Chance each team has the lowest Week {live.chop.week} score and is chopped (about midnight to 3am ET Tuesday).{live.chop.scoringPosted ? "" : " Scoring isn't posted yet, so treat as rough."}</div>
           <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Team</th><th>Chopped %</th><th>Wk {live.chop.week} pts</th><th>Left to play</th><th>Your best adds if chopped</th><th /></tr></thead><tbody>
-            {live.chop.teams.map((t) => <tr key={t.owner}><td>{t.owner}</td><td>{t.chance}%</td><td>{t.pointsSoFar}</td><td>{t.projectedRemaining}</td><td className={styles.meta}>{t.best.filter((b) => b.gainForMe > 0).map((b) => `${b.name} +${b.gainForMe}`).join(", ") || "—"}</td><td><button className={styles.btn} onClick={() => setChop(t.owner)}>Test</button></td></tr>)}
+            {live.chop.teams.map((t) => <tr key={t.owner}><td><ManagerLink ownerId={t.ownerId} onOpen={onOpenManager}>{t.owner}</ManagerLink></td><td>{t.chance}%</td><td>{t.pointsSoFar}</td><td>{t.projectedRemaining}</td><td className={styles.meta}>{t.best.filter((b) => b.gainForMe > 0).map((b, k) => <span key={b.id}>{k ? ", " : ""}<NflPlayerName name={b.name} position={b.position} team={b.team} sleeperId={b.id} /> +{b.gainForMe}</span>)}{!t.best.some((b) => b.gainForMe > 0) && "—"}</td><td><button className={styles.btn} onClick={() => setChop(t.owner)}>Test</button></td></tr>)}
           </tbody></table></div></>}
       </Sec>
       <div className={styles.foot}>Trade prices are estimates: ordinary starters are priced inside the range this league has actually seen (about $30–70); stars and elites (top few at RB, WR, TE, QB by projection) are priced off what each buyer would bid on waivers, scaled to his remaining FAAB, with no flat ceiling.</div>

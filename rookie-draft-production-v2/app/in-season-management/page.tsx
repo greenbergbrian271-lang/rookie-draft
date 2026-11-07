@@ -169,7 +169,7 @@ export default function InSeasonManagementPage() {
       {section === "lineups" && <LineupView leagues={leagueData} intents={intents} onOpenManager={openManager} outlook={outlook} />}
       {section === "league-overview" && <LeagueOverviewView leagues={leagueData} intents={intents} onIntent={setIntent} saveError={saveError} onOpenManager={openManager} />}
 
-      {section === "guillotine" && <GuillotineWaivers />}
+      {section === "guillotine" && <GuillotineWaivers onOpenManager={openManager} />}
       {section === "waivers" && <LiveLeagueView kind="waivers" leagues={leagueData} checks={checks} />}
 
       {section === "players" && <LiveLeagueView kind="players" leagues={leagueData} checks={checks} />}
