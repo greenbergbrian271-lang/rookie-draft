@@ -2,6 +2,7 @@ import { isMineRoster, nflPlayersCached, playerName, sleeper } from "@/lib/in-se
 import { getNflSchedule } from "@/lib/espn-nfl-schedule";
 import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
+import { normalizeDraftName, topThreeRoundKeys } from "@/lib/nfl-draft-results";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
   HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, faabTrades, TRADE_CEILING, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, starTier, tradeOffers, typicalBid, weighted,
@@ -222,6 +223,7 @@ export async function GET(request: Request) {
     const vals = baseline.map((m) => { const row = m?.get(id); return row ? projectPoints(row.stats, scoring) : 0; }).filter((v) => v > 0);
     if (vals.length && positions.has(String(p.position))) baseAvg.set(id, sum(vals) / vals.length);
   }
+  const topPicks = await topThreeRoundKeys().catch(() => new Set<string>());
   const eliteIds = new Set<string>();
   if (baseAvg.size) {
     const ranked: Record<string, string[]> = {};
@@ -287,13 +289,13 @@ export async function GET(request: Request) {
   return Response.json({
     week: chopWeek, season, horizon, weights: HORIZON_WEIGHTS, fetchedAt: new Date().toISOString(),
     league: { id: LEAGUE, name: league.name, slots, capacity, bidders, bidMin },
-    me: { faab: me.faab, waiverPosition: me.waiverPosition, roster: myInfo.map((p) => ({ ...p, proj: p.proj.map(round1), elite: eliteIds.has(p.id) })) },
+    me: { faab: me.faab, waiverPosition: me.waiverPosition, roster: myInfo.map((p) => ({ ...p, proj: p.proj.map(round1), elite: eliteIds.has(p.id), topPick: topPicks.has(normalizeDraftName(p.name) + "|" + p.position) })) },
     simulatedChop: simulated ? { owner: simulated.owner, released: simReleased.size } : null,
     owners: rosters.filter((r) => !r.isMine && (!r.eliminated || r === simulated)).map((r) => r.owner),
     price: { samples: book.length, medianBudget },
     learning: {
       winsThisYear: txs.filter((t) => t.type === "waiver" && t.status === "complete").length, winsLastYear: lastYearTx.filter((t) => t.type === "waiver" && t.status === "complete").length,
-      chopsThisYear: chops.length, priceSamples: book.length, tradeCeiling, trades: seenTrades.slice(0, 12), baseline: baselineWeeks, builtAt: new Date().toISOString(),
+      chopsThisYear: chops.length, priceSamples: book.length, tradeCeiling, trades: seenTrades.slice(0, 12), baseline: baselineWeeks, topPickCount: topPicks.size, builtAt: new Date().toISOString(),
     },
     faab: (() => {
       const sorted = [...alive].sort((a, b) => b.faab - a.faab);

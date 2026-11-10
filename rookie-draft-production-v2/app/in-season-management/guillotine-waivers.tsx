@@ -19,7 +19,7 @@ type Data = {
   chop: { week: number; scoringPosted: boolean; result: { owner: string } | null; teams: { owner: string; ownerId?: string; chance: number; pointsSoFar: number; projectedRemaining: number; best: { id: string; name: string; position: string; team: string; gainForMe: number }[] }[] };
   simulatedChop: { owner: string; released: number } | null; owners: string[]; targets: Target[]; tradeIdeas: Idea[];
 };
-type Learning = { winsThisYear: number; winsLastYear: number; chopsThisYear: number; priceSamples: number; tradeCeiling: number; baseline: number[]; builtAt: string; trades: { week: number; faab: number; from: string; to: string; players: string[]; picks: number; year: string }[] };
+type Learning = { topPickCount?: number; winsThisYear: number; winsLastYear: number; chopsThisYear: number; priceSamples: number; tradeCeiling: number; baseline: number[]; builtAt: string; trades: { week: number; faab: number; from: string; to: string; players: string[]; picks: number; year: string }[] };
 type LeagueTab = { id: string; name: string; eliminated: boolean };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -174,10 +174,11 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
     const extra = customIds.filter((id) => !base.includes(id) && (matrix?.rows || []).some((r) => r.id === id));
     return [...base, ...extra].filter((id) => !saved.rt.includes(id));
   }, [matrix, customIds, saved.rt]);
-  /** Elite players are never offered as cuts, even when injured, unless you mark them out for the year. */
-  const isProtected = useCallback((id: string) => !!info[id]?.elite && !saved.oy.includes(id), [info, saved.oy]);
+  /** Players drafted in the first three rounds, and elite players, are never offered as cuts (even when injured) unless you mark them out for the year. */
+  const shielded = useCallback((id: string) => !!(info[id]?.elite || info[id]?.topPick), [info]);
+  const isProtected = useCallback((id: string) => shielded(id) && !saved.oy.includes(id), [shielded, saved.oy]);
   const protectedIds = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => isProtected(id)), [matrix, isProtected]);
-  const markedOut = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => info[id]?.elite && saved.oy.includes(id)), [matrix, info, saved.oy]);
+  const markedOut = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => shielded(id) && saved.oy.includes(id)), [matrix, shielded, saved.oy]);
   const defaultD = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => !saved.rd.includes(id) && !isProtected(id)), [matrix, saved.rd, isProtected]);
   const targetIds = useMemo(() => merge(saved.t, defaultT), [saved.t, defaultT]);
   const dropIds = useMemo(() => merge(saved.d, defaultD), [saved.d, defaultD]);
@@ -389,7 +390,7 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
       </Sec>
       <Sec id="learning" title="What the model has learned" folded={!!folded.learning} toggle={toggle} info={<>The bid prices are rebuilt from the league&apos;s own transactions every time the page loads, so each new waiver result and FAAB trade is picked up on refresh. Rival rosters and FAAB are live, so a player trade changes who wants whom right away. What does not adjust itself: the shape of the price model, trade-price percentages and the elite cut-offs. Those change when we recalibrate them together.</>}>
         {live.learning ? <>
-          <div className={styles.meta} style={{ marginBottom: 8 }}>Prices come from <b>{live.learning.winsThisYear}</b> winning claims this season ({live.learning.chopsThisYear} weeks of chops) and <b>{live.learning.winsLastYear}</b> from last season, rebuilt just now. Ordinary-player trade ceiling: <b>${live.learning.tradeCeiling}</b>{live.learning.tradeCeiling > 70 ? " (raised by an actual trade in this league)" : ""}. Elite status is judged on week {live.learning.baseline.join(", ") || "n/a"} projections.</div>
+          <div className={styles.meta} style={{ marginBottom: 8 }}>Prices come from <b>{live.learning.winsThisYear}</b> winning claims this season ({live.learning.chopsThisYear} weeks of chops) and <b>{live.learning.winsLastYear}</b> from last season, rebuilt just now. Ordinary-player trade ceiling: <b>${live.learning.tradeCeiling}</b>{live.learning.tradeCeiling > 70 ? " (raised by an actual trade in this league)" : ""}. Elite status is judged on week {live.learning.baseline.join(", ") || "n/a"} projections; {live.learning.topPickCount || 0} round 1–3 picks (2014–2026) are protected from cuts.</div>
           <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Season</th><th>Week</th><th>FAAB</th><th>Players</th><th>Picks in deal</th></tr></thead><tbody>
             {live.learning.trades.map((t, i) => <tr key={i}><td>{t.year}</td><td>{t.week}</td><td>${t.faab}{t.year === "this year" ? <span className={styles.meta}> {t.from} → {t.to}</span> : null}</td><td className={styles.meta}>{t.players.join(", ") || "—"}</td><td>{t.picks || "—"}</td></tr>)}
             {!live.learning.trades.length && <tr><td colSpan={5} className={styles.meta}>No FAAB trades found in the league&apos;s transactions yet.</td></tr>}
