@@ -12,9 +12,9 @@ export function lastName(name: string): string {
 /** Next three fantasy weeks count less the further out they are: injuries and byes make later weeks less certain. */
 export const HORIZON_WEIGHTS = [1, 0.8, 0.6];
 
-export type PlayerInfo = { id: string; name: string; position: string; team: string; injury: string; age: number | null; proj: number[]; byeWeeks: number[]; /** Next bye week still ahead this season (null once it has passed). */ nextBye?: number | null; /** QB only: rank by projected points among every QB in the league pool, 1 is best. */ qbRank?: number | null };
+export type PlayerInfo = { id: string; name: string; position: string; team: string; injury: string; age: number | null; proj: number[]; byeWeeks: number[]; /** Next bye week still ahead this season (null once it has passed). */ nextBye?: number | null; /** QB only: rank by projected points among every QB in the league pool, 1 is best. */ qbRank?: number | null; /** Elite by season baseline (position rank on early-season projections, not the next three weeks), so an injured star still counts. Never offered as a cut. */ elite?: boolean };
 export type GRoster = { rosterId: string; ownerId: string; owner: string; isMine: boolean; eliminated: boolean; players: string[]; faab: number; waiverPosition: number };
-export type Tx = { type: string; status: string; leg: number; created: number; status_updated?: number; roster_ids?: number[]; adds?: Record<string, number> | null; drops?: Record<string, number> | null; settings?: { waiver_bid?: number; seq?: number } | null; waiver_budget?: { amount: number; sender: number; receiver: number }[] };
+export type Tx = { draft_picks?: unknown[] | null; type: string; status: string; leg: number; created: number; status_updated?: number; roster_ids?: number[]; adds?: Record<string, number> | null; drops?: Record<string, number> | null; settings?: { waiver_bid?: number; seq?: number } | null; waiver_budget?: { amount: number; sender: number; receiver: number }[] };
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 export const round1 = (value: number) => Math.round(value * 10) / 10;
@@ -221,10 +221,10 @@ const TIME_FLOOR = [0, 0.5, 0.75];
  * league's observed ceiling and a fifth of the buyer's FAAB. Stars and elites: a bigger share (45% / 70%), a smaller late-season discount, and a
  * higher cap on the buyer's own FAAB, with no flat ceiling.
  */
-export function tradeOffers(rivals: Rival[], bins: ShareBins, timeFactor: number, tier: 0 | 1 | 2 = 0): TradeOffer[] {
+export function tradeOffers(rivals: Rival[], bins: ShareBins, timeFactor: number, tier: 0 | 1 | 2 = 0, ceiling: number = TRADE_CEILING): TradeOffer[] {
   return rivals
     .filter((r) => r.gain >= 0.5)
-    .map((r) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.max(1, Math.round(Math.min(tier ? Infinity : TRADE_CEILING, BUYER_CAP[tier] * r.budget, TRADE_SHARE[tier] * typicalBid(r, bins) * Math.max(TIME_FLOOR[tier], timeFactor)))) }))
+    .map((r) => ({ rosterId: r.rosterId, owner: r.owner, theirGain: round1(r.gain), theirBudget: r.budget, faab: Math.max(1, Math.round(Math.min(tier ? Infinity : ceiling, BUYER_CAP[tier] * r.budget, TRADE_SHARE[tier] * typicalBid(r, bins) * Math.max(TIME_FLOOR[tier], timeFactor)))) }))
     .sort((a, b) => b.faab - a.faab);
 }
 
@@ -343,7 +343,8 @@ export function lineupShift(slots: string[], roster: string[], info: Record<stri
 /* ---------- claim sheet (the Sleeper claims list, in order) ---------- */
 
 export type SheetTarget = { id: string; curve: { bid: number; win: number }[]; p50: number; p75: number; p90: number };
-export type SheetRow = { add: string; drop: string; bid: number; hit: number; net: number };
+/** `hit` = chance this claim is the one that goes through (earlier claims get the first shot). `win` = chance this bid beats the best rival bid, on the same curve the Targets table uses. */
+export type SheetRow = { add: string; drop: string; bid: number; hit: number; win: number; net: number; /** Bid was typed or already placed, so a rebuild leaves it alone. */ locked?: boolean; /** Bid was lowered to what is left after the #1 bid (player #2 only). */ capped?: number };
 export type ClaimSheet = { rows: SheetRow[]; expected: number; landAny: number; chance: { id: string; win: number }[] };
 
 /** Draw one rival top bid from a win-probability curve (the curve is P(rival top bid < bid)). */
@@ -390,13 +391,13 @@ export function ladderBid(curve: { bid: number; win: number }[], rank: number, b
  * roster and enough FAAB is left. Rival bids are drawn once per player per simulated week, so every row for a player faces the same competition.
  * Bids are tuned for expected lineup gain over the simulated weeks, then trimmed so no row bids more than it needs to.
  */
-export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; pairs: { add: string; drop: string; net?: number; rank?: number }[]; budget: number; worlds?: number; seed?: number; ladder?: boolean }): ClaimSheet {
+export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; pairs: { add: string; drop: string; net?: number; rank?: number }[]; budget: number; worlds?: number; seed?: number; ladder?: boolean; /** Bids typed by hand (or already placed in Sleeper), keyed "addId|dropId". Kept as is; everything else is rebuilt around them. */ locked?: Record<string, number>; bidMin?: number }): ClaimSheet {
   const targets = opts.targets.slice(0, 14);
   const budget = Math.max(0, Math.floor(opts.budget));
   const tIndex = new Map(targets.map((t, i) => [t.id, i]));
   const dropIds = Array.from(new Set(opts.pairs.map((p) => p.drop))).slice(0, 14);
   const dIndex = new Map(dropIds.map((id, i) => [id, i]));
-  type R = { t: number; d: number; bid: number; net: number; add: string; drop: string; rank: number };
+  type R = { t: number; d: number; bid: number; net: number; add: string; drop: string; rank: number; locked?: boolean; capped?: number };
   const base: R[] = opts.pairs.filter((p) => tIndex.has(p.add) && dIndex.has(p.drop)).slice(0, 40).map((p) => ({ t: tIndex.get(p.add)!, d: dIndex.get(p.drop)!, bid: 1, net: p.net ?? 0, add: p.add, drop: p.drop, rank: p.rank ?? 0 }));
   if (!base.length || budget < 1) return { rows: [], expected: 0, landAny: 0, chance: [] };
   const W = opts.worlds ?? 400;
@@ -432,9 +433,22 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
 
   const grid = targets.map((t) => Array.from(new Set([1, 2, 3, 5, 8, 12, 17, 25, 35, 50, 65, 80, 100, 130, 160, 200, 260, 330, 420, 550, t.p50, t.p75, t.p90, budget].filter((b) => b >= 1 && b <= budget))).sort((a, b) => a - b));
   const seen = new Map<number, number>();
-  const rows = base.map((r) => { const k = seen.get(r.t) || 0; seen.set(r.t, k + 1); return { ...r, bid: Math.min(budget, Math.max(1, Math.round(targets[r.t].p75 * 0.5 ** k))) }; });
+  let rows = base.map((r) => { const k = seen.get(r.t) || 0; seen.set(r.t, k + 1); return { ...r, bid: Math.min(budget, Math.max(1, Math.round(targets[r.t].p75 * 0.5 ** k))) }; });
   let value = run(rows);
-  if (opts.ladder) rows.forEach((r) => { r.bid = ladderBid(targets[r.t].curve, r.rank, budget); });
+  if (opts.ladder) {
+    const bidMin = Math.max(1, opts.bidMin ?? 1);
+    rows.forEach((r) => { r.bid = ladderBid(targets[r.t].curve, r.rank, budget); });
+    // Bids you typed (or already placed in Sleeper) stay exactly as they are.
+    rows.forEach((r) => { const L = opts.locked?.[r.add + "|" + r.drop]; if (L !== undefined && Number.isFinite(L)) { r.bid = Math.min(budget, Math.max(bidMin, Math.round(L))); r.locked = true; } });
+    // Player #2 only: his second claim (the one on drop 2) can only fire after player #1 landed on drop 1, so it can only spend what #1 left behind.
+    // If #1 took everything, that claim is impossible and is not suggested. Players #3 and beyond are not limited this way: more players and FAAB are in play.
+    const first = rows.find((r) => r.t === 0 && r.rank === 0);
+    if (first) {
+      const left = budget - first.bid;
+      rows = rows.filter((r) => !(r.t === 1 && r.rank >= 1 && left < bidMin));
+      rows.forEach((r) => { if (r.t === 1 && r.rank >= 1 && r.bid > left) { r.bid = left; r.capped = left; } });
+    }
+  }
   else for (let sweep = 0; sweep < 3; sweep++) {
     let changed = false;
     for (let r = 0; r < rows.length; r++) {
@@ -461,5 +475,15 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
   const detail = { hit: rows.map(() => 0), chance: targets.map(() => 0), any: 0 };
   const expected = run(rows, detail);
   // Rows that essentially never land are noise on a claims list, so they are left off.
-  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, net: r.net })).filter((r) => opts.ladder || r.hit >= 0.005), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
+  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, win: winAt(targets[r.t].curve, r.bid), net: r.net, ...(r.locked ? { locked: true } : {}), ...(r.capped !== undefined ? { capped: r.capped } : {}) })).filter((r) => opts.ladder || r.hit >= 0.005), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
+}
+
+/** FAAB-for-player trades seen in a league's own transactions (completed trades that moved FAAB). Picks in the deal are flagged because they muddy the price. */
+export type FaabTrade = { week: number; faab: number; from: string; to: string; players: string[]; picks: number };
+export function faabTrades(tx: Tx[], ownerOf: (rosterId: number) => string, nameOf: (playerId: string) => string): FaabTrade[] {
+  return tx.filter((t) => t.type === "trade" && t.status === "complete" && (t.waiver_budget || []).some((b) => b.amount > 0)).map((t) => {
+    const w = (t.waiver_budget || []).filter((b) => b.amount > 0);
+    const receiver = w[0].receiver, sender = w[0].sender;
+    return { week: t.leg, faab: sum(w.map((b) => b.amount)), from: ownerOf(sender), to: ownerOf(receiver), players: Object.entries(t.adds || {}).filter(([, r]) => r === sender).map(([id]) => nameOf(id)), picks: (t.draft_picks || []).length };
+  }).sort((a, b) => b.week - a.week);
 }

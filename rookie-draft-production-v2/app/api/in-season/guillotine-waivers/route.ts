@@ -4,7 +4,7 @@ import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
-  HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, starTier, tradeOffers, typicalBid, weighted,
+  HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, faabTrades, TRADE_CEILING, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, starTier, tradeOffers, typicalBid, weighted,
   type GRoster, type PlayerInfo, type Rival, type Tx,
 } from "@/lib/in-season-guillotine";
 
@@ -93,10 +93,13 @@ export async function GET(request: Request) {
   const batchDone = !!lastChop && txs.some((t) => t.type === "waiver" && t.status === "complete" && t.leg === lastChop.leg && Number(t.status_updated || 0) > lastChop.created);
   const chopWeek = lastChop ? (batchDone ? lastChop.leg + 1 : lastChop.leg) : 1;
   const horizon = [chopWeek + 1, chopWeek + 2, chopWeek + 3].filter((w) => w <= 18);
-  const [players, schedule, projections, weekProj] = await Promise.all([
+  // Early-season projections show who a player really is when healthy, so an injured star is not mistaken for a spare part by the next-three-weeks view.
+  const baselineWeeks = [1, 2, 3].filter((w) => w < chopWeek);
+  const [players, schedule, projections, weekProj, baseline] = await Promise.all([
     nflPlayersCached(), getNflSchedule(season, Array.from({ length: 19 - chopWeek }, (_, i) => chopWeek + i)).catch(() => null),
     Promise.all(horizon.map((w) => getWeekProjections(season, w).catch(() => null))),
     getWeekProjections(season, chopWeek).catch(() => null),
+    Promise.all(baselineWeeks.map((w) => getWeekProjections(season, w).catch(() => null))),
   ]);
   const book = [...buildPriceBook(lastYearTx, "last year", budget, teams, bidMin), ...buildPriceBook(txs, "this year", budget, teams, bidMin)];
 
@@ -213,13 +216,33 @@ export async function GET(request: Request) {
   Object.values(info).forEach((p) => (byPos[p.position] ||= []).push(p));
   Object.values(byPos).forEach((l) => l.sort((a, b) => avgPlayedP(b) - avgPlayedP(a)));
   const tierOfPlayer = (p: PlayerInfo) => starTier(p.position, (byPos[p.position] || []).findIndex((x) => x.id === p.id));
+  // Elite = top of his position on early-season projections (same cut-offs as the trade "Elite" tag). Falls back to Sleeper's own player ranking if no baseline loaded.
+  const baseAvg = new Map<string, number>();
+  for (const [id, p] of Object.entries<any>(players)) {
+    const vals = baseline.map((m) => { const row = m?.get(id); return row ? projectPoints(row.stats, scoring) : 0; }).filter((v) => v > 0);
+    if (vals.length && positions.has(String(p.position))) baseAvg.set(id, sum(vals) / vals.length);
+  }
+  const eliteIds = new Set<string>();
+  if (baseAvg.size) {
+    const ranked: Record<string, string[]> = {};
+    baseAvg.forEach((_v, id) => (ranked[String(players[id].position)] ||= []).push(id));
+    Object.entries(ranked).forEach(([pos, ids]) => { ids.sort((a, b) => baseAvg.get(b)! - baseAvg.get(a)!); ids.forEach((id, i) => { if (starTier(pos, i) === 2) eliteIds.add(id); }); });
+  } else {
+    const ranked: Record<string, string[]> = {};
+    Object.entries<any>(players).forEach(([id, p]) => { if (positions.has(String(p.position)) && p.team && Number(p.search_rank ?? 99999) < 99999) (ranked[String(p.position)] ||= []).push(id); });
+    Object.entries(ranked).forEach(([pos, ids]) => { ids.sort((a, b) => Number(players[a].search_rank) - Number(players[b].search_rank)); ids.forEach((id, i) => { if (starTier(pos, i) === 2) eliteIds.add(id); }); });
+  }
+  // Trades that already happened teach the price: the ordinary-player ceiling rises if the league has paid more than the built-in one (picks in the deal excluded).
+  const ownerOf = (rid: number) => rosters.find((r) => Number(r.rosterId) === rid)?.owner || `Team ${rid}`;
+  const seenTrades = [...faabTrades(txs, ownerOf, (id) => playerName(id, players)).map((t) => ({ ...t, year: "this year" })), ...faabTrades(lastYearTx, () => "—", (id) => playerName(id, players)).map((t) => ({ ...t, year: "last year" }))];
+  const tradeCeiling = Math.max(TRADE_CEILING, ...seenTrades.filter((t) => !t.picks && t.players.length <= 1).map((t) => t.faab));
   const tradeIdeas = myInfo.map((p) => {
     const without = me.players.filter((id) => id !== p.id);
     const lost = lineupTotals(slots, without, info);
     const loss = weighted(myBase.map((t, i) => t - lost[i]));
     const rivals = rivalsFor(p.id);
     const tier = tierOfPlayer(p);
-    const offers = tradeOffers(rivals, bins, timeFactor, tier);
+    const offers = tradeOffers(rivals, bins, timeFactor, tier, tradeCeiling);
     return { id: p.id, name: p.name, position: p.position, team: p.team, injury: p.injury, age: p.age, proj: p.proj.map(round1), byeWeeks: p.byeWeeks, lineupLoss: round1(loss), tier, offers: offers.slice(0, 6), topOffer: offers[0]?.faab || 0 };
   }).sort((a, b) => b.topOffer - a.topOffer);
 
@@ -263,11 +286,15 @@ export async function GET(request: Request) {
   }
   return Response.json({
     week: chopWeek, season, horizon, weights: HORIZON_WEIGHTS, fetchedAt: new Date().toISOString(),
-    league: { id: LEAGUE, name: league.name, slots, capacity, bidders },
-    me: { faab: me.faab, waiverPosition: me.waiverPosition, roster: myInfo.map((p) => ({ ...p, proj: p.proj.map(round1) })) },
+    league: { id: LEAGUE, name: league.name, slots, capacity, bidders, bidMin },
+    me: { faab: me.faab, waiverPosition: me.waiverPosition, roster: myInfo.map((p) => ({ ...p, proj: p.proj.map(round1), elite: eliteIds.has(p.id) })) },
     simulatedChop: simulated ? { owner: simulated.owner, released: simReleased.size } : null,
     owners: rosters.filter((r) => !r.isMine && (!r.eliminated || r === simulated)).map((r) => r.owner),
     price: { samples: book.length, medianBudget },
+    learning: {
+      winsThisYear: txs.filter((t) => t.type === "waiver" && t.status === "complete").length, winsLastYear: lastYearTx.filter((t) => t.type === "waiver" && t.status === "complete").length,
+      chopsThisYear: chops.length, priceSamples: book.length, tradeCeiling, trades: seenTrades.slice(0, 12), baseline: baselineWeeks, builtAt: new Date().toISOString(),
+    },
     faab: (() => {
       const sorted = [...alive].sort((a, b) => b.faab - a.faab);
       const top = sorted[0], second = sorted[1], low = sorted[sorted.length - 1];

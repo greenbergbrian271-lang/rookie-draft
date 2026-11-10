@@ -244,3 +244,33 @@ const wx=buildWeatherAlerts([wxLeague,{...wxLeague,id:"W2",name:"Second League"}
 assert.equal(wx.length,1,"one alert per game, not per player or league");assert.equal(wx[0].leagues.length,2);assert.equal(wx[0].details.length,2);assert.match(wx[0].title,/CHI at BUF/);
 assert.equal(buildWeatherAlerts([wxLeague],sched,8,new Date("2026-11-01T19:00:00Z")).length,0,"no weather alert once the game has kicked off");
 console.log("in-season unit checks passed");
+
+// ---- guillotine claim sheet: player #2 affordability, manual bids, win vs lands ----
+import {buildClaimSheet,orderedPairs,buildMatrix,winAt} from "../lib/in-season-guillotine.ts";
+{
+  const mk=(id,position,proj)=>({id,name:"P"+id,position,team:"BUF",injury:"",age:25,proj,byeWeeks:[]});
+  const info={r1:mk("r1","WR",[10,10,10]),r2:mk("r2","WR",[9,9,9]),r3:mk("r3","WR",[8,8,8]),a:mk("a","WR",[25,25,25]),b:mk("b","WR",[22,22,22]),c:mk("c","WR",[20,20,20])};
+  const slots=["WR","WR"],roster=["r1","r2","r3"];
+  const curve=[{bid:3,win:.1},{bid:20,win:.3},{bid:50,win:.45},{bid:79,win:.46},{bid:100,win:.46},{bid:150,win:.5},{bid:250,win:.9},{bid:550,win:1}];
+  const easy=[{bid:3,win:.5},{bid:20,win:.8},{bid:50,win:.95},{bid:550,win:1}];
+  const targets=[{id:"a",curve,p50:150,p75:200,p90:230},{id:"b",curve:easy,p50:20,p75:40,p90:60},{id:"c",curve:easy,p50:5,p75:10,p90:20}];
+  const mx=buildMatrix(slots,roster,info,["a","b","c"]);
+  const pairs=orderedPairs(mx,["a","b","c"],["r3","r2","r1"],-99);
+  const run=(locked)=>buildClaimSheet({slots,roster,info,targets,pairs,budget:82,ladder:true,locked,bidMin:1});
+  // #1 takes the whole $82: #2's second claim is impossible and must not appear; #2's first claim and #3 rows stay
+  const full=run();
+  assert.equal(full.rows.find(r=>r.add==="a"&&r.drop==="r3").bid,82);
+  assert.ok(!full.rows.some(r=>r.add==="b"&&r.drop==="r2"));
+  assert.ok(full.rows.some(r=>r.add==="b"&&r.drop==="r3"));
+  assert.ok(full.rows.some(r=>r.add==="c"&&r.drop==="r2"),"player #3 is not limited by the #2 rule");
+  // typing $81 for #1 leaves $1: player #2's second claim returns at $1 and #1's bid is untouched
+  const edited=run({"a|r3":81});
+  const a=edited.rows.find(r=>r.add==="a"&&r.drop==="r3");
+  assert.equal(a.bid,81); assert.ok(a.locked);
+  const second=edited.rows.find(r=>r.add==="b"&&r.drop==="r2");
+  assert.equal(second.bid,1); assert.equal(second.capped,1);
+  // a claim can never land more often than it can win
+  edited.rows.forEach(r=>assert.ok(r.hit<=r.win+0.06,`${r.add}/${r.drop} lands ${r.hit} > win ${r.win}`));
+  // win % is read off the same curve the Targets table uses
+  assert.equal(Math.round(edited.rows.find(r=>r.add==="a"&&r.drop==="r3").win*100),Math.round(winAt(curve,81)*100));
+}

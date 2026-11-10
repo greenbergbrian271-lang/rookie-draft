@@ -12,12 +12,14 @@ type Target = { id: string; name: string; position: string; team: string; age: n
 type Offer = { owner: string; theirGain: number; faab: number; theirBudget: number };
 type Idea = { id: string; name: string; position: string; team: string; injury: string; lineupLoss: number; tier: number; offers: Offer[]; topOffer: number };
 type Data = {
-  eliminated?: boolean; week: number; horizon: number[]; league: { id: string; name: string; slots: string[] };
+  eliminated?: boolean; week: number; horizon: number[]; league: { id: string; name: string; slots: string[]; bidMin?: number };
+  learning?: Learning;
   me: { faab: number; waiverPosition: number; roster: PlayerInfo[] };
   faab: { teams: number; top: { owner: string; faab: number }; second: { owner: string; faab: number } | null; leadOverSecond: number; leadOverAverage: number; average: number; lowest: { owner: string; faab: number }; mine: number; mineRank: number };
   chop: { week: number; scoringPosted: boolean; result: { owner: string } | null; teams: { owner: string; ownerId?: string; chance: number; pointsSoFar: number; projectedRemaining: number; best: { id: string; name: string; position: string; team: string; gainForMe: number }[] }[] };
   simulatedChop: { owner: string; released: number } | null; owners: string[]; targets: Target[]; tradeIdeas: Idea[];
 };
+type Learning = { winsThisYear: number; winsLastYear: number; chopsThisYear: number; priceSamples: number; tradeCeiling: number; baseline: number[]; builtAt: string; trades: { week: number; faab: number; from: string; to: string; players: string[]; picks: number; year: string }[] };
 type LeagueTab = { id: string; name: string; eliminated: boolean };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -28,8 +30,9 @@ const tierClass = (net: number) => [styles.t1, styles.t1, styles.t2, styles.t3, 
 const avgPlayed = (p: PlayerInfo) => { const x = p.proj.filter((v) => v > 0); return x.length ? x.reduce((a, b) => a + b, 0) / x.length : 0; };
 
 type Found = { id: string; name: string; position: string; team: string };
-type Saved = { t: string[]; d: string[]; rt: string[]; rd: string[]; custom: Found[] };
-const EMPTY: Saved = { t: [], d: [], rt: [], rd: [], custom: [] };
+/** `oy` = elite players you mark out for the year (so they may be cut). `bid` = bids you typed and `placed` = bids you entered in Sleeper, both keyed "week:addId|dropId" so they expire with the week. */
+type Saved = { t: string[]; d: string[]; rt: string[]; rd: string[]; custom: Found[]; oy: string[]; bid: Record<string, number>; placed: Record<string, number> };
+const EMPTY: Saved = { t: [], d: [], rt: [], rd: [], custom: [], oy: [], bid: {}, placed: {} };
 
 /** Small "i" button: hover on desktop, tap on mobile. Holds the long definitions so they are not always on screen. */
 function Info({ children }: { children: ReactNode }) {
@@ -78,6 +81,14 @@ function dropNote(p: PlayerInfo, cost: number, roster: PlayerInfo[]): string {
   else parts.push(`Worth ${r1(cost)} lineup points`);
   if (p.nextBye && p.position !== "QB") parts.push(`bye wk ${p.nextBye}`);
   return parts.join(" · ");
+}
+
+/** A bid you can type over. Commits on Enter or when you click away. */
+function BidInput({ value, max, onCommit }: { value: number; max: number; onCommit: (n: number) => void }) {
+  const [v, setV] = useState(String(value));
+  useEffect(() => setV(String(value)), [value]);
+  const commit = () => { const n = Math.round(Number(v)); if (!Number.isFinite(n) || n < 1) { setV(String(value)); return; } if (n !== value) onCommit(Math.min(max, n)); else setV(String(value)); };
+  return <span style={{ whiteSpace: "nowrap" }}>$<input className={styles.select} style={{ width: 64, marginLeft: 2 }} inputMode="numeric" value={v} onChange={(e) => setV(e.target.value.replace(/[^0-9]/g, ""))} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} aria-label="Bid" /></span>;
 }
 
 export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (ownerId: string) => void } = {}) {
@@ -163,7 +174,11 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
     const extra = customIds.filter((id) => !base.includes(id) && (matrix?.rows || []).some((r) => r.id === id));
     return [...base, ...extra].filter((id) => !saved.rt.includes(id));
   }, [matrix, customIds, saved.rt]);
-  const defaultD = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => !saved.rd.includes(id)), [matrix, saved.rd]);
+  /** Elite players are never offered as cuts, even when injured, unless you mark them out for the year. */
+  const isProtected = useCallback((id: string) => !!info[id]?.elite && !saved.oy.includes(id), [info, saved.oy]);
+  const protectedIds = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => isProtected(id)), [matrix, isProtected]);
+  const markedOut = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => info[id]?.elite && saved.oy.includes(id)), [matrix, info, saved.oy]);
+  const defaultD = useMemo(() => (matrix?.drops || []).map((d) => d.id).filter((id) => !saved.rd.includes(id) && !isProtected(id)), [matrix, saved.rd, isProtected]);
   const targetIds = useMemo(() => merge(saved.t, defaultT), [saved.t, defaultT]);
   const dropIds = useMemo(() => merge(saved.d, defaultD), [saved.d, defaultD]);
   const rowOf = useMemo(() => new Map((matrix?.rows || []).map((r) => [r.id, r])), [matrix]);
@@ -188,16 +203,25 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
     persist({ ...saved, t: kind === "t" ? list : targetIds, d: kind === "d" ? list : dropIds });
   };
 
-  const build = () => {
+  const wk = live?.week ?? 0;
+  const bkey = (add: string, drop: string) => `${wk}:${add}|${drop}`;
+  /** Bids you typed or already placed in Sleeper this week, keyed "add|drop". A rebuild leaves these alone. */
+  const lockedFor = (sv: Saved) => {
+    const out: Record<string, number> = {};
+    for (const src of [sv.placed, sv.bid]) for (const [k, v] of Object.entries(src)) if (k.startsWith(`${wk}:`)) out[k.slice(String(wk).length + 1)] = v;
+    return out;
+  };
+  const build = (next?: Saved) => {
     if (!live || !matrix) return;
+    const sv = next ?? saved;
     setBuilding(true);
     setTimeout(() => {
-      const run = (budget: number, roster: string[]) => {
+      const run = (budget: number, roster: string[], locked?: Record<string, number>) => {
         const mx = buildMatrix(live.league.slots, roster, info, live.targets.map((t) => t.id));
         const tg = targetIds.map((id) => targetById.get(id)!).filter(Boolean).map((t) => ({ id: t.id, curve: t.bid.curve, p50: t.bid.p50, p75: t.bid.p75, p90: t.bid.p90 }));
-        return buildClaimSheet({ slots: live.league.slots, roster, info, targets: tg, pairs: orderedPairs(mx, targetIds, dropIds.filter((id) => roster.includes(id))), budget, ladder: true });
+        return buildClaimSheet({ slots: live.league.slots, roster, info, targets: tg, pairs: orderedPairs(mx, targetIds, dropIds.filter((id) => roster.includes(id))), budget, ladder: true, locked, bidMin: live.league.bidMin });
       };
-      const now = run(faab, rosterIds);
+      const now = run(faab, rosterIds, lockedFor(sv));
       const afterSheet = useTrade && offer && sel ? run(after, rosterIds.filter((id) => id !== sel.id)) : null;
       setSheets({ now, after: afterSheet, budgetNow: faab, budgetAfter: after, loss: sel?.lineupLoss || 0, sold: sel?.name || "" });
       setBuilding(false);
@@ -227,7 +251,7 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
     </span>
   );
   const restoreRow = (kind: "t" | "d", ids: string[]) => {
-    const list = ids.filter((id) => info[id]);
+    const list = ids.filter((id) => info[id] && !(kind === "d" && isProtected(id)));
     return list.length ? <div className={styles.meta} style={{ marginTop: 6 }}>Removed: {list.map((id) => <button key={id} className={styles.link} style={{ marginRight: 8 }} onClick={() => restoreItem(kind, id)}>＋ {info[id].name}</button>)}</div> : null;
   };
   /** A player name that opens the NFL player card. */
@@ -263,16 +287,17 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
 
       <div className={styles.split}>
         <Sec id="targets" title="Targets" folded={!!folded.targets} toggle={toggle} info={<><b>How Net works.</b> Net is your best possible starting lineup after the swap minus your best lineup today, added up over the next 3 weeks and weighted 1.0 / 0.8 / 0.6 (week 1 counts most; total weight 2.4). It is total lineup points, not points per game: divide by about 2.4 for a rough per-week number (+12 is about +5 a week). It is not a head-to-head between two players: your whole lineup is re-set each week, so a player who would start over someone is credited only with the difference. A target is only scored against the drops ranked at or above his number.</>}>
-          <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Player</th><th>Net</th><th>Bid 50 / 75 / 90%</th><th>Order</th></tr></thead><tbody>
+          <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Player</th><th>Net</th><th>Bid 50 / 75 / 90%</th><th>Win % at ${faab}</th><th>Order</th></tr></thead><tbody>
             {ranked.map((r, i) => { const t = targetById.get(r.id)!; return (
               <tr key={r.id}>
                 <td>{i + 1}</td>
                 <td><b>{pn(t.id)}</b><br /><span className={styles.meta}>{tag(t)}{t.byeWeeks.length ? ` · bye wk ${t.byeWeeks.join(",")}` : ""}</span>{t.newlyReleased && <span className={`${styles.badge} ${styles.good}`}>New</span>}{customIds.includes(r.id) && <span className={styles.badge}>Custom</span>}</td>
                 <td><span className={`${styles.cell} ${tierClass(r.best?.net ?? -9)}`}>{sign(r.best?.net ?? 0)}</span></td>
                 <td>${t.bid.p50} / ${t.bid.p75} / ${t.bid.p90}</td>
+                <td>{pct(winAt(t.bid.curve, faab))}</td>
                 <td>{mover("t", r.id, i, ranked.length)}</td>
               </tr>); })}
-            {!ranked.length && <tr><td colSpan={5} className={styles.meta}>No targets. Add one below.</td></tr>}
+            {!ranked.length && <tr><td colSpan={6} className={styles.meta}>No targets. Add one below.</td></tr>}
           </tbody></table></div>
           <div style={{ marginTop: 8 }}>
             {!addOpen ? <button className={styles.btn} onClick={() => setAddOpen(true)}>＋ Add new target</button> : <div>
@@ -287,7 +312,7 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
             </div>}
           </div>
           {restoreRow("t", saved.rt)}
-          <div className={styles.meta} style={{ marginTop: 8 }}><button className={styles.link} onClick={() => persist(EMPTY)}>Reset to the model&apos;s list</button></div>
+          <div className={styles.meta} style={{ marginTop: 8 }}><button className={styles.link} onClick={() => persist({ ...EMPTY, bid: saved.bid, placed: saved.placed })}>Reset to the model&apos;s list</button></div>
         </Sec>
 
         <Sec id="drops" title="Drops" folded={!!folded.drops} toggle={toggle}>
@@ -297,6 +322,8 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
           </tbody></table></div>
           {dropIds.length > 10 && <button className={styles.link} style={{ marginTop: 6 }} onClick={() => setShowAllDrops(!showAllDrops)}>{showAllDrops ? "Show top 10" : `Show all ${dropIds.length}`}</button>}
           {restoreRow("d", saved.rd)}
+          {protectedIds.length > 0 && <div className={styles.meta} style={{ marginTop: 8 }}>Protected, never suggested as a cut: {protectedIds.map((id) => <span key={id} style={{ marginRight: 10 }}>{pn(id)}{info[id].injury ? ` (${info[id].injury})` : ""} <button className={styles.link} onClick={() => persist({ ...saved, oy: [...saved.oy, id] })}>Out for the year, allow cut</button></span>)}</div>}
+          {markedOut.length > 0 && <div className={styles.meta} style={{ marginTop: 6 }}>Marked out for the year: {markedOut.map((id) => <span key={id} style={{ marginRight: 10 }}>{pn(id)} <button className={styles.link} onClick={() => persist({ ...saved, oy: saved.oy.filter((x) => x !== id) })}>Protect again</button></span>)}</div>}
         </Sec>
       </div>
 
@@ -317,17 +344,24 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
         </tbody></table></div>
       </Sec>
 
-      <Sec id="claims" title="Claim sheet" folded={!!folded.claims} toggle={toggle} info={<>Rows run in target order. Each target&apos;s bids step down by drop number: drop 1 is the most aggressive bid (about a 90% chance to beat the other bids), because it can fire with nothing else won. Drop 2 only fires if an earlier target already took drop 1, so you have already landed a player and it bids less; drop 3 means two earlier wins and bids less again, and so on. Bids never exceed your FAAB. Only swaps worth +2 or more appear.</>}>
+      <Sec id="claims" title="Claim sheet" folded={!!folded.claims} toggle={toggle} info={<>Rows run in target order. Each target&apos;s bids step down by drop number: drop 1 is the most aggressive bid (about a 90% chance to beat the other bids), because it can fire with nothing else won. Drop 2 only fires if an earlier target already took drop 1, so you have already landed a player and it bids less; drop 3 means two earlier wins and bids less again, and so on. Bids never exceed your FAAB. Only swaps worth +2 or more appear.<br /><br /><b>Edit any bid.</b> Type over a bid and everything below rebuilds around it; your bid stays put. Player #2&apos;s second claim can only spend what #1 left, so it is capped at that, and left off if nothing is left (Lamb $81 of $82 leaves Nabers $1). <b>Tick Placed</b> once the claim is in Sleeper; placed bids are locked so a rebuild never changes them.<br /><br /><b>Two percentages.</b> <b>Win</b> is the chance this bid beats the best rival bid, from the same curve as the Targets table (the &quot;Win % at your FAAB&quot; column). <b>Lands</b> is the chance this exact claim is the one that goes through, after the claims above it have had their turn, so it is never higher than Win.</>}>
         <div className={styles.row}>
-          <button className={styles.btn} onClick={build} disabled={building}>{building ? "Building…" : "Build claim sheet"}</button>
+          <button className={styles.btn} onClick={() => build()} disabled={building}>{building ? "Building…" : "Build claim sheet"}</button>
           <label className={styles.meta}><input type="checkbox" checked={useTrade} onChange={(e) => setUseTrade(e.target.checked)} disabled={!offer} /> Also show it after the trade selected below{offer ? ` (${sel!.name} → $${after})` : ""}</label>
         </div>
         {sheets && <>
           <div className={styles.meta} style={{ margin: "10px 0 6px" }}>With ${sheets.budgetNow}: expected gain <b>+{r1(sheets.now.expected)}</b> · {pct(sheets.now.landAny)} chance to land at least one player.
             {sheets.after && <> After trading {sheets.sold} (${sheets.budgetAfter}): <b>+{r1(sheets.after.expected)}</b>, minus {sheets.loss} lineup points given up = <b>{sign(sheets.after.expected - sheets.loss - sheets.now.expected)}</b> net vs. no trade.</>}</div>
-          <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Add</th><th>Drop</th><th>Net</th><th>Bid</th>{sheets.after && <th>After trade</th>}<th>Chance it hits</th></tr></thead><tbody>
-            {sheets.now.rows.map((r, i) => { const a = sheets.after?.rows.find((x) => x.add === r.add && x.drop === r.drop); return (
-              <tr key={i}><td>{i + 1}</td><td>{pn(r.add)}</td><td>{pn(r.drop)}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td><td><b>${r.bid}</b></td>{sheets.after && <td>{a ? `$${a.bid}` : "—"}</td>}<td>{r.hit >= 0.005 ? pct(r.hit) : "<1%"}</td></tr>); })}
+          <div className={styles.meta} style={{ margin: "0 0 6px" }}>Placed in Sleeper: <b>{sheets.now.rows.filter((r) => saved.placed[bkey(r.add, r.drop)] === r.bid).length} of {sheets.now.rows.length}</b>{Object.keys(saved.bid).some((k) => k.startsWith(`${wk}:`)) && <> · <button className={styles.link} onClick={() => { const next = { ...saved, bid: {} }; persist(next); build(next); }}>Clear my bid edits</button></>}</div>
+          <div className={styles.scroll}><table className={styles.table}><thead><tr><th>#</th><th>Placed</th><th>Add</th><th>Drop</th><th>Net</th><th>Bid</th>{sheets.after && <th>After trade</th>}<th>Win</th><th>Lands</th></tr></thead><tbody>
+            {sheets.now.rows.map((r, i) => { const a = sheets.after?.rows.find((x) => x.add === r.add && x.drop === r.drop); const k = bkey(r.add, r.drop); const placedBid = saved.placed[k]; const isPlaced = placedBid === r.bid; const typed = saved.bid[k] !== undefined; return (
+              <tr key={i} style={isPlaced ? { opacity: 0.6 } : undefined}>
+                <td>{i + 1}</td>
+                <td><input type="checkbox" checked={isPlaced} aria-label="Bid placed in Sleeper" onChange={(e) => { const placed = { ...saved.placed }; if (e.target.checked) placed[k] = r.bid; else delete placed[k]; persist({ ...saved, placed }); }} />{placedBid !== undefined && !isPlaced && <span className={styles.meta} style={{ color: "#f5b942" }}> changed since placed</span>}</td>
+                <td>{pn(r.add)}</td><td>{pn(r.drop)}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td>
+                <td><BidInput value={r.bid} max={sheets.budgetNow} onCommit={(n) => { const placed = { ...saved.placed }; delete placed[k]; const next = { ...saved, placed, bid: { ...saved.bid, [k]: n } }; persist(next); build(next); }} />{typed && <button className={styles.link} style={{ marginLeft: 6 }} title="Back to the model's bid" onClick={() => { const bid = { ...saved.bid }; delete bid[k]; const placed = { ...saved.placed }; delete placed[k]; const next = { ...saved, bid, placed }; persist(next); build(next); }}>↺</button>}{r.capped !== undefined && <div className={styles.meta}>only ${r.capped} left after #1</div>}</td>
+                {sheets.after && <td>{a ? `$${a.bid}` : "—"}</td>}
+                <td>{pct(r.win)}</td><td>{r.hit >= 0.005 ? pct(r.hit) : "<1%"}</td></tr>); })}
           </tbody></table></div>
         </>}
       </Sec>
@@ -352,6 +386,14 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
           <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Team</th><th>Chopped %</th><th>Wk {live.chop.week} pts</th><th>Left to play</th><th>Your best adds if chopped</th><th /></tr></thead><tbody>
             {live.chop.teams.map((t) => <tr key={t.owner}><td><ManagerLink ownerId={t.ownerId} onOpen={onOpenManager}>{t.owner}</ManagerLink></td><td>{t.chance}%</td><td>{t.pointsSoFar}</td><td>{t.projectedRemaining}</td><td className={styles.meta}>{t.best.filter((b) => b.gainForMe > 0).map((b, k) => <span key={b.id}>{k ? ", " : ""}<NflPlayerName name={b.name} position={b.position} team={b.team} sleeperId={b.id} /> +{b.gainForMe}</span>)}{!t.best.some((b) => b.gainForMe > 0) && "—"}</td><td><button className={styles.btn} onClick={() => setChop(t.owner)}>Test</button></td></tr>)}
           </tbody></table></div></>}
+      </Sec>
+      <Sec id="learning" title="What the model has learned" folded={!!folded.learning} toggle={toggle} info={<>The bid prices are rebuilt from the league&apos;s own transactions every time the page loads, so each new waiver result and FAAB trade is picked up on refresh. Rival rosters and FAAB are live, so a player trade changes who wants whom right away. What does not adjust itself: the shape of the price model, trade-price percentages and the elite cut-offs. Those change when we recalibrate them together.</>}>
+        {live.learning ? <>
+          <div className={styles.meta} style={{ marginBottom: 8 }}>Prices come from <b>{live.learning.winsThisYear}</b> winning claims this season ({live.learning.chopsThisYear} weeks of chops) and <b>{live.learning.winsLastYear}</b> from last season, rebuilt just now. Ordinary-player trade ceiling: <b>${live.learning.tradeCeiling}</b>{live.learning.tradeCeiling > 70 ? " (raised by an actual trade in this league)" : ""}. Elite status is judged on week {live.learning.baseline.join(", ") || "n/a"} projections.</div>
+          <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Season</th><th>Week</th><th>FAAB</th><th>Players</th><th>Picks in deal</th></tr></thead><tbody>
+            {live.learning.trades.map((t, i) => <tr key={i}><td>{t.year}</td><td>{t.week}</td><td>${t.faab}{t.year === "this year" ? <span className={styles.meta}> {t.from} → {t.to}</span> : null}</td><td className={styles.meta}>{t.players.join(", ") || "—"}</td><td>{t.picks || "—"}</td></tr>)}
+            {!live.learning.trades.length && <tr><td colSpan={5} className={styles.meta}>No FAAB trades found in the league&apos;s transactions yet.</td></tr>}
+          </tbody></table></div></> : <div className={styles.meta}>Not available.</div>}
       </Sec>
       <div className={styles.foot}>Trade prices are estimates: ordinary starters are priced inside the range this league has actually seen (about $30–70); stars and elites (top few at RB, WR, TE, QB by projection) are priced off what each buyer would bid on waivers, scaled to his remaining FAAB, with no flat ceiling.</div>
       <div className={styles.foot}>Estimates only. Net = weighted lineup points over the next 3 weeks (week 1 counts most; weights 1.0 / 0.8 / 0.6). Prices come from this season&apos;s and last season&apos;s Guillotine Mania claims.</div>
