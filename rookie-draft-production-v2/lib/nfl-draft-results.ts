@@ -107,22 +107,3 @@ async function fetchLivePicks(draftYear:number):Promise<NflDraftPick[]>{
 
 export function normalizeDraftName(value:any){return norm(value)}
 
-/**
- * Fantasy-position players drafted in rounds 1-3, as "normalizedName|POS" keys, for classes 2014 to 2026. The workbook archive covers 2022 to 2026; older classes
- * (and the thin 2021 archive) come from ESPN, which gives overall pick numbers but no round, so those count as round 1-3 through pick 100. Cached for 12 hours.
- */
-let topThreeMemo:{at:number;keys:Set<string>}|null=null;
-export async function topThreeRoundKeys():Promise<Set<string>>{
-  if(topThreeMemo&&Date.now()-topThreeMemo.at<12*3600*1000)return topThreeMemo.keys;
-  const years=Array.from({length:13},(_,i)=>2014+i);
-  const lists=await Promise.all(years.map(async y=>{
-    const archived=y>=2022?historicalWorkbookPicks(y):[];
-    if(archived.length)return archived;
-    const live=await fetchLivePicks(y);
-    return [...historicalWorkbookPicks(y),...live];
-  }));
-  const keys=new Set<string>();
-  for(const pick of lists.flat())if((pick.round??(pick.overall<=100?3:9))<=3)keys.add(norm(pick.name)+"|"+pick.pos);
-  if(keys.size)topThreeMemo={at:Date.now(),keys};
-  return keys;
-}

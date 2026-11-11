@@ -310,18 +310,67 @@ export function claimPairs(matrix: Matrix, minNet = TIER_CUTS[2], maxRows = 36):
  * Claims in the order you ranked them: target 1 against drop 1, target 2 against drops 1 and 2, target 3 against drops 1 to 3, and so on.
  * Swaps below the Marginal tier are left out.
  */
-export function orderedPairs(matrix: Matrix, targetOrder: string[], dropOrder: string[], minNet = TIER_CUTS[2], maxRows = 60): { add: string; drop: string; net: number; rank: number }[] {
+export const OPEN = "";
+export function orderedPairs(matrix: Matrix, targetOrder: string[], dropOrder: string[], minNet = TIER_CUTS[2], maxRows = 60, openSpots = 0): { add: string; drop: string; net: number; rank: number }[] {
   const rowOf = new Map(matrix.rows.map((r) => [r.id, r]));
   const pairs: { add: string; drop: string; net: number; rank: number }[] = [];
+  const open = Math.max(0, Math.floor(openSpots));
   targetOrder.forEach((tid, i) => {
     const row = rowOf.get(tid);
     if (!row) return;
-    dropOrder.slice(0, i + 1).forEach((did, rank) => {
+    let rank = 0;
+    // With an open roster spot the first claim on every player drops nobody. The spot is gone once any earlier claim lands, so drops come after it.
+    if (open > 0) {
+      const net = row.best?.net ?? -Infinity;
+      if (net >= minNet && pairs.length < maxRows) pairs.push({ add: tid, drop: OPEN, net, rank });
+      rank++;
+    }
+    // Earlier players can fill the open spots first, so only the later ones need a drop to fall back on.
+    dropOrder.slice(0, Math.max(0, i + 1 - open)).forEach((did, k) => {
       const net = row.nets[did];
-      if (net !== undefined && net >= minNet && pairs.length < maxRows) pairs.push({ add: tid, drop: did, net, rank });
+      if (net !== undefined && net >= minNet && pairs.length < maxRows) pairs.push({ add: tid, drop: did, net, rank: rank + k });
     });
   });
   return pairs;
+}
+
+/**
+ * Which claims can actually go through. Sleeper runs claims from the highest bid down. A claim only executes if its player is still unclaimed, you can pay it,
+ * the player you drop is still on your roster (or you still have an open spot for a no-drop claim), and, for a lower claim on the same player, the higher
+ * claim did not already lose the auction (a lost auction loses every lower bid on him too). This walks every combination of wins and losses above a claim
+ * and reports whether any of them leaves it standing, so "impossible" means impossible, not unlikely.
+ */
+export function reachableClaims(claims: { t: number; d: number; bid: number }[], budget: number, openSpots: number, targetCount: number): { possible: boolean[]; capLeft: number[] } {
+  const n = claims.length;
+  const possible = claims.map(() => false), capLeft = claims.map(() => -1);
+  const order = claims.map((_, i) => i).sort((a, b) => claims[b].bid - claims[a].bid || a - b);
+  type St = { left: number; spots: number; won: number; dropped: number; lost: number[] };
+  const key = (x: St) => `${x.left}|${x.spots}|${x.won}|${x.dropped}|${x.lost.join(",")}`;
+  let states = new Map<string, St>();
+  const init: St = { left: budget, spots: Math.max(0, openSpots), won: 0, dropped: 0, lost: Array(targetCount).fill(0) };
+  states.set(key(init), init);
+  for (const i of order) {
+    const c = claims[i];
+    const next = new Map<string, St>();
+    for (const st of states.values()) {
+      const targetFree = !((st.won >> c.t) & 1);
+      const slotOk = c.d < 0 ? st.spots > 0 : !((st.dropped >> c.d) & 1);
+      const beatable = c.bid > st.lost[c.t];
+      if (targetFree && slotOk && beatable) capLeft[i] = Math.max(capLeft[i], st.left);
+      const valid = targetFree && slotOk && st.left >= c.bid;
+      if (!valid) { next.set(key(st), st); continue; }
+      if (beatable) {
+        possible[i] = true;
+        const w: St = { left: st.left - c.bid, spots: c.d < 0 ? st.spots - 1 : st.spots, won: st.won | (1 << c.t), dropped: c.d >= 0 ? st.dropped | (1 << c.d) : st.dropped, lost: st.lost };
+        next.set(key(w), w);
+        const lost = st.lost.slice(); lost[c.t] = Math.max(lost[c.t], c.bid);
+        const l: St = { ...st, lost }; next.set(key(l), l);
+      } else next.set(key(st), st);
+    }
+    states = next.size > 60000 ? new Map(Array.from(next).slice(0, 60000)) : next;
+  }
+  void n;
+  return { possible, capLeft };
 }
 
 /** Who goes into and out of your starting lineup, week by week, if you add one player and cut another. This is what Net is made of. */
@@ -344,7 +393,7 @@ export function lineupShift(slots: string[], roster: string[], info: Record<stri
 
 export type SheetTarget = { id: string; curve: { bid: number; win: number }[]; p50: number; p75: number; p90: number };
 /** `hit` = chance this claim is the one that goes through (earlier claims get the first shot). `win` = chance this bid beats the best rival bid, on the same curve the Targets table uses. */
-export type SheetRow = { add: string; drop: string; bid: number; hit: number; win: number; net: number; /** Bid was typed or already placed, so a rebuild leaves it alone. */ locked?: boolean; /** Bid was lowered to what is left after the #1 bid (player #2 only). */ capped?: number };
+export type SheetRow = { add: string; drop: string; bid: number; hit: number; win: number; net: number; /** Bid was typed or already placed, so a rebuild leaves it alone. */ locked?: boolean; /** Bid was lowered to what is left after the #1 bid (player #2 only). */ capped?: number; /** A bid you placed or typed that cannot fire in any outcome. Kept so you can see it, never suggested. */ impossible?: boolean };
 export type ClaimSheet = { rows: SheetRow[]; expected: number; landAny: number; chance: { id: string; win: number }[] };
 
 /** Draw one rival top bid from a win-probability curve (the curve is P(rival top bid < bid)). */
@@ -391,14 +440,15 @@ export function ladderBid(curve: { bid: number; win: number }[], rank: number, b
  * roster and enough FAAB is left. Rival bids are drawn once per player per simulated week, so every row for a player faces the same competition.
  * Bids are tuned for expected lineup gain over the simulated weeks, then trimmed so no row bids more than it needs to.
  */
-export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; pairs: { add: string; drop: string; net?: number; rank?: number }[]; budget: number; worlds?: number; seed?: number; ladder?: boolean; /** Bids typed by hand (or already placed in Sleeper), keyed "addId|dropId". Kept as is; everything else is rebuilt around them. */ locked?: Record<string, number>; bidMin?: number }): ClaimSheet {
+export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info: Record<string, PlayerInfo>; targets: SheetTarget[]; pairs: { add: string; drop: string; net?: number; rank?: number }[]; budget: number; worlds?: number; seed?: number; ladder?: boolean; /** Bids typed by hand (or already placed in Sleeper), keyed "addId|dropId". Kept as is; everything else is rebuilt around them. */ locked?: Record<string, number>; bidMin?: number; /** Open roster spots you have right now. Each player's first claim drops nobody while one is open. */ openSpots?: number }): ClaimSheet {
   const targets = opts.targets.slice(0, 14);
   const budget = Math.max(0, Math.floor(opts.budget));
   const tIndex = new Map(targets.map((t, i) => [t.id, i]));
-  const dropIds = Array.from(new Set(opts.pairs.map((p) => p.drop))).slice(0, 14);
+  const openSpots = Math.max(0, Math.floor(opts.openSpots ?? 0));
+  const dropIds = Array.from(new Set(opts.pairs.map((p) => p.drop).filter((d) => d !== OPEN))).slice(0, 14);
   const dIndex = new Map(dropIds.map((id, i) => [id, i]));
-  type R = { t: number; d: number; bid: number; net: number; add: string; drop: string; rank: number; locked?: boolean; capped?: number };
-  const base: R[] = opts.pairs.filter((p) => tIndex.has(p.add) && dIndex.has(p.drop)).slice(0, 40).map((p) => ({ t: tIndex.get(p.add)!, d: dIndex.get(p.drop)!, bid: 1, net: p.net ?? 0, add: p.add, drop: p.drop, rank: p.rank ?? 0 }));
+  type R = { t: number; d: number; bid: number; net: number; add: string; drop: string; rank: number; locked?: boolean; capped?: number; impossible?: boolean };
+  const base: R[] = opts.pairs.filter((p) => tIndex.has(p.add) && (p.drop === OPEN || dIndex.has(p.drop))).slice(0, 40).map((p) => ({ t: tIndex.get(p.add)!, d: p.drop === OPEN ? -1 : dIndex.get(p.drop)!, bid: 1, net: p.net ?? 0, add: p.add, drop: p.drop, rank: p.rank ?? 0 }));
   if (!base.length || budget < 1) return { rows: [], expected: 0, landAny: 0, chance: [] };
   const W = opts.worlds ?? 400;
   const random = mulberry32(opts.seed ?? 7);
@@ -417,13 +467,15 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
     return v;
   };
   const run = (rows: R[], detail?: { hit: number[]; chance: number[]; any: number }) => {
+    // Sleeper works down from the highest bid; equal bids keep the order of your list.
+    const order = rows.map((_, i) => i).sort((a, b) => rows[b].bid - rows[a].bid || a - b);
     let total = 0;
     for (let w = 0; w < W; w++) {
-      let left = budget, won = 0, dropped = 0;
-      for (let r = 0; r < rows.length; r++) {
+      let left = budget, won = 0, dropped = 0, spots = openSpots;
+      for (const r of order) {
         const row = rows[r];
-        if (((won >> row.t) & 1) || ((dropped >> row.d) & 1) || row.bid > left || row.bid <= M[w][row.t]) continue;
-        left -= row.bid; won |= 1 << row.t; dropped |= 1 << row.d;
+        if (((won >> row.t) & 1) || (row.d >= 0 ? (dropped >> row.d) & 1 : spots <= 0) || row.bid > left || row.bid <= M[w][row.t]) continue;
+        left -= row.bid; won |= 1 << row.t; if (row.d >= 0) dropped |= 1 << row.d; else spots--;
         if (detail) { detail.hit[r]++; detail.chance[row.t]++; }
       }
       if (won) { total += outcome(won, dropped); if (detail) detail.any++; }
@@ -440,14 +492,27 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
     rows.forEach((r) => { r.bid = ladderBid(targets[r.t].curve, r.rank, budget); });
     // Bids you typed (or already placed in Sleeper) stay exactly as they are.
     rows.forEach((r) => { const L = opts.locked?.[r.add + "|" + r.drop]; if (L !== undefined && Number.isFinite(L)) { r.bid = Math.min(budget, Math.max(bidMin, Math.round(L))); r.locked = true; } });
-    // Player #2 only: his second claim (the one on drop 2) can only fire after player #1 landed on drop 1, so it can only spend what #1 left behind.
-    // If #1 took everything, that claim is impossible and is not suggested. Players #3 and beyond are not limited this way: more players and FAAB are in play.
-    const first = rows.find((r) => r.t === 0 && r.rank === 0);
-    if (first) {
-      const left = budget - first.bid;
-      rows = rows.filter((r) => !(r.t === 1 && r.rank >= 1 && left < bidMin));
-      rows.forEach((r) => { if (r.t === 1 && r.rank >= 1 && r.bid > left) { r.bid = left; r.capped = left; } });
+    // Sleeper runs claims from the highest bid down, so your ranking only holds if each player's first claim bids no more than the player above him, and each fallback no more than the claim before it on the same player.
+    let prevPrimary = Infinity; const prevOwn = new Map<number, number>();
+    rows.forEach((r) => {
+      if (!r.locked) {
+        const cap = prevOwn.has(r.t) ? prevOwn.get(r.t)! : prevPrimary;
+        r.bid = Math.max(bidMin, Math.min(r.bid, cap));
+      }
+      if (!prevOwn.has(r.t)) prevPrimary = r.bid;
+      prevOwn.set(r.t, r.bid);
+    });
+    // Drop every claim that cannot go through in any outcome. Player #2's second claim is the one case that is lowered instead (to whatever #1 leaves behind) when something is left.
+    const check = () => reachableClaims(rows.map((r) => ({ t: r.t, d: r.d, bid: r.bid })), budget, openSpots, targets.length);
+    let reach = check();
+    for (let pass = 0; pass < 4; pass++) {
+      let changed = false;
+      rows.forEach((r, i) => { if (!reach.possible[i] && r.t === 1 && r.rank >= 1 && !r.locked && reach.capLeft[i] >= bidMin && r.bid > reach.capLeft[i]) { r.bid = reach.capLeft[i]; r.capped = reach.capLeft[i]; changed = true; } });
+      if (!changed) break;
+      reach = check();
     }
+    rows.forEach((r, i) => { if (!reach.possible[i] && r.locked) r.impossible = true; });
+    rows = rows.filter((_, i) => reach.possible[i] || rows[i].locked);
   }
   else for (let sweep = 0; sweep < 3; sweep++) {
     let changed = false;
@@ -475,7 +540,7 @@ export function buildClaimSheet(opts: { slots: string[]; roster: string[]; info:
   const detail = { hit: rows.map(() => 0), chance: targets.map(() => 0), any: 0 };
   const expected = run(rows, detail);
   // Rows that essentially never land are noise on a claims list, so they are left off.
-  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, win: winAt(targets[r.t].curve, r.bid), net: r.net, ...(r.locked ? { locked: true } : {}), ...(r.capped !== undefined ? { capped: r.capped } : {}) })).filter((r) => opts.ladder || r.hit >= 0.005), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
+  return { rows: rows.map((r, i) => ({ add: r.add, drop: r.drop, bid: r.bid, hit: detail.hit[i] / W, win: winAt(targets[r.t].curve, r.bid), net: r.net, ...(r.locked ? { locked: true } : {}), ...(r.capped !== undefined ? { capped: r.capped } : {}), ...(r.impossible ? { impossible: true } : {}) })).filter((r) => opts.ladder || r.hit >= 0.005), expected, landAny: detail.any / W, chance: targets.map((t, i) => ({ id: t.id, win: detail.chance[i] / W })) };
 }
 
 /** FAAB-for-player trades seen in a league's own transactions (completed trades that moved FAAB). Picks in the deal are flagged because they muddy the price. */
@@ -486,4 +551,45 @@ export function faabTrades(tx: Tx[], ownerOf: (rosterId: number) => string, name
     const receiver = w[0].receiver, sender = w[0].sender;
     return { week: t.leg, faab: sum(w.map((b) => b.amount)), from: ownerOf(sender), to: ownerOf(receiver), players: Object.entries(t.adds || {}).filter(([, r]) => r === sender).map(([id]) => nameOf(id)), picks: (t.draft_picks || []).length };
   }).sort((a, b) => b.week - a.week);
+}
+
+/** What one finished weekly batch taught the model: what it would have predicted without it, what actually happened, and how today's prices moved because of it. */
+export type LearnEntry = {
+  league: string; leg: number;
+  wins: { name: string; bid: number; predicted: number | null; released: boolean }[];
+  shifts: { rank: number; before: number; after: number }[];
+  mine: { name: string; bid: number; won: boolean; winning: number | null; chance: number | null }[];
+};
+export type LearnSource = { label: string; book: PriceSample[]; tx: Tx[]; nameOf: (playerId: string) => string; myRosterId: number | null; teams: number };
+export function learningLog(sources: LearnSource[], lastYear: PriceSample[], now: { bidders: number; medianBudget: number }, perSource = 3): LearnEntry[] {
+  const all = sources.flatMap((x) => x.book.map((b) => ({ ...b, src: x.label })));
+  const out: LearnEntry[] = [];
+  const priceOf = (book: PriceSample[], opts: { bidders: number; released: boolean; rank: number; medianBudget: number }) => priceSamples(book, { ...opts, ceiling: 953 });
+  for (const src of sources) {
+    const legs = Array.from(new Set(src.tx.filter((t) => t.type === "waiver" && t.status === "complete").map((t) => t.leg))).sort((a, b) => b - a).slice(0, perSource);
+    for (const leg of legs) {
+      const without: PriceSample[] = [...lastYear, ...all.filter((b) => !(b.src === src.label && b.leg === leg))];
+      const withAll: PriceSample[] = [...lastYear, ...all];
+      const released = new Set(Object.keys(src.tx.find((t) => t.type === "chopped" && t.leg === leg)?.drops || {}));
+      const done = src.tx.filter((t) => t.type === "waiver" && t.status === "complete" && t.leg === leg).map((t) => ({ t, id: Object.keys(t.adds || {})[0], bid: Number(t.settings?.waiver_bid || 0) })).filter((x) => x.id);
+      const rankIn = (isReleased: boolean, bid: number) => 1 + done.filter((x) => released.has(x.id) === isReleased && x.bid > bid).length;
+      const medianFor = (isReleased: boolean) => { const smp = src.book.find((b) => b.leg === leg && b.released === isReleased && b.rank === 1 && b.ratio > 0); return smp ? Math.max(1, smp.bid / smp.ratio) : now.medianBudget; };
+      const bidders = Math.max(2, src.teams - leg);
+      const guess = (isReleased: boolean, rank: number, book: PriceSample[]) => { const pts = priceOf(book, { bidders, released: isReleased, rank, medianBudget: medianFor(isReleased) }); return pts.length ? priceQuantile(pts, 0.5) : null; };
+      const wins = done.sort((a, b) => b.bid - a.bid).slice(0, 4).map((x) => { const isR = released.has(x.id); return { name: src.nameOf(x.id), bid: x.bid, predicted: guess(isR, rankIn(isR, x.bid), without), released: isR }; });
+      const shifts = [1, 2, 3].map((rank) => {
+        const args = { bidders: now.bidders, released: true, rank, medianBudget: now.medianBudget };
+        const a = priceOf(without, args), b = priceOf(withAll, args);
+        return a.length && b.length ? { rank, before: priceQuantile(a, 0.5), after: priceQuantile(b, 0.5) } : null;
+      }).filter((x): x is { rank: number; before: number; after: number } => !!x);
+      const mine = src.myRosterId == null ? [] : src.tx.filter((t) => t.type === "waiver" && t.leg === leg && (t.status === "complete" || t.status === "failed") && t.roster_ids?.[0] === src.myRosterId).map((t) => {
+        const id = Object.keys(t.adds || {})[0]; const bid = Number(t.settings?.waiver_bid || 0); const winner = done.find((x) => x.id === id);
+        const isR = released.has(id); const pts = priceOf(without, { bidders, released: isR, rank: rankIn(isR, winner ? winner.bid : bid), medianBudget: medianFor(isR) });
+        const total = sum(pts.map((x) => x.w));
+        return { name: src.nameOf(id), bid, won: t.status === "complete", winning: winner ? winner.bid : null, chance: total ? sum(pts.filter((x) => x.value < bid).map((x) => x.w)) / total : null };
+      });
+      out.push({ league: src.label, leg, wins, shifts, mine });
+    }
+  }
+  return out.sort((a, b) => b.leg - a.leg);
 }

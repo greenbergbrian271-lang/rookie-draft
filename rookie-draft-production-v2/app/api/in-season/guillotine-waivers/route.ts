@@ -2,10 +2,9 @@ import { isMineRoster, nflPlayersCached, playerName, sleeper } from "@/lib/in-se
 import { getNflSchedule } from "@/lib/espn-nfl-schedule";
 import { getWeekProjections, projectPoints } from "@/lib/sleeper-projections";
 import { SLOT_ELIGIBILITY } from "@/lib/in-season";
-import { normalizeDraftName, topThreeRoundKeys } from "@/lib/nfl-draft-results";
 import { simulateChop, teamSd } from "@/lib/in-season-waivers";
 import {
-  HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, faabTrades, TRADE_CEILING, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, starTier, tradeOffers, typicalBid, weighted,
+  HORIZON_WEIGHTS, buildClaimSheet, buildMatrix, claimPairs, dropPlan, priceQuantile, aggression, buildPriceBook, calibrateShare, demand, faabTrades, learningLog, TRADE_CEILING, gainsFor, lineupTotals, priceSamples, projectBid, rankOf, round1, starTier, tradeOffers, typicalBid, weighted,
   type GRoster, type PlayerInfo, type Rival, type Tx,
 } from "@/lib/in-season-guillotine";
 
@@ -85,7 +84,24 @@ export async function GET(request: Request) {
   }
 
   const fetchTx = async (id: string, cache: boolean): Promise<Tx[]> => (await Promise.all(Array.from({ length: 19 }, (_, i) => i + 1).map(async (w) => (await sleeper<any[]>(`/league/${id}/transactions/${w}`, !cache ? false : true).catch(() => [] as any[])).map((t) => ({ ...t, leg: t.leg ?? w }))))).flat();
-  const [txs, lastYearTx] = await Promise.all([fetchTx(LEAGUE, false), fetchTx(LAST_YEAR, true)]);
+  // The other guillotine leagues (even one you are out of) teach the price model too, and this league's fantasy draft says who counts as an early pick.
+  const [txs, lastYearTx, others, earlyPicks] = await Promise.all([
+    fetchTx(LEAGUE, false), fetchTx(LAST_YEAR, true),
+    Promise.all(LEAGUES.filter((id) => id !== LEAGUE).map(async (id) => {
+      try {
+        const [loaded, tx] = await Promise.all([loadRosters(id), fetchTx(id, false)]);
+        return { id, name: String(loaded.league.name || "Guillotine league"), rosters: loaded.rosters, tx, budget: loaded.budget, teams: Number(loaded.league.settings?.num_teams || loaded.rosters.length), bidMin: Number(loaded.league.settings?.waiver_bid_min || 1) };
+      } catch { return null; }
+    })).then((list) => list.filter((x): x is NonNullable<typeof x> => !!x)),
+    (async () => {
+      const early = new Set<string>();
+      try {
+        const drafts = await sleeper<any[]>(`/league/${LEAGUE}/drafts`, false);
+        for (const d of drafts || []) for (const k of (await sleeper<any[]>(`/draft/${d.draft_id}/picks`, false).catch(() => [])) || []) if (Number(k.round) <= 3 && k.player_id) early.add(String(k.player_id));
+      } catch { /* no draft on file: nobody is protected by round */ }
+      return early;
+    })(),
+  ]);
 
   // Which chop feeds this Wednesday's claims. Sleeper rolls its week over right after Monday night, so the chop week is read from the
   // league's own history: once a chop's claims have processed, the next chop is the one that matters.
@@ -102,7 +118,10 @@ export async function GET(request: Request) {
     getWeekProjections(season, chopWeek).catch(() => null),
     Promise.all(baselineWeeks.map((w) => getWeekProjections(season, w).catch(() => null))),
   ]);
-  const book = [...buildPriceBook(lastYearTx, "last year", budget, teams, bidMin), ...buildPriceBook(txs, "this year", budget, teams, bidMin)];
+  const lastYearBook = buildPriceBook(lastYearTx, "last year", budget, teams, bidMin);
+  const ownBook = buildPriceBook(txs, "this year", budget, teams, bidMin);
+  const otherBooks = others.map((o) => buildPriceBook(o.tx, "this year", o.budget, o.teams, o.bidMin));
+  const book = [...lastYearBook, ...ownBook, ...otherBooks.flat()];
 
   // Test mode: ?chop=<owner> treats that team as this week's chop.
   const wanted = (url.searchParams.get("chop") || "").trim().toLowerCase();
@@ -223,7 +242,6 @@ export async function GET(request: Request) {
     const vals = baseline.map((m) => { const row = m?.get(id); return row ? projectPoints(row.stats, scoring) : 0; }).filter((v) => v > 0);
     if (vals.length && positions.has(String(p.position))) baseAvg.set(id, sum(vals) / vals.length);
   }
-  const topPicks = await topThreeRoundKeys().catch(() => new Set<string>());
   const eliteIds = new Set<string>();
   if (baseAvg.size) {
     const ranked: Record<string, string[]> = {};
@@ -236,7 +254,11 @@ export async function GET(request: Request) {
   }
   // Trades that already happened teach the price: the ordinary-player ceiling rises if the league has paid more than the built-in one (picks in the deal excluded).
   const ownerOf = (rid: number) => rosters.find((r) => Number(r.rosterId) === rid)?.owner || `Team ${rid}`;
-  const seenTrades = [...faabTrades(txs, ownerOf, (id) => playerName(id, players)).map((t) => ({ ...t, year: "this year" })), ...faabTrades(lastYearTx, () => "—", (id) => playerName(id, players)).map((t) => ({ ...t, year: "last year" }))];
+  const seenTrades = [
+    ...faabTrades(txs, ownerOf, (id) => playerName(id, players)).map((t) => ({ ...t, year: "this league" })),
+    ...others.flatMap((o) => faabTrades(o.tx, (rid) => o.rosters.find((r) => Number(r.rosterId) === rid)?.owner || `Team ${rid}`, (id) => playerName(id, players)).map((t) => ({ ...t, year: o.name }))),
+    ...faabTrades(lastYearTx, () => "—", (id) => playerName(id, players)).map((t) => ({ ...t, year: "last year" })),
+  ];
   const tradeCeiling = Math.max(TRADE_CEILING, ...seenTrades.filter((t) => !t.picks && t.players.length <= 1).map((t) => t.faab));
   const tradeIdeas = myInfo.map((p) => {
     const without = me.players.filter((id) => id !== p.id);
@@ -289,13 +311,19 @@ export async function GET(request: Request) {
   return Response.json({
     week: chopWeek, season, horizon, weights: HORIZON_WEIGHTS, fetchedAt: new Date().toISOString(),
     league: { id: LEAGUE, name: league.name, slots, capacity, bidders, bidMin },
-    me: { faab: me.faab, waiverPosition: me.waiverPosition, roster: myInfo.map((p) => ({ ...p, proj: p.proj.map(round1), elite: eliteIds.has(p.id), topPick: topPicks.has(normalizeDraftName(p.name) + "|" + p.position) })) },
+    me: { faab: me.faab, waiverPosition: me.waiverPosition, roster: myInfo.map((p) => ({ ...p, proj: p.proj.map(round1), elite: eliteIds.has(p.id), topPick: earlyPicks.has(p.id) })), openSpots: Math.max(0, capacity - me.players.length) },
     simulatedChop: simulated ? { owner: simulated.owner, released: simReleased.size } : null,
     owners: rosters.filter((r) => !r.isMine && (!r.eliminated || r === simulated)).map((r) => r.owner),
     price: { samples: book.length, medianBudget },
     learning: {
-      winsThisYear: txs.filter((t) => t.type === "waiver" && t.status === "complete").length, winsLastYear: lastYearTx.filter((t) => t.type === "waiver" && t.status === "complete").length,
-      chopsThisYear: chops.length, priceSamples: book.length, tradeCeiling, trades: seenTrades.slice(0, 12), baseline: baselineWeeks, topPickCount: topPicks.size, builtAt: new Date().toISOString(),
+      winsThisYear: txs.filter((t) => t.type === "waiver" && t.status === "complete").length + others.reduce((n, o) => n + o.tx.filter((t) => t.type === "waiver" && t.status === "complete").length, 0),
+      winsLastYear: lastYearTx.filter((t) => t.type === "waiver" && t.status === "complete").length,
+      leagues: [{ name: String(league.name), wins: txs.filter((t) => t.type === "waiver" && t.status === "complete").length }, ...others.map((o) => ({ name: o.name, wins: o.tx.filter((t) => t.type === "waiver" && t.status === "complete").length }))],
+      priceSamples: book.length, tradeCeiling, trades: seenTrades.slice(0, 14), baseline: baselineWeeks, earlyPickCount: earlyPicks.size, builtAt: new Date().toISOString(),
+      log: learningLog([
+        { label: String(league.name), book: ownBook, tx: txs, nameOf: (id) => playerName(id, players), myRosterId: Number(me.rosterId), teams },
+        ...others.map((o, i) => ({ label: o.name, book: otherBooks[i], tx: o.tx, nameOf: (id: string) => playerName(id, players), myRosterId: o.rosters.find((r) => r.isMine) ? Number(o.rosters.find((r) => r.isMine)!.rosterId) : null, teams: o.teams })),
+      ], lastYearBook, { bidders, medianBudget }),
     },
     faab: (() => {
       const sorted = [...alive].sort((a, b) => b.faab - a.faab);

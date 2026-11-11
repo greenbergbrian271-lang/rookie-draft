@@ -245,8 +245,25 @@ assert.equal(wx.length,1,"one alert per game, not per player or league");assert.
 assert.equal(buildWeatherAlerts([wxLeague],sched,8,new Date("2026-11-01T19:00:00Z")).length,0,"no weather alert once the game has kicked off");
 console.log("in-season unit checks passed");
 
-// ---- guillotine claim sheet: player #2 affordability, manual bids, win vs lands ----
-import {buildClaimSheet,orderedPairs,buildMatrix,winAt} from "../lib/in-season-guillotine.ts";
+// ---- guillotine claim sheet: impossible claims, open roster spot, manual bids, win vs lands ----
+import {buildClaimSheet,orderedPairs,buildMatrix,winAt,reachableClaims,OPEN} from "../lib/in-season-guillotine.ts";
+{
+  // The real week-10 claims (targets: Lamb, Nabers, Tuten, Kittle, Gordon, Williams, Corum; drops: Shaheed, Kamara, Sutton, Meyers; one open roster spot, $82).
+  const claims=(rows)=>reachableClaims(rows.map(x=>({t:x[1],d:x[2],bid:x[3]})),82,1,7).possible;
+  const sheet=[["Lamb open",0,-1,81],["Nabers open",1,-1,81],["Nabers Shaheed",1,0,1],["Tuten open",2,-1,61],["Tuten Shaheed",2,0,36],["Tuten Kamara",2,1,21],
+    ["Kittle open",3,-1,41],["Kittle Shaheed",3,0,12],["Kittle Kamara",3,1,10],["Gordon open",4,-1,26],["Gordon Shaheed",4,0,16],["Gordon Sutton",4,2,13],["Gordon Meyers",4,3,10],
+    ["Williams open",5,-1,19],["Williams Shaheed",5,0,11],["Williams Kamara",5,1,3],["Williams Sutton",5,2,1],["Williams Meyers",5,3,3],["Corum open",6,-1,3],["Corum Shaheed",6,0,2],["Corum Kamara",6,1,1]];
+  const ok=claims(sheet); const bad=sheet.filter((_,i)=>!ok[i]).map(x=>x[0]);
+  for(const name of ["Tuten Shaheed","Tuten Kamara","Kittle Kamara","Gordon Sutton","Gordon Meyers","Williams Meyers"])assert.ok(bad.includes(name),name+" should be impossible");
+  for(const name of ["Lamb open","Nabers Shaheed","Tuten open","Kittle Shaheed","Williams Kamara","Corum Kamara"])assert.ok(!bad.includes(name),name+" should be possible");
+  // every claim he actually placed is possible
+  const placed=[["Lamb",0,-1,81],["Nabers",1,-1,81],["Tuten",2,-1,61],["Kittle",3,-1,41],["Gordon",4,-1,26],["Williams",5,-1,19],["Corum",6,-1,3],["KittleS",3,0,12],["GordonS",4,0,11],["WilliamsS",5,0,11],["GordonK",4,1,2],["WilliamsK",5,1,2],["NabersS",1,0,1],["WilliamsSu",5,2,1],["CorumS",6,0,1],["CorumSu",6,2,1]];
+  assert.ok(claims(placed).every(Boolean),"all 16 placed claims are possible");
+  // without an open spot, a #1 claim that takes everything leaves #2's fallback impossible
+  assert.equal(reachableClaims([{t:0,d:0,bid:82},{t:1,d:0,bid:82},{t:1,d:1,bid:56}],82,0,2).possible[2],false);
+  // with $81 on #1, #2's fallback is possible at $1
+  assert.equal(reachableClaims([{t:0,d:0,bid:81},{t:1,d:0,bid:81},{t:1,d:1,bid:1}],82,0,2).possible[2],true);
+}
 {
   const mk=(id,position,proj)=>({id,name:"P"+id,position,team:"BUF",injury:"",age:25,proj,byeWeeks:[]});
   const info={r1:mk("r1","WR",[10,10,10]),r2:mk("r2","WR",[9,9,9]),r3:mk("r3","WR",[8,8,8]),a:mk("a","WR",[25,25,25]),b:mk("b","WR",[22,22,22]),c:mk("c","WR",[20,20,20])};
@@ -255,22 +272,19 @@ import {buildClaimSheet,orderedPairs,buildMatrix,winAt} from "../lib/in-season-g
   const easy=[{bid:3,win:.5},{bid:20,win:.8},{bid:50,win:.95},{bid:550,win:1}];
   const targets=[{id:"a",curve,p50:150,p75:200,p90:230},{id:"b",curve:easy,p50:20,p75:40,p90:60},{id:"c",curve:easy,p50:5,p75:10,p90:20}];
   const mx=buildMatrix(slots,roster,info,["a","b","c"]);
-  const pairs=orderedPairs(mx,["a","b","c"],["r3","r2","r1"],-99);
-  const run=(locked)=>buildClaimSheet({slots,roster,info,targets,pairs,budget:82,ladder:true,locked,bidMin:1});
-  // #1 takes the whole $82: #2's second claim is impossible and must not appear; #2's first claim and #3 rows stay
+  const run=(locked,open=0)=>buildClaimSheet({slots,roster,info,targets,pairs:orderedPairs(mx,["a","b","c"],["r3","r2","r1"],-99,60,open),budget:82,ladder:true,locked,bidMin:1,openSpots:open});
+  // no open spot, #1 takes all $82: #2's fallback cannot exist
   const full=run();
-  assert.equal(full.rows.find(r=>r.add==="a"&&r.drop==="r3").bid,82);
   assert.ok(!full.rows.some(r=>r.add==="b"&&r.drop==="r2"));
-  assert.ok(full.rows.some(r=>r.add==="b"&&r.drop==="r3"));
-  assert.ok(full.rows.some(r=>r.add==="c"&&r.drop==="r2"),"player #3 is not limited by the #2 rule");
-  // typing $81 for #1 leaves $1: player #2's second claim returns at $1 and #1's bid is untouched
+  // typing $81 for #1 leaves $1: #2's fallback returns at $1
   const edited=run({"a|r3":81});
-  const a=edited.rows.find(r=>r.add==="a"&&r.drop==="r3");
-  assert.equal(a.bid,81); assert.ok(a.locked);
+  assert.equal(edited.rows.find(r=>r.add==="a"&&r.drop==="r3").bid,81);
   const second=edited.rows.find(r=>r.add==="b"&&r.drop==="r2");
   assert.equal(second.bid,1); assert.equal(second.capped,1);
+  // open spot: every player's first claim drops nobody
+  const open=run(undefined,1);
+  for(const id of ["a","b","c"])assert.equal(open.rows.find(r=>r.add===id).drop,OPEN,id+" first claim is the open spot");
   // a claim can never land more often than it can win
-  edited.rows.forEach(r=>assert.ok(r.hit<=r.win+0.06,`${r.add}/${r.drop} lands ${r.hit} > win ${r.win}`));
-  // win % is read off the same curve the Targets table uses
+  open.rows.forEach(r=>assert.ok(r.hit<=r.win+0.06,`${r.add}/${r.drop} lands ${r.hit} > win ${r.win}`));
   assert.equal(Math.round(edited.rows.find(r=>r.add==="a"&&r.drop==="r3").win*100),Math.round(winAt(curve,81)*100));
 }

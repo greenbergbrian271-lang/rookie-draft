@@ -14,12 +14,13 @@ type Idea = { id: string; name: string; position: string; team: string; injury: 
 type Data = {
   eliminated?: boolean; week: number; horizon: number[]; league: { id: string; name: string; slots: string[]; bidMin?: number };
   learning?: Learning;
-  me: { faab: number; waiverPosition: number; roster: PlayerInfo[] };
+  me: { openSpots?: number; faab: number; waiverPosition: number; roster: PlayerInfo[] };
   faab: { teams: number; top: { owner: string; faab: number }; second: { owner: string; faab: number } | null; leadOverSecond: number; leadOverAverage: number; average: number; lowest: { owner: string; faab: number }; mine: number; mineRank: number };
   chop: { week: number; scoringPosted: boolean; result: { owner: string } | null; teams: { owner: string; ownerId?: string; chance: number; pointsSoFar: number; projectedRemaining: number; best: { id: string; name: string; position: string; team: string; gainForMe: number }[] }[] };
   simulatedChop: { owner: string; released: number } | null; owners: string[]; targets: Target[]; tradeIdeas: Idea[];
 };
-type Learning = { topPickCount?: number; winsThisYear: number; winsLastYear: number; chopsThisYear: number; priceSamples: number; tradeCeiling: number; baseline: number[]; builtAt: string; trades: { week: number; faab: number; from: string; to: string; players: string[]; picks: number; year: string }[] };
+type LearnEntry = { league: string; leg: number; wins: { name: string; bid: number; predicted: number | null; released: boolean }[]; shifts: { rank: number; before: number; after: number }[]; mine: { name: string; bid: number; won: boolean; winning: number | null; chance: number | null }[] };
+type Learning = { earlyPickCount?: number; winsThisYear: number; winsLastYear: number; leagues: { name: string; wins: number }[]; priceSamples: number; tradeCeiling: number; baseline: number[]; builtAt: string; trades: { week: number; faab: number; from: string; to: string; players: string[]; picks: number; year: string }[]; log: LearnEntry[] };
 type LeagueTab = { id: string; name: string; eliminated: boolean };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -31,7 +32,7 @@ const avgPlayed = (p: PlayerInfo) => { const x = p.proj.filter((v) => v > 0); re
 
 type Found = { id: string; name: string; position: string; team: string };
 /** `oy` = elite players you mark out for the year (so they may be cut). `bid` = bids you typed and `placed` = bids you entered in Sleeper, both keyed "week:addId|dropId" so they expire with the week. */
-type Saved = { t: string[]; d: string[]; rt: string[]; rd: string[]; custom: Found[]; oy: string[]; bid: Record<string, number>; placed: Record<string, number> };
+type Saved = { open?: number; t: string[]; d: string[]; rt: string[]; rd: string[]; custom: Found[]; oy: string[]; bid: Record<string, number>; placed: Record<string, number> };
 const EMPTY: Saved = { t: [], d: [], rt: [], rd: [], custom: [], oy: [], bid: {}, placed: {} };
 
 /** Small "i" button: hover on desktop, tap on mobile. Holds the long definitions so they are not always on screen. */
@@ -134,8 +135,8 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
   }, []);
   const customKey = saved.custom.map((c) => c.id).join(",");
   useEffect(() => { if (leagueId && savedFor === leagueId) load(leagueId, chop, customKey ? customKey.split(",") : []); }, [leagueId, chop, load, savedFor, customKey]);
-  useEffect(() => { try { const raw = window.localStorage.getItem("guillotine-folded"); if (raw) setFolded(JSON.parse(raw)); } catch { /* optional */ } }, []);
-  const toggle = (id: string) => setFolded((cur) => { const next = { ...cur, [id]: !cur[id] }; try { window.localStorage.setItem("guillotine-folded", JSON.stringify(next)); } catch { /* optional */ } return next; });
+  useEffect(() => { try { const raw = window.localStorage.getItem("guillotine-folded"); if (raw) { const o = JSON.parse(raw); delete o.learning; setFolded(o); } } catch { /* optional */ } }, []);
+  const toggle = (id: string) => setFolded((cur) => { const next = { ...cur, [id]: !(cur[id] ?? id === "learning") }; try { window.localStorage.setItem("guillotine-folded", JSON.stringify(next)); } catch { /* optional */ } return next; });
 
   useEffect(() => {
     try { const raw = window.localStorage.getItem(`guillotine-order:${leagueId}`); setSaved(raw ? { ...EMPTY, ...JSON.parse(raw) } : EMPTY); } catch { setSaved(EMPTY); }
@@ -204,6 +205,7 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
     persist({ ...saved, t: kind === "t" ? list : targetIds, d: kind === "d" ? list : dropIds });
   };
 
+  const openSpots = Math.max(0, saved.open ?? live?.me.openSpots ?? 0);
   const wk = live?.week ?? 0;
   const bkey = (add: string, drop: string) => `${wk}:${add}|${drop}`;
   /** Bids you typed or already placed in Sleeper this week, keyed "add|drop". A rebuild leaves these alone. */
@@ -220,7 +222,7 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
       const run = (budget: number, roster: string[], locked?: Record<string, number>) => {
         const mx = buildMatrix(live.league.slots, roster, info, live.targets.map((t) => t.id));
         const tg = targetIds.map((id) => targetById.get(id)!).filter(Boolean).map((t) => ({ id: t.id, curve: t.bid.curve, p50: t.bid.p50, p75: t.bid.p75, p90: t.bid.p90 }));
-        return buildClaimSheet({ slots: live.league.slots, roster, info, targets: tg, pairs: orderedPairs(mx, targetIds, dropIds.filter((id) => roster.includes(id))), budget, ladder: true, locked, bidMin: live.league.bidMin });
+        return buildClaimSheet({ slots: live.league.slots, roster, info, targets: tg, pairs: orderedPairs(mx, targetIds, dropIds.filter((id) => roster.includes(id)), undefined, undefined, openSpots), budget, ladder: true, locked, bidMin: live.league.bidMin, openSpots });
       };
       const now = run(faab, rosterIds, lockedFor(sv));
       const afterSheet = useTrade && offer && sel ? run(after, rosterIds.filter((id) => id !== sel.id)) : null;
@@ -323,7 +325,7 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
           </tbody></table></div>
           {dropIds.length > 10 && <button className={styles.link} style={{ marginTop: 6 }} onClick={() => setShowAllDrops(!showAllDrops)}>{showAllDrops ? "Show top 10" : `Show all ${dropIds.length}`}</button>}
           {restoreRow("d", saved.rd)}
-          {protectedIds.length > 0 && <div className={styles.meta} style={{ marginTop: 8 }}>Protected, never suggested as a cut: {protectedIds.map((id) => <span key={id} style={{ marginRight: 10 }}>{pn(id)}{info[id].injury ? ` (${info[id].injury})` : ""} <button className={styles.link} onClick={() => persist({ ...saved, oy: [...saved.oy, id] })}>Out for the year, allow cut</button></span>)}</div>}
+          {protectedIds.length > 0 && <div className={styles.meta} style={{ marginTop: 8 }}>Protected, never suggested as a cut: {protectedIds.map((id) => <span key={id} style={{ marginRight: 10 }}>{pn(id)}{info[id].injury ? ` (${info[id].injury})` : ""} <button className={styles.link} onClick={() => persist({ ...saved, oy: [...saved.oy, id] })}>allow cut</button></span>)}</div>}
           {markedOut.length > 0 && <div className={styles.meta} style={{ marginTop: 6 }}>Marked out for the year: {markedOut.map((id) => <span key={id} style={{ marginRight: 10 }}>{pn(id)} <button className={styles.link} onClick={() => persist({ ...saved, oy: saved.oy.filter((x) => x !== id) })}>Protect again</button></span>)}</div>}
         </Sec>
       </div>
@@ -345,9 +347,10 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
         </tbody></table></div>
       </Sec>
 
-      <Sec id="claims" title="Claim sheet" folded={!!folded.claims} toggle={toggle} info={<>Rows run in target order. Each target&apos;s bids step down by drop number: drop 1 is the most aggressive bid (about a 90% chance to beat the other bids), because it can fire with nothing else won. Drop 2 only fires if an earlier target already took drop 1, so you have already landed a player and it bids less; drop 3 means two earlier wins and bids less again, and so on. Bids never exceed your FAAB. Only swaps worth +2 or more appear.<br /><br /><b>Edit any bid.</b> Type over a bid and everything below rebuilds around it; your bid stays put. Player #2&apos;s second claim can only spend what #1 left, so it is capped at that, and left off if nothing is left (Lamb $81 of $82 leaves Nabers $1). <b>Tick Placed</b> once the claim is in Sleeper; placed bids are locked so a rebuild never changes them.<br /><br /><b>Two percentages.</b> <b>Win</b> is the chance this bid beats the best rival bid, from the same curve as the Targets table (the &quot;Win % at your FAAB&quot; column). <b>Lands</b> is the chance this exact claim is the one that goes through, after the claims above it have had their turn, so it is never higher than Win.</>}>
+      <Sec id="claims" title="Claim sheet" folded={!!folded.claims} toggle={toggle} info={<>Rows run in target order, and Sleeper runs claims from the highest bid down, so each player&apos;s first bid is never higher than the player above him. With an open roster spot the first claim on every player drops nobody; later claims fall back on drops in order. A fallback only appears if it can actually fire: its player must still be unclaimed, the earlier claim on him must have been unable to run (not simply outbid, since a lost bid loses every lower bid on him too), and you must be able to afford it after whatever had to win first. Bids never exceed your FAAB. Only swaps worth +2 or more appear.<br /><br /><b>Edit any bid.</b> Type over a bid and everything below rebuilds around it; your bid stays put. Player #2&apos;s fallback is lowered to whatever #1 leaves (Lamb $81 of $82 leaves Nabers $1). <b>Tick Placed</b> once the claim is in Sleeper; placed bids are locked so a rebuild never changes them.<br /><br /><b>Two percentages.</b> <b>Win</b> is the chance this bid beats the best rival bid, from the same curve as the Targets table (the &quot;Win % at your FAAB&quot; column). <b>Lands</b> is the chance this exact claim is the one that goes through, after the claims above it have had their turn, so it is never higher than Win.</>}>
         <div className={styles.row}>
           <button className={styles.btn} onClick={() => build()} disabled={building}>{building ? "Building…" : "Build claim sheet"}</button>
+          <label className={styles.meta} style={{ marginLeft: 10 }}>Open roster spots <input className={styles.select} style={{ width: 48 }} inputMode="numeric" value={openSpots} onChange={(e) => persist({ ...saved, open: Math.min(5, Number(e.target.value.replace(/[^0-9]/g, "")) || 0) })} aria-label="Open roster spots" /></label>
           <label className={styles.meta}><input type="checkbox" checked={useTrade} onChange={(e) => setUseTrade(e.target.checked)} disabled={!offer} /> Also show it after the trade selected below{offer ? ` (${sel!.name} → $${after})` : ""}</label>
         </div>
         {sheets && <>
@@ -359,8 +362,8 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
               <tr key={i} style={isPlaced ? { opacity: 0.6 } : undefined}>
                 <td>{i + 1}</td>
                 <td><input type="checkbox" checked={isPlaced} aria-label="Bid placed in Sleeper" onChange={(e) => { const placed = { ...saved.placed }; if (e.target.checked) placed[k] = r.bid; else delete placed[k]; persist({ ...saved, placed }); }} />{placedBid !== undefined && !isPlaced && <span className={styles.meta} style={{ color: "#f5b942" }}> changed since placed</span>}</td>
-                <td>{pn(r.add)}</td><td>{pn(r.drop)}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td>
-                <td><BidInput value={r.bid} max={sheets.budgetNow} onCommit={(n) => { const placed = { ...saved.placed }; delete placed[k]; const next = { ...saved, placed, bid: { ...saved.bid, [k]: n } }; persist(next); build(next); }} />{typed && <button className={styles.link} style={{ marginLeft: 6 }} title="Back to the model's bid" onClick={() => { const bid = { ...saved.bid }; delete bid[k]; const placed = { ...saved.placed }; delete placed[k]; const next = { ...saved, bid, placed }; persist(next); build(next); }}>↺</button>}{r.capped !== undefined && <div className={styles.meta}>only ${r.capped} left after #1</div>}</td>
+                <td>{pn(r.add)}</td><td>{r.drop === "" ? <span className={styles.meta}>no drop (open spot)</span> : pn(r.drop)}</td><td><span className={`${styles.cell} ${tierClass(r.net)}`}>{sign(r.net)}</span></td>
+                <td><BidInput value={r.bid} max={sheets.budgetNow} onCommit={(n) => { const placed = { ...saved.placed }; delete placed[k]; const next = { ...saved, placed, bid: { ...saved.bid, [k]: n } }; persist(next); build(next); }} />{typed && <button className={styles.link} style={{ marginLeft: 6 }} title="Back to the model's bid" onClick={() => { const bid = { ...saved.bid }; delete bid[k]; const placed = { ...saved.placed }; delete placed[k]; const next = { ...saved, bid, placed }; persist(next); build(next); }}>↺</button>}{r.capped !== undefined && <div className={styles.meta}>only ${r.capped} left after #1</div>}{r.impossible && <div className={styles.meta} style={{ color: "#f26d6d" }}>can&apos;t fire: skip or change it</div>}</td>
                 {sheets.after && <td>{a ? `$${a.bid}` : "—"}</td>}
                 <td>{pct(r.win)}</td><td>{r.hit >= 0.005 ? pct(r.hit) : "<1%"}</td></tr>); })}
           </tbody></table></div>
@@ -388,13 +391,30 @@ export default function GuillotineWaivers({ onOpenManager }: { onOpenManager?: (
             {live.chop.teams.map((t) => <tr key={t.owner}><td><ManagerLink ownerId={t.ownerId} onOpen={onOpenManager}>{t.owner}</ManagerLink></td><td>{t.chance}%</td><td>{t.pointsSoFar}</td><td>{t.projectedRemaining}</td><td className={styles.meta}>{t.best.filter((b) => b.gainForMe > 0).map((b, k) => <span key={b.id}>{k ? ", " : ""}<NflPlayerName name={b.name} position={b.position} team={b.team} sleeperId={b.id} /> +{b.gainForMe}</span>)}{!t.best.some((b) => b.gainForMe > 0) && "—"}</td><td><button className={styles.btn} onClick={() => setChop(t.owner)}>Test</button></td></tr>)}
           </tbody></table></div></>}
       </Sec>
-      <Sec id="learning" title="What the model has learned" folded={!!folded.learning} toggle={toggle} info={<>The bid prices are rebuilt from the league&apos;s own transactions every time the page loads, so each new waiver result and FAAB trade is picked up on refresh. Rival rosters and FAAB are live, so a player trade changes who wants whom right away. What does not adjust itself: the shape of the price model, trade-price percentages and the elite cut-offs. Those change when we recalibrate them together.</>}>
-        {live.learning ? <>
-          <div className={styles.meta} style={{ marginBottom: 8 }}>Prices come from <b>{live.learning.winsThisYear}</b> winning claims this season ({live.learning.chopsThisYear} weeks of chops) and <b>{live.learning.winsLastYear}</b> from last season, rebuilt just now. Ordinary-player trade ceiling: <b>${live.learning.tradeCeiling}</b>{live.learning.tradeCeiling > 70 ? " (raised by an actual trade in this league)" : ""}. Elite status is judged on week {live.learning.baseline.join(", ") || "n/a"} projections; {live.learning.topPickCount || 0} round 1–3 picks (2014–2026) are protected from cuts.</div>
-          <div className={styles.scroll}><table className={styles.table}><thead><tr><th>Season</th><th>Week</th><th>FAAB</th><th>Players</th><th>Picks in deal</th></tr></thead><tbody>
-            {live.learning.trades.map((t, i) => <tr key={i}><td>{t.year}</td><td>{t.week}</td><td>${t.faab}{t.year === "this year" ? <span className={styles.meta}> {t.from} → {t.to}</span> : null}</td><td className={styles.meta}>{t.players.join(", ") || "—"}</td><td>{t.picks || "—"}</td></tr>)}
-            {!live.learning.trades.length && <tr><td colSpan={5} className={styles.meta}>No FAAB trades found in the league&apos;s transactions yet.</td></tr>}
-          </tbody></table></div></> : <div className={styles.meta}>Not available.</div>}
+      <Sec id="learning" title="What the model has learned" folded={folded.learning ?? true} toggle={toggle} info={<>Prices are rebuilt from every guillotine league&apos;s own waiver results each time the page loads, including leagues you are out of, so each finished batch changes the next prices. Below is what each batch changed. The shape of the price model, trade-price percentages and the elite cut-offs do not adjust on their own; those change when we recalibrate together.</>}>
+        {live.learning ? (() => {
+          const L = live.learning;
+          const mineAll = L.log.flatMap((e) => e.mine.filter((m) => m.chance !== null));
+          const expected = mineAll.reduce((n, m) => n + (m.chance || 0), 0), won = mineAll.filter((m) => m.won).length;
+          const d = (a: number, b: number) => b === a ? `holds at $${b}` : `${b > a ? "up" : "down"} from $${a} to $${b}`;
+          return <>
+            <div className={styles.meta} style={{ marginBottom: 8 }}>Learning from {L.leagues.map((x) => `${x.name} (${x.wins} winning claims)`).join(" and ")} this season, plus {L.winsLastYear} from last season. Trade ceiling for an ordinary player: ${L.tradeCeiling}{L.tradeCeiling > 70 ? ", raised by a trade in these leagues" : ", no trade has beaten it"}. {L.earlyPickCount || 0} round 1–3 fantasy-draft picks are protected from cuts.</div>
+            {mineAll.length > 0 && <div className={styles.meta} style={{ marginBottom: 8 }}><b>Your bids so far:</b> the model expected about {expected.toFixed(1)} of your {mineAll.length} claims to win and {won} did.{won > expected + 1 ? " It has been pricing rivals too high, so prices lean lower." : expected > won + 1 ? " It has been pricing rivals too low, so prices lean higher." : " That is close enough that no correction is needed."}</div>}
+            {L.log.length === 0 && <div className={styles.meta}>No finished batches yet.</div>}
+            {L.log.map((e, i) => (
+              <div key={i} style={{ marginBottom: 10 }}>
+                <div><b>{e.league}</b> · week {e.leg} claims</div>
+                {e.shifts.length > 0 && <div className={styles.meta}>What it changed: {e.shifts.map((x) => `a #${x.rank} released player's price ${d(x.before, x.after)}`).join("; ")}.</div>}
+                {e.wins.length > 0 && <div className={styles.meta}>Winning bids: {e.wins.map((w) => `${w.name} $${w.bid}${w.predicted !== null ? ` (expected about $${w.predicted})` : ""}`).join(", ")}.</div>}
+                {e.mine.length > 0 && <div className={styles.meta}>Your claims: {e.mine.map((m) => `${m.name} $${m.bid} ${m.won ? "won" : m.winning !== null ? `lost to $${m.winning}` : "failed"}${m.chance !== null ? ` (model said ${Math.round(m.chance * 100)}%)` : ""}`).join("; ")}.</div>}
+              </div>
+            ))}
+            <div className={styles.scroll}><table className={styles.table}><thead><tr><th>League</th><th>Week</th><th>FAAB trade</th><th>Players</th><th>Picks in deal</th></tr></thead><tbody>
+              {L.trades.map((t, i) => <tr key={i}><td>{t.year}</td><td>{t.week}</td><td>${t.faab}{t.from !== "—" ? <span className={styles.meta}> {t.from} → {t.to}</span> : null}</td><td className={styles.meta}>{t.players.join(", ") || "—"}</td><td>{t.picks || "—"}</td></tr>)}
+              {!L.trades.length && <tr><td colSpan={5} className={styles.meta}>No FAAB trades found yet.</td></tr>}
+            </tbody></table></div>
+          </>;
+        })() : <div className={styles.meta}>Not available.</div>}
       </Sec>
       <div className={styles.foot}>Trade prices are estimates: ordinary starters are priced inside the range this league has actually seen (about $30–70); stars and elites (top few at RB, WR, TE, QB by projection) are priced off what each buyer would bid on waivers, scaled to his remaining FAAB, with no flat ceiling.</div>
       <div className={styles.foot}>Estimates only. Net = weighted lineup points over the next 3 weeks (week 1 counts most; weights 1.0 / 0.8 / 0.6). Prices come from this season&apos;s and last season&apos;s Guillotine Mania claims.</div>
