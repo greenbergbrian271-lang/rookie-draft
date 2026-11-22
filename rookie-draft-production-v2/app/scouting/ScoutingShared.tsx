@@ -249,3 +249,31 @@ export function CombineTestingSection({playerName,position,data,grade,children}:
 }
 
 function ReadOnly({label,value}:{label:string,value:any}){return <div className="qb-readonly"><span>{label}<em>Data</em></span><strong>{value==null||value===""?"—":String(value)}</strong></div>}
+
+export function useRankLock<T extends {id:string|number}>(live:T[]){
+  const [lockedOrder,setLockedOrder]=useState<string[]|null>(null);
+  const ordered=useMemo(()=>{
+    if(!lockedOrder)return live;
+    const frozen=new Map(lockedOrder.map((id,i)=>[id,i] as [string,number])),liveIdx=new Map(live.map((p,i)=>[String(p.id),i] as [string,number]));
+    return [...live].sort((a,b)=>{const ia=frozen.get(String(a.id)),ib=frozen.get(String(b.id));if(ia==null&&ib==null)return (liveIdx.get(String(a.id))||0)-(liveIdx.get(String(b.id))||0);if(ia==null)return 1;if(ib==null)return -1;return ia-ib});
+  },[live,lockedOrder]);
+  const pending=useMemo(()=>lockedOrder?ordered.filter((p,i)=>String(live[i]?.id)!==String(p.id)).length:0,[ordered,live,lockedOrder]);
+  const locked=lockedOrder!=null;
+  function toggle(focusElementId?:string){
+    if(locked){setLockedOrder(null);if(focusElementId)window.setTimeout(()=>document.getElementById(focusElementId)?.scrollIntoView({behavior:"auto",block:"start"}),60)}
+    else setLockedOrder(live.map(p=>String(p.id)));
+  }
+  return {ordered,locked,pending,toggle};
+}
+export function RankLockBar({locked,pending,onToggle}:{locked:boolean,pending:number,onToggle:()=>void}){
+  return <div className={"rank-lock-bar"+(locked?" locked":"")}>
+    <button type="button" className="rank-lock-btn" onClick={onToggle} aria-pressed={locked} title={locked?"Rankings are frozen. Grades still update, but players will not move until you unlock.":"Freeze the current order so players stay put while you adjust grades."}>{locked?"🔒 Ranking locked":"🔓 Lock ranking"}</button>
+    {locked&&<span className="rank-lock-note">{pending>0?pending+" player"+(pending===1?"":"s")+" will move on unlock":"Order unchanged so far"}</span>}
+  </div>;
+}
+export function ScrollToTopButton(){
+  const [show,setShow]=useState(false);
+  useEffect(()=>{const on=()=>setShow(window.scrollY>500);on();window.addEventListener("scroll",on,{passive:true});return()=>window.removeEventListener("scroll",on)},[]);
+  if(!show)return null;
+  return <button type="button" className="scroll-top-btn" aria-label="Back to top" title="Back to top" onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}>↑</button>;
+}
