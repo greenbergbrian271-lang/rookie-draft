@@ -10,7 +10,7 @@ import {wrProductionGrade} from "@/lib/wr-grades";
 import {combineGrade,percentRankInc} from "@/lib/combine-formulas";
 import {usePlayerProfile} from "@/components/PlayerProfile";
 import PriorFilmReport from "@/components/PriorFilmReport";
-import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,ScoutingPlayerHero,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed,GradeSlider,useGradeMemo} from "./ScoutingShared";import PlayerComps from "@/components/PlayerComps";
+import {DRAFT_PROJECTION_OPTIONS,DraftAdjustmentPanel,EarlyDeclareField,CombineTestingSection,ScoutingPlayerHero,MultiSelectField,earlyDeclareStatus,resolveDraftContext,useDraftFeed,GradeSlider,useGradeMemo,useRankLock,RankLockBar} from "./ScoutingShared";import PlayerComps from "@/components/PlayerComps";
 
 type Player={
   id:string|number;name:string;position:"QB"|"RB"|"WR"|"TE";college?:string;draft_class:number;
@@ -317,11 +317,12 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
     return memoGrade("rankingGradeFor",p,()=>{return finalGradeFor(p)
     });
   }
-  const rankedPlayers=useMemo(()=>[...players].sort((a,b)=>{
+  const liveRanked=useMemo(()=>[...players].sort((a,b)=>{
     const ga=rankingGradeFor(a),gb=rankingGradeFor(b);
     if(ga==null&&gb==null)return (a.watch_order||9999)-(b.watch_order||9999);
     if(ga==null)return 1;if(gb==null)return -1;return gb-ga||((a.watch_order||9999)-(b.watch_order||9999));
   }),[players,vals,imports,colleges,glossary,sessionCounts,draftPicks,gradeOverrides,archiveMode]);
+  const rankLock=useRankLock(liveRanked);const rankedPlayers=rankLock.ordered;
   const visiblePlayers=useMemo(()=>zeroGamesOnly?rankedPlayers.filter(p=>gameCountFor(p)<1):rankedPlayers,[rankedPlayers,zeroGamesOnly,sessionCounts]);
   const filtered=useMemo(()=>{const q=norm(search);return visiblePlayers.filter(p=>!q||norm(p.name+" "+(p.college||"")).includes(q))},[visiblePlayers,search]);
 
@@ -427,7 +428,7 @@ export default function WRScoutingWorkspace({players,vals,setVals,imports,glossa
   if(!players.length)return <div className="qb-workspace-empty"><h2>No watched WRs yet</h2><p>Add a wide receiver to the watched pool to start a scouting report.</p><button className="success" onClick={onAdd}>+ New Player Watched</button></div>;
   const comparePlayers=rankedPlayers.filter(p=>compareIds.includes(String(p.id)));
   return <div className="qb-workspace wr-workspace">
-    <aside className="qb-prospect-rail"><div className="qb-rail-head"><div><span className="ey">{draftClass} Wide Receivers</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div>
+    <aside className="qb-prospect-rail"><div className="qb-rail-head"><div><span className="ey">{draftClass} Wide Receivers</span><strong>{players.length} available</strong></div><button className="qb-add" onClick={onAdd} title="New Players Watched">+</button></div><RankLockBar locked={rankLock.locked} pending={rankLock.pending} onToggle={()=>rankLock.toggle(selectedId?"wr-eval-"+selectedId:undefined)}/>
       <div className="qb-mode-toggle">{(["Evaluate","Compare"] as Mode[]).map(x=><button key={x} className={mode===x?"active":""} onClick={()=>setMode(x)}>{x}</button>)}</div>
       <input className="qb-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search wide receivers…"/><button type="button" className={"qb-zero-games-filter "+(zeroGamesOnly?"active":"")} onClick={()=>setZeroGamesOnly(x=>!x)}><span>0 Games Watched</span><b>{rankedPlayers.filter(p=>gameCountFor(p)<1).length}</b></button>
       <div className="qb-prospect-list">{filtered.map(p=>{const g=rankingGradeFor(p),done=FILM.filter(x=>num(evalFor(p,x))!=null).length,rank=rankedPlayers.indexOf(p)+1;return <div className={"qb-prospect-row "+(String(p.id)===selectedId?"active":"")} key={p.id}><button className="qb-prospect-item" onClick={()=>jumpToPlayer(p)}><span className="qb-rank">WR{rank}</span><span className="qb-prospect-copy"><b>{p.name}</b><small>{p.college||"College TBD"} · {done}/7 traits</small></span><span className="qb-mini-grade">{g==null?"—":g.toFixed(2)}</span></button></div>})}</div>
