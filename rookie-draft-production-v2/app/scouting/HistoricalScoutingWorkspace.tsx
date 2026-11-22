@@ -6,6 +6,7 @@ import RBScoutingWorkspace from "./RBScoutingWorkspace";
 import WRScoutingWorkspace from "./WRScoutingWorkspace";
 import TEScoutingWorkspace from "./TEScoutingWorkspace";
 import {schoolStyle} from "@/lib/school-colors";
+import {CompactPositionTabs} from "./ScoutingShared";
 
 type Pos="QB"|"RB"|"WR"|"TE";
 type SnapshotField={group:string;label:string;value:any};
@@ -133,6 +134,7 @@ export default function HistoricalScoutingWorkspace({draftClass}:{draftClass:num
   const props={players,vals,setVals,imports,glossary:[] as any[][],draftClass,priorReports,archiveMode:true,gradeOverrides:grades,onSave:async()=>null,onAdd:()=>{}};
   return <div className="historical-parity">
     <div className="page-head"><div><span className="ey">{draftClass} Scouting Workspace</span><h1>{pos} Scouting</h1><p className="muted">2027 scouting-card parity using only values preserved in the {draftClass} workbook. Metrics that did not exist yet remain unavailable.</p></div><span className="status">● Historical · read-only</span></div>
+    <CompactPositionTabs positions={POSITIONS} pos={pos} onChange={setPos}/>
     <div className="tabs scouting-position-tabs">{POSITIONS.map(x=><button key={x} className={`scouting-position-tab pos-${x.toLowerCase()} ${x===pos?"active":"ghost"}`} onClick={()=>setPos(x)}>{x} Scouting</button>)}</div>
     {error&&<div className="notice">{error}</div>}
     {loading?<div className="card historical-parity-loading">Loading {draftClass} {pos} scouting cards…</div>:pos==="QB"?<QBScoutingWorkspace {...props}/>:pos==="RB"?<RBScoutingWorkspace {...props}/>:pos==="WR"?<WRScoutingWorkspace {...props}/>:<TEScoutingWorkspace {...props}/>}

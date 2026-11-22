@@ -277,3 +277,25 @@ export function ScrollToTopButton(){
   if(!show)return null;
   return <button type="button" className="scroll-top-btn" aria-label="Back to top" title="Back to top" onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}>↑</button>;
 }
+
+/* Compact position tabs: appear above the left prospect rail once the full "QB Scouting / RB Scouting…" tab row has scrolled out of view. */
+export function CompactPositionTabs({positions,pos,onChange}:{positions:readonly ("QB"|"RB"|"WR"|"TE")[];pos:string;onChange:(p:any)=>void}){
+  const [box,setBox]=useState<{left:number;width:number}|null>(null);
+  useEffect(()=>{
+    const update=()=>{
+      const tabs=document.querySelector(".scouting-position-tabs") as HTMLElement|null;
+      const rail=document.querySelector(".qb-prospect-rail") as HTMLElement|null;
+      const mobile=window.matchMedia("(max-width:850px)").matches;
+      const tabsGone=!!tabs&&tabs.getBoundingClientRect().bottom<58;
+      if(!tabsGone||!rail||mobile){document.body.classList.remove("scouting-compact-tabs");setBox(b=>b?null:b);return}
+      const r=rail.getBoundingClientRect();
+      document.body.classList.add("scouting-compact-tabs");
+      setBox(b=>b&&Math.abs(b.left-r.left)<.5&&Math.abs(b.width-r.width)<.5?b:{left:r.left,width:r.width});
+    };
+    update();
+    window.addEventListener("scroll",update,{passive:true});window.addEventListener("resize",update);
+    return()=>{window.removeEventListener("scroll",update);window.removeEventListener("resize",update);document.body.classList.remove("scouting-compact-tabs")};
+  },[pos]);
+  if(!box)return null;
+  return <div className="scouting-compact-tabs-bar" style={{left:box.left,width:box.width}} role="tablist" aria-label="Position">{positions.map(x=><button key={x} type="button" role="tab" aria-selected={x===pos} className={`scouting-position-tab pos-${x.toLowerCase()} ${x===pos?"active":"ghost"}`} onClick={()=>onChange(x)}>{x}</button>)}</div>;
+}

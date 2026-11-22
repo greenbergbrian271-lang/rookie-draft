@@ -913,3 +913,9 @@
 .rank-lock-note{font-size:11px;color:var(--yellow);font-weight:800}
 .scroll-top-btn{position:fixed;right:22px;bottom:22px;z-index:80;width:46px;height:46px;border-radius:50%;padding:0;font-size:24px;line-height:1;background:var(--cyan);color:#06101e;box-shadow:0 4px 16px rgba(0,0,0,.5)}
 .scroll-top-btn:hover{filter:brightness(1.1)}
+
+/* Compact position tabs above the left prospect rail (shown once the main position tabs scroll away) */
+.scouting-compact-tabs-bar{position:fixed;top:58px;z-index:30;display:flex;gap:5px;padding:0}
+.scouting-compact-tabs-bar button{flex:1 1 0;min-width:0;padding:6px 0;font-size:12px;line-height:1.2;border-radius:9px;font-weight:850;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+body.scouting-compact-tabs .qb-prospect-rail{top:100px;max-height:calc(100vh - 124px)}
+@media(max-width:850px){.scouting-compact-tabs-bar{display:none}}
